@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{FAE156CB-4EB1-4B84-864C-6F356DD7FA54}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="WinDomina.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="kbhk.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="WinDomina">
+        <MSBuild Projects="WinDomina.dproj"/>
+    </Target>
+    <Target Name="WinDomina:Clean">
+        <MSBuild Projects="WinDomina.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="WinDomina:Make">
+        <MSBuild Projects="WinDomina.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="kbhk">
+        <MSBuild Projects="kbhk.dproj"/>
+    </Target>
+    <Target Name="kbhk:Clean">
+        <MSBuild Projects="kbhk.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="kbhk:Make">
+        <MSBuild Projects="kbhk.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="WinDomina;kbhk"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="WinDomina:Clean;kbhk:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="WinDomina:Make;kbhk:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
