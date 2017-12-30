@@ -251,7 +251,6 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
     Window: THandle;
     Rect, WorkareaRect: TRect;
     WAWidth, WAHeight, TileWidth, TileHeight: Integer;
-
   begin
     if DominaWindows.Count = 0 then
       Exit;
@@ -266,11 +265,11 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
     TileHeight := WAHeight div 3;
 
     Rect.Left := WorkareaRect.Left + (TileX * TileWidth);
-    Rect.Right := Rect.Left + (TileWidth - 1);
+    Rect.Right := Rect.Left + TileWidth;
     Rect.Top := WorkareaRect.Top + (TileY * TileHeight);
-    Rect.Bottom := Rect.Top + (TileHeight - 1);
+    Rect.Bottom := Rect.Top + TileHeight;
 
-    SetWindowPos(Window, 0, Rect.Left, Rect.Top, Rect.Width, Rect.Height, SWP_NOZORDER);
+    SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
   end;
 
   procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
