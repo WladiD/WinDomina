@@ -4,7 +4,11 @@ uses
   Vcl.Forms,
   WinDomina.Main in 'WinDomina.Main.pas' {MainForm},
   WinDomina.Types in 'WinDomina.Types.pas',
-  WinDomina.WindowTools in 'WinDomina.WindowTools.pas';
+  WinDomina.WindowTools in 'WinDomina.WindowTools.pas',
+  WinDomina.Layer in 'WinDomina.Layer.pas',
+  WinDomina.Layer.Grid in 'WinDomina.Layer.Grid.pas',
+  WinDomina.Layer.Mover in 'WinDomina.Layer.Mover.pas',
+  WinDomina.Registry in 'WinDomina.Registry.pas';
 
 {$R *.res}
 

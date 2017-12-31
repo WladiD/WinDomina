@@ -4,6 +4,7 @@ interface
 
 uses
   System.SysUtils,
+  System.Classes,
   System.Generics.Collections,
   Winapi.Windows,
   Winapi.Messages;
@@ -28,6 +29,71 @@ const
   WD_KEYDOWN_DOMINA_MODE = WM_USER + 71;
   WD_KEYUP_DOMINA_MODE = WM_USER + 72;
 
+type
+  TKeyStates = class
+  protected
+    States: TBits;
+
+    procedure SetKeyPressed(Key: Integer; State: Boolean);
+    function GetKeyPressed(Key: Integer): Boolean;
+
+  public
+    destructor Destroy; override;
+
+    function IsShiftKeyPressed: Boolean;
+    function IsControlKeyPressed: Boolean;
+    function IsAltKeyPressed: Boolean;
+
+    procedure ReleaseAllKeys;
+
+    property KeyPressed[Key: Integer]: Boolean read GetKeyPressed write SetKeyPressed;
+  end;
+
 implementation
+
+{ TKeyStates }
+
+destructor TKeyStates.Destroy;
+begin
+  States.Free;
+
+  inherited Destroy;
+end;
+
+procedure TKeyStates.SetKeyPressed(Key: Integer; State: Boolean);
+begin
+  if not Assigned(States) then
+  begin
+    States := TBits.Create;
+    States.Size := 1024;
+  end;
+  if Key < States.Size then
+    States.Bits[Key] := State;
+end;
+
+function TKeyStates.GetKeyPressed(Key: Integer): Boolean;
+begin
+  Result := Assigned(States) and (Key < States.Size) and States.Bits[Key];
+end;
+
+function TKeyStates.IsShiftKeyPressed: Boolean;
+begin
+  Result := KeyPressed[VK_LSHIFT] or KeyPressed[VK_RSHIFT];
+end;
+
+function TKeyStates.IsControlKeyPressed: Boolean;
+begin
+  Result := KeyPressed[VK_LCONTROL] or KeyPressed[VK_RCONTROL];
+end;
+
+function TKeyStates.IsAltKeyPressed: Boolean;
+begin
+  Result := KeyPressed[VK_LMENU] or KeyPressed[VK_RMENU];
+end;
+
+procedure TKeyStates.ReleaseAllKeys;
+begin
+  FreeAndNil(States);
+end;
 
 end.

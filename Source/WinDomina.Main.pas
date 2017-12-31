@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, System.Generics.Collections, Vcl.StdCtrls,
-  WinDomina.Types, WinDomina.WindowTools;
+  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry;
 
 type
   TInstallHook = function(Hwnd: THandle): Boolean; stdcall;
@@ -23,13 +23,6 @@ type
     KBHKLib: NativeUInt;
     FDominaWindows: TWindowList;
     WDKeyPressed: TBits;
-
-    procedure SetWDMKeyPressed(Key: Integer; State: Boolean);
-    function IsWDMKeyPressed(Key: Integer): Boolean;
-    function IsWDMShiftKeyPressed: Boolean;
-    function IsWDMControlKeyPressed: Boolean;
-    function IsWDMAltKeyPressed: Boolean;
-    procedure ReleaseWDMKeys;
 
     procedure SetDominaWindows(Value: TWindowList);
     procedure LogWindow(Window: THandle);
@@ -65,6 +58,8 @@ begin
   end
   else
     raise Exception.Create('Failed to load kbhk.dll');
+
+  RegisterWDMKeyStates(TKeyStates.Create);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -139,42 +134,6 @@ begin
   Result := True;
 end;
 
-procedure TMainForm.SetWDMKeyPressed(Key: Integer; State: Boolean);
-begin
-  if not Assigned(WDKeyPressed) then
-  begin
-    WDKeyPressed := TBits.Create;
-    WDKeyPressed.Size := 1024;
-  end;
-  if Key < WDKeyPressed.Size then
-    WDKeyPressed[Key] := State;
-end;
-
-function TMainForm.IsWDMKeyPressed(Key: Integer): Boolean;
-begin
-  Result := Assigned(WDKeyPressed) and (Key < WDKeyPressed.Size) and WDKeyPressed[Key];
-end;
-
-function TMainForm.IsWDMShiftKeyPressed: Boolean;
-begin
-  Result := IsWDMKeyPressed(VK_LSHIFT) or IsWDMKeyPressed(VK_RSHIFT);
-end;
-
-function TMainForm.IsWDMControlKeyPressed: Boolean;
-begin
-  Result := IsWDMKeyPressed(VK_LCONTROL) or IsWDMKeyPressed(VK_RCONTROL);
-end;
-
-function TMainForm.IsWDMAltKeyPressed: Boolean;
-begin
-  Result := IsWDMKeyPressed(VK_LMENU) or IsWDMKeyPressed(VK_RMENU);
-end;
-
-procedure TMainForm.ReleaseWDMKeys;
-begin
-  FreeAndNil(WDKeyPressed);
-end;
-
 procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
 
   function HasParentWindow(Window: HWND; out ParentWindow: HWND): Boolean;
@@ -241,7 +200,7 @@ end;
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
   Caption := 'Normaler Modus';
-  ReleaseWDMKeys;
+  WDMKeyStates.ReleaseAllKeys;
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
@@ -292,7 +251,7 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
     GetWindowRect(Window, Rect);
     WorkareaRect := GetWorkareaRect(Rect);
 
-    FastMode := not IsWDMShiftKeyPressed;
+    FastMode := not WDMKeyStates.IsShiftKeyPressed;
 
     if FastMode then
     begin
@@ -307,7 +266,7 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
       FMStepY := 0;
     end;
 
-    if IsWDMControlKeyPressed then
+    if WDMKeyStates.IsControlKeyPressed then
     begin
       if FastMode then
       begin
@@ -338,7 +297,7 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
   end;
 
 begin
-  SetWDMKeyPressed(Message.WParam, True);
+  WDMKeyStates.KeyPressed[Message.WParam] := True;
 
   case Message.WParam of
     VK_ESCAPE:
@@ -374,7 +333,7 @@ end;
 
 procedure TMainForm.WD_KeyUpDominaMode(var Message: TMessage);
 begin
-  SetWDMKeyPressed(Message.WParam, False);
+  WDMKeyStates.KeyPressed[Message.WParam] := False;
 end;
 
 end.
