@@ -120,7 +120,7 @@ var
   WindowStyle: NativeInt;
   Rect: TRect;
 
-  function HasStyle(CheckMask: NativeInt): Boolean;
+  function HasStyle(CheckMask: FixedUInt): Boolean;
   begin
     Result := (WindowStyle and CheckMask) = CheckMask;
   end;
@@ -231,12 +231,17 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
     SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
   end;
 
+  function RectToString(const Rect: TRect): string;
+  begin
+    Result := Format('%d, %d - %d, %d', [Rect.Left, Rect.Top, Rect.Width, Rect.Height]);
+  end;
+
   procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
   var
     Window: THandle;
     FastMode: Boolean;
     FMStepX, FMStepY: Integer;
-    Rect, WorkareaRect: TRect;
+    Rect, WorkareaRect, OverSizeRect: TRect;
 
     procedure AdjustForFastModeStep(var TargetVar: Integer; Step: Integer);
     begin
@@ -249,14 +254,18 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
 
     Window := DominaWindows[0];
     GetWindowRect(Window, Rect);
+    LogMemo.Lines.Add('GetWindowRect: ' + RectToString(Rect));
     WorkareaRect := GetWorkareaRect(Rect);
+    GetWindowRectDominaStyle(Window, Rect);
+//    LogMemo.Lines.Add('GetWindowRectDominaStyle: ' + RectToString(Rect));
+    OverSizeRect := GetWindowNonClientOversize(Window);
 
     FastMode := not WDMKeyStates.IsShiftKeyPressed;
 
     if FastMode then
     begin
-      FMStepX := (WorkareaRect.Width div 100);
-      FMStepY := (WorkareaRect.Height div 100);
+      FMStepX := (WorkareaRect.Width div 90);
+      FMStepY := (WorkareaRect.Height div 90);
       DeltaX := DeltaX * FMStepX;
       DeltaY := DeltaY * FMStepY;
     end
@@ -276,8 +285,8 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
           AdjustForFastModeStep(Rect.Bottom, FMStepY);
       end;
 
-      Inc(Rect.Right, DeltaX);
-      Inc(Rect.Bottom, DeltaY);
+      Inc(Rect.Right, DeltaX + -OverSizeRect.Right);
+      Inc(Rect.Bottom, DeltaY + -OverSizeRect.Bottom);
       SetWindowPos(Window, 0, 0, 0, Rect.Width, Rect.Height, SWP_NOZORDER or SWP_NOMOVE);
     end
     else
@@ -290,8 +299,16 @@ procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
           AdjustForFastModeStep(Rect.Top, FMStepY);
       end;
 
-      Inc(Rect.Left, DeltaX);
-      Inc(Rect.Top, DeltaY);
+      if (Rect.Left <= WorkareaRect.Left) and FastMode and (DeltaX < 0) then
+        Rect.Left := WorkareaRect.Left + OverSizeRect.Left
+      else
+        Inc(Rect.Left, DeltaX + -OverSizeRect.Left);
+
+      if (Rect.Top <= WorkareaRect.Top) and FastMode and (DeltaY < 0) then
+        Rect.Top := WorkareaRect.Top + OverSizeRect.Top
+      else
+        Inc(Rect.Top, DeltaY + -OverSizeRect.Top);
+
       SetWindowPos(Window, 0, Rect.Left, Rect.Top, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
     end;
   end;

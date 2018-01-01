@@ -6,8 +6,10 @@ uses
   System.SysUtils,
   System.Classes,
   System.Generics.Collections,
+  System.UITypes,
   Winapi.Windows,
-  Winapi.Messages;
+  Winapi.Messages,
+  WinDomina.Layer;
 
 type
   // Structure used by WH_KEYBOARD_LL
@@ -49,6 +51,9 @@ type
     property KeyPressed[Key: Integer]: Boolean read GetKeyPressed write SetKeyPressed;
   end;
 
+type
+  TKeyLayerList = TDictionary<Integer, TBaseLayer>;
+
 implementation
 
 { TKeyStates }
@@ -78,17 +83,17 @@ end;
 
 function TKeyStates.IsShiftKeyPressed: Boolean;
 begin
-  Result := KeyPressed[VK_LSHIFT] or KeyPressed[VK_RSHIFT];
+  Result := KeyPressed[vkLShift] or KeyPressed[vkRShift];
 end;
 
 function TKeyStates.IsControlKeyPressed: Boolean;
 begin
-  Result := KeyPressed[VK_LCONTROL] or KeyPressed[VK_RCONTROL];
+  Result := KeyPressed[vkLControl] or KeyPressed[vkRControl];
 end;
 
 function TKeyStates.IsAltKeyPressed: Boolean;
 begin
-  Result := KeyPressed[VK_LMENU] or KeyPressed[VK_RMENU];
+  Result := KeyPressed[vkLMenu] or KeyPressed[vkRMenu];
 end;
 
 procedure TKeyStates.ReleaseAllKeys;

@@ -15,6 +15,8 @@ function GetWorkareaRect(RefWindow: THandle): TRect; overload;
 
 function WindowStyleToString(Style: Long): string;
 
+function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
+function GetWindowNonClientOversize(Window: THandle): TRect;
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
 
 implementation
@@ -38,7 +40,7 @@ end;
 // @see <https://msdn.microsoft.com/de-de/library/windows/desktop/ms632600(v=vs.85).aspx>
 function WindowStyleToString(Style: Long): string;
 
-  procedure AppendFlag(Mask: Long; FlagName: string);
+  procedure AppendFlag(Mask: FixedUInt; FlagName: string);
   begin
     if (Style and Mask) = Mask then
       Result := Result + IfThen(Result <> '', ', ') + FlagName;
@@ -111,6 +113,27 @@ begin
   WindowInfo.WindowSizeable := (WindowStyle and WS_SIZEBOX) <> 0;
 end;
 
+function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
+begin
+  InitWindowInfo(Window);
+
+  Result := GetWindowRect(Window, Rect);
+  // Extend the given rect by shadow
+  if not WindowInfo.DropShadowSize.IsEmpty then
+  begin
+    Inc(Rect.Left, WindowInfo.DropShadowSize.Left);
+    Inc(Rect.Top, WindowInfo.DropShadowSize.Top);
+    Inc(Rect.Right, WindowInfo.DropShadowSize.Right);
+    Inc(Rect.Bottom, WindowInfo.DropShadowSize.Bottom);
+  end;
+end;
+
+function GetWindowNonClientOversize(Window: THandle): TRect;
+begin
+  InitWindowInfo(Window);
+  Result := WindowInfo.DropShadowSize;
+end;
+
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect;
   Flags: Cardinal): Boolean;
 var
@@ -139,10 +162,7 @@ begin
 
   // If the window is not sizeable, add the SWP_NOSIZE flag
   if not NoSizeFlag and not WindowInfo.WindowSizeable then
-  begin
     Flags := Flags or SWP_NOSIZE;
-    NoSizeFlag := True;
-  end;
 
   Result := Winapi.Windows.SetWindowPos(hWnd, hWndInsertAfter, Rect.Left, Rect.Top,
     Rect.Width, Rect.Height, Flags);

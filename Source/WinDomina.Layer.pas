@@ -15,6 +15,9 @@ type
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
 
   public
+    constructor Create; virtual;
+    destructor Destroy; override;
+
     procedure EnterLayer; virtual; abstract;
     procedure ExitLayer; virtual; abstract;
   end;
@@ -22,6 +25,17 @@ type
 implementation
 
 { TBaseLayer }
+
+constructor TBaseLayer.Create;
+begin
+
+end;
+
+destructor TBaseLayer.Destroy;
+begin
+
+  inherited Destroy;
+end;
 
 // Registriert die Tasten, die zu einer Aktivierung des Layers führen
 //
