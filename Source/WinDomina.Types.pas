@@ -8,8 +8,7 @@ uses
   System.Generics.Collections,
   System.UITypes,
   Winapi.Windows,
-  Winapi.Messages,
-  WinDomina.Layer;
+  Winapi.Messages;
 
 type
   // Structure used by WH_KEYBOARD_LL
@@ -50,9 +49,6 @@ type
 
     property KeyPressed[Key: Integer]: Boolean read GetKeyPressed write SetKeyPressed;
   end;
-
-type
-  TKeyLayerList = TDictionary<Integer, TBaseLayer>;
 
 implementation
 

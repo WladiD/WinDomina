@@ -4,15 +4,14 @@ interface
 
 uses
   System.SysUtils,
-  System.Classes;
+  System.Classes,
+  System.Generics.Collections,
+  WinDomina.Types;
 
 type
   TBaseLayer = class
   protected
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
-
-    procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
-    procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
 
   public
     constructor Create; virtual;
@@ -20,9 +19,19 @@ type
 
     procedure EnterLayer; virtual; abstract;
     procedure ExitLayer; virtual; abstract;
+
+    procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
+    procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
   end;
 
+  TKeyLayerList = TDictionary<Integer, TBaseLayer>;
+  TLayerList = TObjectList<TBaseLayer>;
+  TLayerStack = TStack<TBaseLayer>;
+
 implementation
+
+uses
+  WinDomina.Registry;
 
 { TBaseLayer }
 
@@ -42,18 +51,23 @@ end;
 // Es ist irrelevant welcher Layer gerade aktiv ist, wenn die jeweilige Taste nicht vom aktiven
 // Layer kosumiert wurde, wird sie für die Aktivierung verwendet.
 procedure TBaseLayer.RegisterLayerActivationKeys(Keys: array of Integer);
+var
+  Key: Integer;
+  List: TKeyLayerList;
 begin
-
+  List := LayerActivationKeys;
+  for Key in Keys do
+    List.Add(Key, Self);
 end;
 
 procedure TBaseLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 begin
-
+  Handled := False;
 end;
 
 procedure TBaseLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
 begin
-
+  Handled := False;
 end;
 
 end.

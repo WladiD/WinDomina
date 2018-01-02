@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, System.Generics.Collections, Vcl.StdCtrls,
-  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry;
+  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry, WinDomina.Layer;
 
 type
   TInstallHook = function(Hwnd: THandle): Boolean; stdcall;
@@ -21,18 +21,19 @@ type
     EnterDominaMode: TProcedure;
     ExitDominaMode: TProcedure;
     KBHKLib: NativeUInt;
-    FDominaWindows: TWindowList;
-    WDKeyPressed: TBits;
+    Layers: TLayerList;
+    ActiveLayers: TLayerList;
 
-    procedure SetDominaWindows(Value: TWindowList);
+    procedure AddLayer(Layer: TBaseLayer);
+    function GetActiveLayer: TBaseLayer;
+    procedure PushActiveLayer(Layer: TBaseLayer);
+
     procedure LogWindow(Window: THandle);
 
     procedure WD_EnterDominaMode(var Message: TMessage); message WD_ENTER_DOMINA_MODE;
     procedure WD_ExitDominaMode(var Message: TMessage); message WD_EXIT_DOMINA_MODE;
     procedure WD_KeyDownDominaMode(var Message: TMessage); message WD_KEYDOWN_DOMINA_MODE;
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
-
-    property DominaWindows: TWindowList read FDominaWindows write SetDominaWindows;
   end;
 
 var
@@ -40,12 +41,21 @@ var
 
 implementation
 
+uses
+  WinDomina.Layer.Grid,
+  WinDomina.Layer.Mover;
+
 {$R *.dfm}
 
 procedure TMainForm.FormCreate(Sender: TObject);
-begin
-  FDominaWindows := TWindowList.Create;
 
+  procedure AddLayers;
+  begin
+    AddLayer(TGridLayer.Create);
+    AddLayer(TMoverLayer.Create);
+  end;
+
+begin
   KBHKLib := LoadLibrary('kbhk.dll');
   if KBHKLib > 0 then
   begin
@@ -59,7 +69,13 @@ begin
   else
     raise Exception.Create('Failed to load kbhk.dll');
 
+  Layers := TLayerList.Create(True);
+  ActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
+  RegisterLayerActivationKeys(TKeyLayerList.Create);
+  RegisterDominaWindows(TWindowList.Create);
+
+  AddLayers;
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -70,8 +86,36 @@ begin
     FreeLibrary(KBHKLib);
   end;
 
-  FDominaWindows.Free;
-  WDKeyPressed.Free;
+  ActiveLayers.Free;
+  Layers.Free;
+end;
+
+procedure TMainForm.AddLayer(Layer: TBaseLayer);
+begin
+  Layers.Add(Layer);
+end;
+
+function TMainForm.GetActiveLayer: TBaseLayer;
+begin
+  Result := ActiveLayers.First;
+end;
+
+procedure TMainForm.PushActiveLayer(Layer: TBaseLayer);
+var
+  LayerIndex: Integer;
+begin
+  LogMemo.Lines.Add(Layer.ClassName + ' aktiviert');
+
+  LayerIndex := ActiveLayers.IndexOf(Layer);
+
+  if LayerIndex >= 0 then
+  begin
+    ActiveLayers.Exchange(LayerIndex, 0);
+    Exit;
+  end;
+
+  ActiveLayers.Insert(0, Layer);
+  Layer.EnterLayer;
 end;
 
 procedure TMainForm.LogWindow(Window: THandle);
@@ -106,12 +150,6 @@ begin
     MainForm.LogWindow(Wnd);
   end;
   Result := True;
-end;
-
-procedure TMainForm.SetDominaWindows(Value: TWindowList);
-begin
-  FDominaWindows.Clear;
-  FDominaWindows.AddRange(Value);
 end;
 
 function EnumAppWindowsProc(Window: THandle; Target: Pointer): Boolean; stdcall;
@@ -167,7 +205,6 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
   end;
 
 var
-//  FGWindow, ParentWindow: HWND;
   AppWins: TWindowList;
   AppWin: THandle;
 begin
@@ -181,176 +218,61 @@ begin
       LogWindow(AppWin);
     end;
 
-    DominaWindows := AppWins;
+    DominaWindows.Clear;
+    DominaWindows.AddRange(AppWins);
+//    BroadcastDominaWindowsChangeNotify;
   finally
     AppWins.Free;
   end;
 
-//  FGWindow := GetForegroundWindow;
-//  LogMemo.Lines.Add('ForegroundWindow:');
-//  LogWindow(FGWindow);
-//
-//  if HasParentWindow(FGWindow, ParentWindow) then
-//  begin
-//    LogMemo.Lines.Add('ParentWindow:');
-//    LogWindow(ParentWindow);
-//  end;
+  PushActiveLayer(Layers.First);
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
   Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
+  ActiveLayers.Clear;
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
-
-  procedure SizeWindowTile(TileX, TileY: Integer);
-  var
-    Window: THandle;
-    Rect, WorkareaRect: TRect;
-    WAWidth, WAHeight, TileWidth, TileHeight: Integer;
-  begin
-    if DominaWindows.Count = 0 then
-      Exit;
-
-    Window := DominaWindows[0];
-    WorkareaRect := GetWorkareaRect(Window);
-
-    WAWidth := WorkareaRect.Width;
-    WAHeight := WorkareaRect.Height;
-
-    TileWidth := WAWidth div 3;
-    TileHeight := WAHeight div 3;
-
-    Rect.Left := WorkareaRect.Left + (TileX * TileWidth);
-    Rect.Right := Rect.Left + TileWidth;
-    Rect.Top := WorkareaRect.Top + (TileY * TileHeight);
-    Rect.Bottom := Rect.Top + TileHeight;
-
-    SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
-  end;
-
-  function RectToString(const Rect: TRect): string;
-  begin
-    Result := Format('%d, %d - %d, %d', [Rect.Left, Rect.Top, Rect.Width, Rect.Height]);
-  end;
-
-  procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
-  var
-    Window: THandle;
-    FastMode: Boolean;
-    FMStepX, FMStepY: Integer;
-    Rect, WorkareaRect, OverSizeRect: TRect;
-
-    procedure AdjustForFastModeStep(var TargetVar: Integer; Step: Integer);
-    begin
-      TargetVar := (TargetVar div Step) * Step;
-    end;
-
-  begin
-    if DominaWindows.Count = 0 then
-      Exit;
-
-    Window := DominaWindows[0];
-    GetWindowRect(Window, Rect);
-    LogMemo.Lines.Add('GetWindowRect: ' + RectToString(Rect));
-    WorkareaRect := GetWorkareaRect(Rect);
-    GetWindowRectDominaStyle(Window, Rect);
-//    LogMemo.Lines.Add('GetWindowRectDominaStyle: ' + RectToString(Rect));
-    OverSizeRect := GetWindowNonClientOversize(Window);
-
-    FastMode := not WDMKeyStates.IsShiftKeyPressed;
-
-    if FastMode then
-    begin
-      FMStepX := (WorkareaRect.Width div 90);
-      FMStepY := (WorkareaRect.Height div 90);
-      DeltaX := DeltaX * FMStepX;
-      DeltaY := DeltaY * FMStepY;
-    end
-    else
-    begin
-      FMStepX := 0;
-      FMStepY := 0;
-    end;
-
-    if WDMKeyStates.IsControlKeyPressed then
-    begin
-      if FastMode then
-      begin
-        if DeltaX <> 0 then
-          AdjustForFastModeStep(Rect.Right, FMStepX);
-        if DeltaY <> 0 then
-          AdjustForFastModeStep(Rect.Bottom, FMStepY);
-      end;
-
-      Inc(Rect.Right, DeltaX + -OverSizeRect.Right);
-      Inc(Rect.Bottom, DeltaY + -OverSizeRect.Bottom);
-      SetWindowPos(Window, 0, 0, 0, Rect.Width, Rect.Height, SWP_NOZORDER or SWP_NOMOVE);
-    end
-    else
-    begin
-      if FastMode then
-      begin
-        if DeltaX <> 0 then
-          AdjustForFastModeStep(Rect.Left, FMStepX);
-        if DeltaY <> 0 then
-          AdjustForFastModeStep(Rect.Top, FMStepY);
-      end;
-
-      if (Rect.Left <= WorkareaRect.Left) and FastMode and (DeltaX < 0) then
-        Rect.Left := WorkareaRect.Left + OverSizeRect.Left
-      else
-        Inc(Rect.Left, DeltaX + -OverSizeRect.Left);
-
-      if (Rect.Top <= WorkareaRect.Top) and FastMode and (DeltaY < 0) then
-        Rect.Top := WorkareaRect.Top + OverSizeRect.Top
-      else
-        Inc(Rect.Top, DeltaY + -OverSizeRect.Top);
-
-      SetWindowPos(Window, 0, Rect.Left, Rect.Top, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
-    end;
-  end;
-
+var
+  Handled: Boolean;
+  Key: Integer;
+  Layer, CurActiveLayer: TBaseLayer;
 begin
-  WDMKeyStates.KeyPressed[Message.WParam] := True;
+  Key := Message.WParam;
+  WDMKeyStates.KeyPressed[Key] := True;
 
-  case Message.WParam of
-    VK_ESCAPE:
-      ExitDominaMode;
-    VK_LEFT:
-      MoveSizeWindow(-1, 0);
-    VK_RIGHT:
-      MoveSizeWindow(1, 0);
-    VK_UP:
-      MoveSizeWindow(0, -1);
-    VK_DOWN:
-      MoveSizeWindow(0, 1);
-    VK_NUMPAD1:
-      SizeWindowTile(0, 2);
-    VK_NUMPAD2:
-      SizeWindowTile(1, 2);
-    VK_NUMPAD3:
-      SizeWindowTile(2, 2);
-    VK_NUMPAD4:
-      SizeWindowTile(0, 1);
-    VK_NUMPAD5:
-      SizeWindowTile(1, 1);
-    VK_NUMPAD6:
-      SizeWindowTile(2, 1);
-    VK_NUMPAD7:
-      SizeWindowTile(0, 0);
-    VK_NUMPAD8:
-      SizeWindowTile(1, 0);
-    VK_NUMPAD9:
-      SizeWindowTile(2, 0);
+  Handled := False;
+
+  CurActiveLayer := GetActiveLayer;
+  CurActiveLayer.HandleKeyDown(Key, Handled);
+
+  if not Handled and LayerActivationKeys.TryGetValue(Key, Layer) and (Layer <> CurActiveLayer) then
+  begin
+    PushActiveLayer(Layer);
+    Layer.HandleKeyDown(Key, Handled);
+  end;
+
+  if not Handled then
+  begin
+    case Key of
+      VK_ESCAPE:
+        ExitDominaMode;
+    end;
   end;
 end;
 
 procedure TMainForm.WD_KeyUpDominaMode(var Message: TMessage);
+var
+  Key: Integer;
+  Handled: Boolean;
 begin
-  WDMKeyStates.KeyPressed[Message.WParam] := False;
+  Key := Message.WParam;
+  WDMKeyStates.KeyPressed[Key] := False;
+
+  GetActiveLayer.HandleKeyUp(Key, Handled);
 end;
 
 end.
