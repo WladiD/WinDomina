@@ -37,12 +37,14 @@ end;
 
 procedure TMoverLayer.EnterLayer;
 begin
-
+  inherited EnterLayer;
+  AddLog('TMoverLayer.EnterLayer');
 end;
 
 procedure TMoverLayer.ExitLayer;
 begin
-
+  AddLog('TMoverLayer.ExitLayer');
+  inherited ExitLayer;
 end;
 
 procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);

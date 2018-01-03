@@ -69,6 +69,7 @@ begin
   else
     raise Exception.Create('Failed to load kbhk.dll');
 
+  RegisterLogging(TStringsLogging.Create(LogMemo.Lines));
   Layers := TLayerList.Create(True);
   ActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
@@ -103,19 +104,24 @@ end;
 procedure TMainForm.PushActiveLayer(Layer: TBaseLayer);
 var
   LayerIndex: Integer;
+  CurLayer: TBaseLayer;
 begin
-  LogMemo.Lines.Add(Layer.ClassName + ' aktiviert');
+  if ActiveLayers.Count > 0 then
+  begin
+    CurLayer := GetActiveLayer;
+    if CurLayer.IsLayerActive and (CurLayer <> Layer) then
+      CurLayer.ExitLayer;
+  end;
 
   LayerIndex := ActiveLayers.IndexOf(Layer);
 
-  if LayerIndex >= 0 then
-  begin
-    ActiveLayers.Exchange(LayerIndex, 0);
-    Exit;
-  end;
+  if LayerIndex > 0 then
+    ActiveLayers.Exchange(LayerIndex, 0)
+  else if LayerIndex = -1 then
+    ActiveLayers.Insert(0, Layer);
 
-  ActiveLayers.Insert(0, Layer);
-  Layer.EnterLayer;
+  if not Layer.IsLayerActive then
+    Layer.EnterLayer;
 end;
 
 procedure TMainForm.LogWindow(Window: THandle);
@@ -132,11 +138,11 @@ procedure TMainForm.LogWindow(Window: THandle);
   end;
 
 begin
-  LogMemo.Lines.Add(GetLogString(Window));
-//  LogMemo.Lines.Add('-- GetAncestor(Window, GA_PARENT): ' + GetLogString(GetAncestor(Window, GA_PARENT)));
-//  LogMemo.Lines.Add('-- GetAncestor(Window, GA_ROOT): ' + GetLogString(GetAncestor(Window, GA_ROOT)));
-//  LogMemo.Lines.Add('-- GetAncestor(Window, GA_ROOTOWNER): ' + GetLogString(GetAncestor(Window, GA_ROOTOWNER)));
-  LogMemo.Lines.Add('-- Style: ' + WindowStyleToString(GetWindowLong(Window, GWL_STYLE)));
+  AddLog(GetLogString(Window));
+//  AddLog('-- GetAncestor(Window, GA_PARENT): ' + GetLogString(GetAncestor(Window, GA_PARENT)));
+//  AddLog('-- GetAncestor(Window, GA_ROOT): ' + GetLogString(GetAncestor(Window, GA_ROOT)));
+//  AddLog('-- GetAncestor(Window, GA_ROOTOWNER): ' + GetLogString(GetAncestor(Window, GA_ROOTOWNER)));
+  AddLog('-- Style: ' + WindowStyleToString(GetWindowLong(Window, GWL_STYLE)));
 end;
 
 var
@@ -232,6 +238,7 @@ procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
   Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
+  GetActiveLayer.ExitLayer;
   ActiveLayers.Clear;
 end;
 

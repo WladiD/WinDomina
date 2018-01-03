@@ -50,6 +50,21 @@ type
     property KeyPressed[Key: Integer]: Boolean read GetKeyPressed write SetKeyPressed;
   end;
 
+  ILogging = interface
+    ['{CCEF1BD9-1233-4B1C-84C0-863AE319FACB}']
+
+    procedure AddLog(const LogLine: string);
+  end;
+
+  TStringsLogging = class(TInterfacedObject, ILogging)
+  protected
+    FStrings: TStrings;
+
+    procedure AddLog(const LogLine: string);
+  public
+    constructor Create(Target: TStrings);
+  end;
+
 implementation
 
 { TKeyStates }
@@ -95,6 +110,18 @@ end;
 procedure TKeyStates.ReleaseAllKeys;
 begin
   FreeAndNil(States);
+end;
+
+{ TStringsLogging }
+
+constructor TStringsLogging.Create(Target: TStrings);
+begin
+  FStrings := Target;
+end;
+
+procedure TStringsLogging.AddLog(const LogLine: string);
+begin
+  FStrings.Add(LogLine);
 end;
 
 end.

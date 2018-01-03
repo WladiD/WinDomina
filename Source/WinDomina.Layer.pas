@@ -10,18 +10,24 @@ uses
 
 type
   TBaseLayer = class
+  private
+
   protected
+    FIsLayerActive: Boolean;
+
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
 
   public
     constructor Create; virtual;
     destructor Destroy; override;
 
-    procedure EnterLayer; virtual; abstract;
-    procedure ExitLayer; virtual; abstract;
+    procedure EnterLayer; virtual;
+    procedure ExitLayer; virtual;
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
+
+    property IsLayerActive: Boolean read FIsLayerActive;
   end;
 
   TKeyLayerList = TDictionary<Integer, TBaseLayer>;
@@ -44,6 +50,16 @@ destructor TBaseLayer.Destroy;
 begin
 
   inherited Destroy;
+end;
+
+procedure TBaseLayer.EnterLayer;
+begin
+  FIsLayerActive := True;
+end;
+
+procedure TBaseLayer.ExitLayer;
+begin
+  FIsLayerActive := False;
 end;
 
 // Registriert die Tasten, die zu einer Aktivierung des Layers führen

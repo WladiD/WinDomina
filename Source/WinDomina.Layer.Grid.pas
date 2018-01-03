@@ -40,12 +40,14 @@ end;
 
 procedure TGridLayer.EnterLayer;
 begin
-
+  inherited EnterLayer;
+  AddLog('TGridLayer.EnterLayer');
 end;
 
 procedure TGridLayer.ExitLayer;
 begin
-
+  AddLog('TGridLayer.ExitLayer');
+  inherited ExitLayer;
 end;
 
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);

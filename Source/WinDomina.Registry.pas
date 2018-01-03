@@ -24,6 +24,10 @@ procedure BroadcastDominaWindowsChangeNotify;
 procedure RegisterDominaWindowsChangeNotify(EventHandler: TProc; Implementor: TObject);
 procedure UnregisterDominaWindowsChangeNotify(Implementor: TObject);
 
+// KISS Logging-System
+procedure RegisterLogging(Log: ILogging);
+procedure AddLog(const LogLine: string);
+
 implementation
 
 threadvar
@@ -90,6 +94,20 @@ begin
   DWChangeEvents.Remove(Implementor);
 end;
 
+var
+  LogInterface: ILogging;
+
+procedure RegisterLogging(Log: ILogging);
+begin
+  LogInterface := Log;
+end;
+
+procedure AddLog(const LogLine: string);
+begin
+  if Assigned(LogInterface) then
+    LogInterface.AddLog(LogLine);
+end;
+
 initialization
 DWChangeEvents := TDWChangeEventsDictionary.Create;
 
@@ -98,5 +116,6 @@ FreeAndNil(WDMKS);
 FreeAndNil(LAK);
 FreeAndNil(DWChangeEvents);
 FreeAndNil(DW);
+LogInterface := nil;
 
 end.
