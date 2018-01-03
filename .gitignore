@@ -1,3 +1,5 @@
 /Source/*.local
 /Source/*.identcache
 /Source/*.stat
+__history
+/Source/Win32/Debug
