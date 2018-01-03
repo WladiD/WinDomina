@@ -8,7 +8,8 @@ uses
   WinDomina.Layer in 'WinDomina.Layer.pas',
   WinDomina.Layer.Grid in 'WinDomina.Layer.Grid.pas',
   WinDomina.Layer.Mover in 'WinDomina.Layer.Mover.pas',
-  WinDomina.Registry in 'WinDomina.Registry.pas';
+  WinDomina.Registry in 'WinDomina.Registry.pas',
+  WinDomina.KBHKLib in 'WinDomina.KBHKLib.pas';
 
 {$R *.res}
 

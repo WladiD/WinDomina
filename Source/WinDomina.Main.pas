@@ -5,22 +5,15 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, System.Generics.Collections, Vcl.StdCtrls,
-  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry, WinDomina.Layer;
+  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry, WinDomina.Layer,
+  WinDomina.KBHKLib;
 
 type
-  TInstallHook = function(Hwnd: THandle): Boolean; stdcall;
-  TUninstallHook = function: Boolean; stdcall;
-
   TMainForm = class(TForm)
     LogMemo: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
-    InstallHook: TInstallHook;
-    UninstallHook: TUninstallHook;
-    EnterDominaMode: TProcedure;
-    ExitDominaMode: TProcedure;
-    KBHKLib: NativeUInt;
     Layers: TLayerList;
     ActiveLayers: TLayerList;
 
@@ -57,19 +50,6 @@ procedure TMainForm.FormCreate(Sender: TObject);
   end;
 
 begin
-  KBHKLib := LoadLibrary('kbhk.dll');
-  if KBHKLib > 0 then
-  begin
-    InstallHook := GetProcAddress(KBHKLib, 'InstallHook');
-    UnInstallHook := GetProcAddress(KBHKLib, 'UninstallHook');
-    EnterDominaMode := GetProcAddress(KBHKLib, 'EnterDominaMode');
-    ExitDominaMode := GetProcAddress(KBHKLib, 'ExitDominaMode');
-
-    InstallHook(Handle)
-  end
-  else
-    raise Exception.Create('Failed to load kbhk.dll');
-
   RegisterLogging(TStringsLogging.Create(LogMemo.Lines));
   Layers := TLayerList.Create(True);
   ActiveLayers := TLayerList.Create(False);
@@ -78,18 +58,16 @@ begin
   RegisterDominaWindows(TWindowList.Create);
 
   AddLayers;
+
+  InstallHook(Handle);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
-  if KBHKLib > 0 then
-  begin
-    UninstallHook;
-    FreeLibrary(KBHKLib);
-  end;
-
   ActiveLayers.Free;
   Layers.Free;
+
+  UninstallHook;
 end;
 
 procedure TMainForm.AddLayer(Layer: TBaseLayer);
