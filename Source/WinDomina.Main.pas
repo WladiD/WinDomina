@@ -26,7 +26,8 @@ type
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
-    procedure PushActiveLayer(Layer: TBaseLayer);
+    procedure EnterLayer(Layer: TBaseLayer);
+    procedure ExitLayer;
 
     procedure LogWindow(Window: THandle);
 
@@ -101,7 +102,7 @@ begin
   Result := ActiveLayers.First;
 end;
 
-procedure TMainForm.PushActiveLayer(Layer: TBaseLayer);
+procedure TMainForm.EnterLayer(Layer: TBaseLayer);
 var
   LayerIndex: Integer;
   CurLayer: TBaseLayer;
@@ -122,6 +123,18 @@ begin
 
   if not Layer.IsLayerActive then
     Layer.EnterLayer;
+end;
+
+procedure TMainForm.ExitLayer;
+var
+  CurLayer: TBaseLayer;
+begin
+  if ActiveLayers.Count > 0 then
+  begin
+    CurLayer := GetActiveLayer;
+    if CurLayer.IsLayerActive then
+      CurLayer.ExitLayer;
+  end;
 end;
 
 procedure TMainForm.LogWindow(Window: THandle);
@@ -231,14 +244,14 @@ begin
     AppWins.Free;
   end;
 
-  PushActiveLayer(Layers.First);
+  EnterLayer(Layers.First);
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
   Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
-  GetActiveLayer.ExitLayer;
+  ExitLayer;
   ActiveLayers.Clear;
 end;
 
@@ -258,7 +271,7 @@ begin
 
   if not Handled and LayerActivationKeys.TryGetValue(Key, Layer) and (Layer <> CurActiveLayer) then
   begin
-    PushActiveLayer(Layer);
+    EnterLayer(Layer);
     Layer.HandleKeyDown(Key, Handled);
   end;
 
