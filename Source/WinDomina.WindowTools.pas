@@ -19,6 +19,24 @@ function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
 function GetWindowNonClientOversize(Window: THandle): TRect;
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
 
+type
+  TUpdateLayeredWindowInfo = record
+    cbSize: DWORD;
+    hdcDst: HDC;
+    pptDst: PPoint;
+    psize: PSize;
+    hdcSrc: HDC;
+    pptSrc: PPoint;
+    crKey: TColorRef;
+    pblend: PBlendFunction;
+    dwFlags: DWORD;
+    prcDirty: PRect;
+  end;
+  PUpdateLayeredWindowInfo = ^TUpdateLayeredWindowInfo;
+
+function UpdateLayeredWindowIndirect(Handle: THandle; Info: PUpdateLayeredWindowInfo): Boolean; stdcall;
+  external user32;
+
 implementation
 
 function GetWorkareaRect(const RefRect: TRect): TRect;
