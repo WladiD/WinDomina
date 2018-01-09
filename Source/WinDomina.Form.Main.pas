@@ -1,21 +1,50 @@
-unit WinDomina.Main;
+unit WinDomina.Form.Main;
 
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, System.Generics.Collections, Vcl.StdCtrls,
-  WinDomina.Types, WinDomina.WindowTools, WinDomina.Registry, WinDomina.Layer,
-  WinDomina.KBHKLib;
+  System.SysUtils,
+  System.Variants,
+  System.Classes,
+  System.Generics.Collections,
+  System.Types,
+  System.UITypes,
+  System.Win.ComObj,
+  Winapi.Windows,
+  Winapi.Messages,
+  Winapi.D2D1,
+  Winapi.Wincodec,
+  Winapi.DxgiFormat,
+  Vcl.Graphics,
+  Vcl.Controls,
+  Vcl.Forms,
+  Vcl.Dialogs,
+  Vcl.StdCtrls,
+  Vcl.Direct2D,
+  WinDomina.Types,
+  WinDomina.WindowTools,
+  WinDomina.Registry,
+  WinDomina.Layer,
+  WinDomina.KBHKLib,
+  WinDomina.Form.Log,
+  WinDomina.Types.Drawing;
 
 type
   TMainForm = class(TForm)
-    LogMemo: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
     Layers: TLayerList;
     ActiveLayers: TLayerList;
+    DrawContext: IDrawContext;
+    WICBitmap: IWICBitmap;
+    InteropRenderTarget: ID2D1GdiInteropRenderTarget;
+
+    Blend: TBlendFunction;
+    SourcePosition: TPoint;
+    WindowPosition: TPoint;
+    WindowSize: TSize;
+    DeviceResourcesValid: Boolean;
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
@@ -28,6 +57,11 @@ type
     procedure WD_ExitDominaMode(var Message: TMessage); message WD_EXIT_DOMINA_MODE;
     procedure WD_KeyDownDominaMode(var Message: TMessage); message WD_KEYDOWN_DOMINA_MODE;
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
+
+    procedure UpdateWindow(SourceDC: HDC);
+    procedure RenderWindowContent;
+    procedure CreateDeviceResources;
+    procedure InvalidateDeviceResources;
   end;
 
 var
@@ -41,6 +75,43 @@ uses
 
 {$R *.dfm}
 
+type
+  TDrawContext = class(TInterfacedObject, IDrawContext)
+  private
+    FD2DFactory: ID2D1Factory;
+    FWICFactory: IWICImagingFactory;
+    FRenderTarget: ID2D1RenderTarget;
+  protected
+    function D2DFactory: ID2D1Factory;
+    function WICFactory: IWICImagingFactory;
+    function RenderTarget: ID2D1RenderTarget;
+    procedure SetRenderTarget(const RenderTarget: ID2D1RenderTarget);
+  end;
+
+{ TDrawContext }
+
+function TDrawContext.D2DFactory: ID2D1Factory;
+begin
+  Result := FD2DFactory;
+end;
+
+function TDrawContext.WICFactory: IWICImagingFactory;
+begin
+  Result := FWICFactory;
+end;
+
+function TDrawContext.RenderTarget: ID2D1RenderTarget;
+begin
+  Result := FRenderTarget;
+end;
+
+procedure TDrawContext.SetRenderTarget(const RenderTarget: ID2D1RenderTarget);
+begin
+  FRenderTarget := RenderTarget;
+end;
+
+{ TMainForm }
+
 procedure TMainForm.FormCreate(Sender: TObject);
 
   procedure AddLayers;
@@ -49,8 +120,27 @@ procedure TMainForm.FormCreate(Sender: TObject);
     AddLayer(TMoverLayer.Create);
   end;
 
+  function CreateDrawContext: IDrawContext;
+  var
+    DC: TDrawContext;
+  begin
+    DC := TDrawContext.Create;
+    DC.FD2DFactory := Vcl.Direct2D.D2DFactory;
+    DC.FWICFactory := CreateComObject(CLSID_WICImagingFactory) as IWICImagingFactory;
+
+    Result := DC;
+  end;
+
+var
+  ExStyle: DWORD;
 begin
-  RegisterLogging(TStringsLogging.Create(LogMemo.Lines));
+  LogForm := TLogForm.Create(Self);
+  RegisterLogging(TStringsLogging.Create(LogForm.LogMemo.Lines));
+
+  ExStyle := GetWindowLong(Handle, GWL_EXSTYLE);
+  if (ExStyle and WS_EX_LAYERED) = 0 then
+    SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
+
   Layers := TLayerList.Create(True);
   ActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
@@ -60,6 +150,17 @@ begin
   AddLayers;
 
   InstallHook(Handle);
+
+  DrawContext := CreateDrawContext;
+  Blend.BlendOp := AC_SRC_OVER;
+  Blend.BlendFlags := 0;
+  Blend.SourceConstantAlpha := 255;
+  Blend.AlphaFormat := AC_SRC_ALPHA;
+
+  SourcePosition := Point(0, 0);
+  WindowPosition := Point(0, 0);
+  WindowSize.cx := Width;
+  WindowSize.cy := Height;
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -68,6 +169,91 @@ begin
   Layers.Free;
 
   UninstallHook;
+end;
+
+procedure TMainForm.UpdateWindow(SourceDC: HDC);
+var
+  Info: TUpdateLayeredWindowInfo;
+begin
+  ZeroMemory(@Info, SizeOf(Info));
+  Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
+  Info.pptSrc := @SourcePosition;
+  Info.pptDst := @WindowPosition;
+  Info.psize  := @WindowSize;
+  Info.pblend := @Blend;
+  Info.dwFlags := ULW_ALPHA;
+  Info.hdcSrc := SourceDC;
+
+  if not UpdateLayeredWindowIndirect(Handle, @Info) then
+    RaiseLastOSError();
+end;
+
+procedure TMainForm.RenderWindowContent;
+var
+  RT: ID2D1RenderTarget;
+  DC: HDC;
+  Layer: TBaseLayer;
+  LayerParams: TD2D1LayerParameters;
+  D2DLayer: ID2D1Layer;
+begin
+  CreateDeviceResources;
+
+  RT := DrawContext.RenderTarget;
+
+  RT.BeginDraw;
+  try
+    RT.Clear(D2D1ColorF(clBlack, 0));
+
+    Layer := GetActiveLayer;
+
+    if Assigned(Layer) and Layer.IsLayerActive and
+      Layer.HasMainContent(DrawContext, LayerParams, D2DLayer) then
+      Layer.RenderMainContent(DrawContext, LayerParams);
+
+    InteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
+    UpdateWindow(DC);
+    InteropRenderTarget.ReleaseDC(TRect.Empty);
+  finally
+    RT.EndDraw;
+  end;
+end;
+
+procedure TMainForm.CreateDeviceResources;
+var
+  PF: TD2D1PixelFormat;
+  RTP: TD2D1RenderTargetProperties;
+  RenderTarget: ID2D1RenderTarget;
+begin
+  if DeviceResourcesValid then
+    Exit;
+
+  DrawContext.WICFactory.CreateBitmap(Width, Height, @GUID_WICPixelFormat32bppPBGRA,
+    WICBitmapCacheOnLoad, WICBitmap);
+
+  PF.format := DXGI_FORMAT_B8G8R8A8_UNORM;
+  PF.alphaMode := D2D1_ALPHA_MODE_PREMULTIPLIED;
+
+  RTP := D2D1RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, PF, 0, 0,
+    D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE);
+
+  D2DFactory.CreateWicBitmapRenderTarget(WICBitmap, RTP, RenderTarget);
+  InteropRenderTarget := RenderTarget as ID2D1GdiInteropRenderTarget;
+  DrawContext.SetRenderTarget(RenderTarget);
+
+  DeviceResourcesValid := True;
+end;
+
+procedure TMainForm.InvalidateDeviceResources;
+var
+  Layer: TBaseLayer;
+begin
+  if not DeviceResourcesValid then
+    Exit;
+
+  DeviceResourcesValid := False;
+
+  for Layer in Layers do
+    Layer.InvalidateMainContentResources;
 end;
 
 procedure TMainForm.AddLayer(Layer: TBaseLayer);
@@ -201,12 +387,28 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
     end;
   end;
 
+  procedure AdjustWindow;
+  var
+    WorkRect: TRect;
+  begin
+    if DominaWindows.Count > 0 then
+      WorkRect := GetWorkareaRect(DominaWindows[0])
+    else
+      WorkRect := Screen.MonitorFromPoint(Mouse.CursorPos).WorkareaRect;
+
+    WindowSize.cx := WorkRect.Width;
+    WindowSize.cy := WorkRect.Height;
+
+    SetWindowPos(Handle, HWND_TOPMOST, WorkRect.Left, WorkRect.Top, WorkRect.Width, WorkRect.Height,
+      SWP_SHOWWINDOW or SWP_NOACTIVATE);
+  end;
+
 var
   AppWins: TWindowList;
   AppWin: THandle;
 begin
-  Caption := 'Domina-Modus aktiv';
-  LogMemo.Lines.Clear;
+  LogForm.Caption := 'Domina-Modus aktiv';
+  LogForm.LogMemo.Lines.Clear;
 
   AppWins := CreateAppWindowList;
   try
@@ -222,15 +424,19 @@ begin
     AppWins.Free;
   end;
 
+  AdjustWindow;
+
   EnterLayer(Layers.First);
+  RenderWindowContent;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
-  Caption := 'Normaler Modus';
+  LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
   ExitLayer;
   ActiveLayers.Clear;
+  ShowWindow(Handle, SW_HIDE);
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
@@ -256,8 +462,14 @@ begin
   if not Handled then
   begin
     case Key of
-      VK_ESCAPE:
+      vkEscape:
         ExitDominaMode;
+      vkF12:
+      begin
+        LogForm.Visible := not LogForm.Visible;
+        if LogForm.Visible then
+          SetWindowPos(LogForm.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE);
+      end;
     end;
   end;
 end;

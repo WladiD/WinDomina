@@ -1,9 +1,10 @@
 object MainForm: TMainForm
   Left = 0
   Top = 0
+  BorderStyle = bsNone
   Caption = 'MainForm'
-  ClientHeight = 411
-  ClientWidth = 852
+  ClientHeight = 450
+  ClientWidth = 868
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -15,14 +16,4 @@ object MainForm: TMainForm
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
-  object LogMemo: TMemo
-    Left = 0
-    Top = 0
-    Width = 852
-    Height = 411
-    Align = alClient
-    ScrollBars = ssVertical
-    TabOrder = 0
-    WordWrap = False
-  end
 end
