@@ -7,6 +7,7 @@ uses
   System.Classes,
   System.Types,
   System.UITypes,
+  System.Math,
   Winapi.Windows,
   Winapi.D2D1,
   Vcl.Graphics,
@@ -18,7 +19,20 @@ uses
   WinDomina.Types.Drawing;
 
 type
+  TRect3x3GridArray = array [0..2] of array [0..2] of TRect;
+  TQuotientGridArray = array [0..2] of TPointF;
+
   TGridLayer = class(TBaseLayer)
+  private
+    FRectGrid: TRect3x3GridArray;
+    QuotientGrid: TQuotientGridArray;
+
+    function CalcCurrentRectGrid: TRect3x3GridArray;
+    procedure UpdateRectGrid;
+
+    function XYToTileNum(X, Y: Integer): Integer;
+    procedure TileNumToXY(TileNum: Integer; out X, Y: Integer);
+
   public
     constructor Create; override;
 
@@ -33,6 +47,8 @@ type
     procedure RenderMainContent(const DrawContext: IDrawContext;
       const LayerParams: TD2D1LayerParameters); override;
     procedure InvalidateMainContentResources; override;
+
+    property RectGrid: TRect3x3GridArray read FRectGrid;
   end;
 
 implementation
@@ -43,6 +59,22 @@ constructor TGridLayer.Create;
 begin
   inherited Create;
 
+  QuotientGrid[0].X := 1/3;
+  QuotientGrid[1].X := 1/3;
+  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+
+  QuotientGrid[0].Y := 1/3;
+  QuotientGrid[1].Y := 1/3;
+  QuotientGrid[2].Y := 0;
+
+//  QuotientGrid[0].X := 1/2;
+//  QuotientGrid[1].X := 1/3;
+//  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+//
+//  QuotientGrid[0].Y := 1/3;
+//  QuotientGrid[1].Y := 1/3;
+//  QuotientGrid[2].Y := 0;
+
   RegisterLayerActivationKeys([vkNumpad0, vkNumpad1, vkNumpad2, vkNumpad3, vkNumpad4, vkNumpad5,
     vkNumpad6, vkNumpad7, vkNumpad8, vkNumpad9]);
 end;
@@ -50,6 +82,9 @@ end;
 procedure TGridLayer.EnterLayer;
 begin
   inherited EnterLayer;
+
+  UpdateRectGrid;
+
   AddLog('TGridLayer.EnterLayer');
 end;
 
@@ -59,13 +94,119 @@ begin
   inherited ExitLayer;
 end;
 
+function TGridLayer.CalcCurrentRectGrid: TRect3x3GridArray;
+var
+  XRemainCount, YRemainCount: Integer;
+  cc, Xcc, Ycc: Integer;
+  X, Y, XSize: Integer;
+  WAWidth, WAHeight, RemainWidth, RemainHeight: Integer;
+  LocalDominaWindows: TWindowList;
+  WorkareaRect: TRect;
+  XQuotient, YQuotient: Single;
+  CurRect: System.Types.PRect;
+begin
+  LocalDominaWindows := DominaWindows;
+  WorkareaRect := GetWorkareaRect(LocalDominaWindows[0]);
+  WAWidth := WorkareaRect.Width;
+  WAHeight := WorkareaRect.Height;
+  RemainWidth := WAWidth;
+  RemainHeight := WAHeight;
+
+  // Anzahl von 0-Definition, diese
+  XRemainCount := 0;
+  YRemainCount := 0;
+
+  for cc := 0 to 2 do
+  begin
+    XQuotient := QuotientGrid[cc].X;
+    YQuotient := QuotientGrid[cc].Y;
+
+    if XQuotient > 0 then
+      RemainWidth := RemainWidth - Trunc(WAWidth * XQuotient)
+    else if XQuotient = 0 then
+      Inc(XRemainCount);
+
+    if YQuotient > 0 then
+      RemainHeight := RemainHeight - Trunc(WAHeight * YQuotient)
+    else if YQuotient = 0 then
+      Inc(YRemainCount);
+  end;
+
+  X := 0;
+
+  for Xcc := 0 to 2 do
+  begin
+    XQuotient := QuotientGrid[Xcc].X;
+    YQuotient := QuotientGrid[Xcc].Y;
+    Y := 0;
+
+    if XQuotient = 0 then
+      XSize := Trunc(RemainWidth / XRemainCount)
+    else
+      XSize := Trunc(WAWidth * XQuotient);
+
+    for Ycc := 0 to 2 do
+    begin
+      CurRect := @Result[Xcc][Ycc];
+      CurRect.Left := X;
+      CurRect.Top := Y;
+
+      if YQuotient = 0 then
+        Inc(Y, Trunc(RemainHeight / YRemainCount))
+      else
+        Inc(Y, Trunc(WAHeight * YQuotient));
+
+      CurRect.Right := X + XSize;
+      CurRect.Bottom := Y;
+    end;
+    Inc(X, XSize);
+  end;
+end;
+
+procedure TGridLayer.UpdateRectGrid;
+begin
+  FRectGrid := CalcCurrentRectGrid;
+end;
+
+function TGridLayer.XYToTileNum(X, Y: Integer): Integer;
+begin
+
+end;
+
+procedure TGridLayer.TileNumToXY(TileNum: Integer; out X, Y: Integer);
+const
+  TileCoord: array[1..9] of TPoint = (
+    {1} (X: 0; Y: 2),
+    {2} (X: 1; Y: 2),
+    {3} (X: 2; Y: 2),
+    {4} (X: 0; Y: 1),
+    {5} (X: 1; Y: 1),
+    {6} (X: 2; Y: 1),
+    {7} (X: 0; Y: 0),
+    {8} (X: 1; Y: 0),
+    {9} (X: 2; Y: 0));
+var
+  Point: PPoint;
+begin
+  if (TileNum >= 1) and (TileNum <= 9) then
+  begin
+    Point := @TileCoord[TileNum];
+    X := Point.X;
+    Y := Point.Y;
+  end
+  else
+  begin
+    X := -1;
+    Y := -1;
+  end;
+end;
+
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
   procedure SizeWindowTile(TileX, TileY: Integer);
   var
     Window: THandle;
-    Rect, WorkareaRect: TRect;
-    WAWidth, WAHeight, TileWidth, TileHeight: Integer;
+    Rect: TRect;
     LocalDominaWindows: TWindowList;
   begin
     LocalDominaWindows := DominaWindows;
@@ -73,18 +214,7 @@ procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       Exit;
 
     Window := LocalDominaWindows[0];
-    WorkareaRect := GetWorkareaRect(Window);
-
-    WAWidth := WorkareaRect.Width;
-    WAHeight := WorkareaRect.Height;
-
-    TileWidth := WAWidth div 3;
-    TileHeight := WAHeight div 3;
-
-    Rect.Left := WorkareaRect.Left + (TileX * TileWidth);
-    Rect.Right := Rect.Left + TileWidth;
-    Rect.Top := WorkareaRect.Top + (TileY * TileHeight);
-    Rect.Bottom := Rect.Top + TileHeight;
+    Rect := RectGrid[TileX][TileY];
 
     SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
   end;
@@ -92,61 +222,16 @@ procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 var
   TileX, TileY: Integer;
 begin
-  TileX := -1;
-  TileY := -1;
-
   case Key of
-    vkNumpad1:
+    vkNumpad1..vkNumpad9:
     begin
-      TileX := 0;
-      TileY := 2;
+      TileNumToXY((Key - vkNumpad1) + 1, TileX, TileY);
+      if (TileX >= 0) or (TileY >= 0) then
+      begin
+        SizeWindowTile(TileX, TileY);
+        Handled := True;
+      end;
     end;
-    vkNumpad2:
-    begin
-      TileX := 1;
-      TileY := 2;
-    end;
-    vkNumpad3:
-    begin
-      TileX := 2;
-      TileY := 2;
-    end;
-    vkNumpad4:
-    begin
-      TileX := 0;
-      TileY := 1;
-    end;
-    vkNumpad5:
-    begin
-      TileX := 1;
-      TileY := 1;
-    end;
-    vkNumpad6:
-    begin
-      TileX := 2;
-      TileY := 1;
-    end;
-    vkNumpad7:
-    begin
-      TileX := 0;
-      TileY := 0;
-    end;
-    vkNumpad8:
-    begin
-      TileX := 1;
-      TileY := 0;
-    end;
-    VK_NUMPAD9:
-    begin
-      TileX := 2;
-      TileY := 0;
-    end;
-  end;
-
-  if (TileX >= 0) or (TileY >= 0) then
-  begin
-    SizeWindowTile(TileX, TileY);
-    Handled := True;
   end;
 end;
 
