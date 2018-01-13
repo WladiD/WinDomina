@@ -50,6 +50,7 @@ type
     function GetActiveLayer: TBaseLayer;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
+    procedure LayerMainContentChanged(Sender: TObject);
 
     procedure LogWindow(Window: THandle);
 
@@ -114,10 +115,16 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 
+  function CreateLayer(LayerClass: TBaseLayerClass): TBaseLayer;
+  begin
+    Result := TBaseLayerClass.Create;
+    Result.OnMainContentChanged := LayerMainContentChanged;
+  end;
+
   procedure AddLayers;
   begin
-    AddLayer(TGridLayer.Create);
-    AddLayer(TMoverLayer.Create);
+    AddLayer(CreateLayer(TGridLayer));
+    AddLayer(CreateLayer(TMoverLayer));
   end;
 
   function CreateDrawContext: IDrawContext;
@@ -195,6 +202,7 @@ var
   Layer: TBaseLayer;
   LayerParams: TD2D1LayerParameters;
   D2DLayer: ID2D1Layer;
+  D2DLayerDrawing: Boolean;
 begin
   CreateDeviceResources;
 
@@ -208,11 +216,25 @@ begin
 
     if Assigned(Layer) and Layer.IsLayerActive and
       Layer.HasMainContent(DrawContext, LayerParams, D2DLayer) then
-      Layer.RenderMainContent(DrawContext, LayerParams);
+    begin
+      D2DLayerDrawing := Assigned(D2DLayer);
+
+      if D2DLayerDrawing then
+        RT.PushLayer(LayerParams, D2DLayer);
+      try
+        Layer.RenderMainContent(DrawContext, LayerParams);
+      finally
+        if D2DLayerDrawing then
+          RT.PopLayer;
+      end;
+    end;
 
     InteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
+    try
     UpdateWindow(DC);
-    InteropRenderTarget.ReleaseDC(TRect.Empty);
+    finally
+      InteropRenderTarget.ReleaseDC(TRect.Empty);
+    end;
   finally
     RT.EndDraw;
   end;
@@ -299,6 +321,11 @@ begin
     if CurLayer.IsLayerActive then
       CurLayer.ExitLayer;
   end;
+end;
+
+procedure TMainForm.LayerMainContentChanged(Sender: TObject);
+begin
+  RenderWindowContent;
 end;
 
 procedure TMainForm.LogWindow(Window: THandle);

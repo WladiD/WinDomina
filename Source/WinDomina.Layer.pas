@@ -45,6 +45,8 @@ type
       write FOnMainContentChanged;
   end;
 
+  TBaseLayerClass = class of TBaseLayer;
+
   TKeyLayerList = TDictionary<Integer, TBaseLayer>;
   TLayerList = TObjectList<TBaseLayer>;
   TLayerStack = TStack<TBaseLayer>;
