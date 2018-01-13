@@ -117,7 +117,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
 
   function CreateLayer(LayerClass: TBaseLayerClass): TBaseLayer;
   begin
-    Result := TBaseLayerClass.Create;
+    Result := LayerClass.Create;
     Result.OnMainContentChanged := LayerMainContentChanged;
   end;
 
@@ -214,7 +214,7 @@ begin
 
     Layer := GetActiveLayer;
 
-    if Assigned(Layer) and Layer.IsLayerActive and
+    if Assigned(Layer) and
       Layer.HasMainContent(DrawContext, LayerParams, D2DLayer) then
     begin
       D2DLayerDrawing := Assigned(D2DLayer);
@@ -308,7 +308,10 @@ begin
     ActiveLayers.Insert(0, Layer);
 
   if not Layer.IsLayerActive then
+  begin
     Layer.EnterLayer;
+    RenderWindowContent;
+  end;
 end;
 
 procedure TMainForm.ExitLayer;
@@ -454,7 +457,6 @@ begin
   AdjustWindow;
 
   EnterLayer(Layers.First);
-  RenderWindowContent;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);

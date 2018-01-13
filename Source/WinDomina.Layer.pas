@@ -12,8 +12,6 @@ uses
 
 type
   TBaseLayer = class
-  private
-
   protected
     FIsLayerActive: Boolean;
     FOnMainContentChanged: TNotifyEvent;

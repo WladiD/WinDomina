@@ -8,10 +8,14 @@ uses
   System.Types,
   System.UITypes,
   Winapi.Windows,
+  Winapi.D2D1,
+  Vcl.Graphics,
+  Vcl.Direct2D,
   WinDomina.Types,
   WinDomina.Layer,
   WinDomina.WindowTools,
-  WinDomina.Registry;
+  WinDomina.Registry,
+  WinDomina.Types.Drawing;
 
 type
   TGridLayer = class(TBaseLayer)
@@ -23,8 +27,13 @@ type
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
-  end;
 
+    function HasMainContent(const DrawContext: IDrawContext;
+      var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean; override;
+    procedure RenderMainContent(const DrawContext: IDrawContext;
+      const LayerParams: TD2D1LayerParameters); override;
+    procedure InvalidateMainContentResources; override;
+  end;
 
 implementation
 
@@ -142,6 +151,31 @@ begin
 end;
 
 procedure TGridLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
+begin
+
+end;
+
+function TGridLayer.HasMainContent(const DrawContext: IDrawContext;
+  var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean;
+begin
+  Result := IsLayerActive;
+  if not Result then
+    Exit;
+end;
+
+procedure TGridLayer.RenderMainContent(const DrawContext: IDrawContext;
+  const LayerParams: TD2D1LayerParameters);
+var
+  EllipseBrush: ID2D1SolidColorBrush;
+  RT: ID2D1RenderTarget;
+begin
+  RT := DrawContext.RenderTarget;
+
+  RT.CreateSolidColorBrush(D2D1ColorF(clBlack, 0.5), nil, EllipseBrush);
+  RT.FillEllipse(D2D1Ellipse(D2D1PointF(0, 0), 100, 100), EllipseBrush);
+end;
+
+procedure TGridLayer.InvalidateMainContentResources;
 begin
 
 end;
