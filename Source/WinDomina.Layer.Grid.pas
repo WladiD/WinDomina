@@ -26,12 +26,15 @@ type
   private
     FRectGrid: TRect3x3GridArray;
     QuotientGrid: TQuotientGridArray;
+    FirstTileNumKey: Integer;
+    SecondTileNumKey: Integer;
 
     function CalcCurrentRectGrid: TRect3x3GridArray;
     procedure UpdateRectGrid;
 
     function IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
     function IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
+    function IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
 
   public
     constructor Create; override;
@@ -59,6 +62,7 @@ constructor TGridLayer.Create;
 begin
   inherited Create;
 
+// Alle Kacheln in etwa gleich groß
   QuotientGrid[0].X := 1/3;
   QuotientGrid[1].X := 1/3;
   QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
@@ -67,12 +71,22 @@ begin
   QuotientGrid[1].Y := 1/3;
   QuotientGrid[2].Y := 0;
 
+// 1. Spalte 50%, 2. Spalte 33%, 3. Spalte Restbreite
 //  QuotientGrid[0].X := 1/2;
 //  QuotientGrid[1].X := 1/3;
 //  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
 //
 //  QuotientGrid[0].Y := 1/3;
 //  QuotientGrid[1].Y := 1/3;
+//  QuotientGrid[2].Y := 0;
+
+// 1. Spalte 40%, 2. und 3. jeweils die Hälfte von der Restbreite
+//  QuotientGrid[0].X := 1/2.5;
+//  QuotientGrid[1].X := 0;
+//  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+//
+//  QuotientGrid[0].Y := 1/2;
+//  QuotientGrid[1].Y := 1/4;
 //  QuotientGrid[2].Y := 0;
 
   RegisterLayerActivationKeys([vkNumpad0, vkNumpad1, vkNumpad2, vkNumpad3, vkNumpad4, vkNumpad5,
@@ -137,13 +151,12 @@ begin
   for Xcc := 0 to 2 do
   begin
     XQuotient := QuotientGrid[Xcc].X;
-    YQuotient := QuotientGrid[Xcc].Y;
-    Y := 0;
-
     if XQuotient = 0 then
       XSize := Trunc(RemainWidth / XRemainCount)
     else
       XSize := Trunc(WAWidth * XQuotient);
+
+    Y := 0;
 
     for Ycc := 0 to 2 do
     begin
@@ -151,6 +164,7 @@ begin
       CurRect.Left := X;
       CurRect.Top := Y;
 
+      YQuotient := QuotientGrid[Ycc].Y;
       if YQuotient = 0 then
         Inc(Y, Trunc(RemainHeight / YRemainCount))
       else
@@ -208,6 +222,13 @@ begin
   end;
 end;
 
+function TGridLayer.IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
+begin
+  Result := Key in [vkNumpad1..vkNumpad9];
+  if Result then
+    TileNum := (Key - vkNumpad1) + 1;
+end;
+
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
   procedure SizeWindowTile(TileX, TileY: Integer);
@@ -227,27 +248,79 @@ procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   end;
 
 var
-  TileX, TileY: Integer;
+  TileX, TileY, TileNum: Integer;
 begin
-  case Key of
-    vkNumpad1..vkNumpad9:
-    begin
-      if IsTileNumToXYConvertible((Key - vkNumpad1) + 1, TileX, TileY) then
-      begin
-        SizeWindowTile(TileX, TileY);
-        Handled := True;
-      end;
-    end;
-    vkComma:
-    begin
+  if IsTileNumKey(Key, TileNum) then
+  begin
+    if FirstTileNumKey = 0 then
+      FirstTileNumKey := Key
+    else
+      SecondTileNumKey := Key;
 
-    end;
+    Handled := True;
+//    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
+//    begin
+//      SizeWindowTile(TileX, TileY);
+//
+//    end;
   end;
 end;
 
 procedure TGridLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
-begin
+var
+  TileNum: Integer;
 
+  procedure SizeWindowRect(const Rect: TRect);
+  var
+    Window: THandle;
+    LocalDominaWindows: TWindowList;
+  begin
+    LocalDominaWindows := DominaWindows;
+    if LocalDominaWindows.Count = 0 then
+      Exit;
+
+    Window := LocalDominaWindows[0];
+
+    SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
+  end;
+
+  procedure HandleTileNumKey;
+  var
+    HasFirstTileNumKey, HasSecondTileNumKey: Boolean;
+    FirstTileNum, SecondTileNum: Integer;
+    FirstRect, SecondRect, ActualRect: TRect;
+    TileX, TileY: Integer;
+  begin
+    HasFirstTileNumKey := FirstTileNumKey <> 0;
+    HasSecondTileNumKey := SecondTileNumKey <> 0;
+
+    if (HasFirstTileNumKey and WDMKeyStates.KeyPressed[FirstTileNumKey]) or
+      (HasSecondTileNumKey and WDMKeyStates.KeyPressed[SecondTileNumKey]) then
+      Exit;
+
+    if HasFirstTileNumKey and IsTileNumKey(FirstTileNumKey, FirstTileNum) and
+      IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
+      FirstRect := RectGrid[TileX][TileY];
+
+    if HasSecondTileNumKey and IsTileNumKey(SecondTileNumKey, SecondTileNum) and
+      IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
+      SecondRect := RectGrid[TileX][TileY];
+
+    if (FirstTileNum > 0) and (SecondTileNum > 0) then
+      SizeWindowRect(TRect.Union(FirstRect, SecondRect))
+    else if FirstTileNum > 0 then
+      SizeWindowRect(FirstRect);
+
+    FirstTileNumKey := 0;
+    SecondTileNumKey := 0;
+  end;
+
+begin
+  if IsTileNumKey(Key, TileNum) then
+  begin
+    HandleTileNumKey;
+    Handled := True;
+  end;
 end;
 
 function TGridLayer.HasMainContent(const DrawContext: IDrawContext;
