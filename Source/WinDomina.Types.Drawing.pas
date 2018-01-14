@@ -13,9 +13,8 @@ type
 
     function D2DFactory: ID2D1Factory;
     function WICFactory: IWICImagingFactory;
+    function DirectWriteFactory: IDWriteFactory;
     function RenderTarget: ID2D1RenderTarget;
-
-    procedure SetRenderTarget(const RenderTarget: ID2D1RenderTarget);
   end;
 
 implementation

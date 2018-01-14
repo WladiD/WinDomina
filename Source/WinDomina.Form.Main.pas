@@ -81,12 +81,14 @@ type
   private
     FD2DFactory: ID2D1Factory;
     FWICFactory: IWICImagingFactory;
+    FDirectWriteFactory: IDWriteFactory;
     FRenderTarget: ID2D1RenderTarget;
+
   protected
     function D2DFactory: ID2D1Factory;
     function WICFactory: IWICImagingFactory;
+    function DirectWriteFactory: IDWriteFactory;
     function RenderTarget: ID2D1RenderTarget;
-    procedure SetRenderTarget(const RenderTarget: ID2D1RenderTarget);
   end;
 
 { TDrawContext }
@@ -101,14 +103,14 @@ begin
   Result := FWICFactory;
 end;
 
+function TDrawContext.DirectWriteFactory: IDWriteFactory;
+begin
+  Result := FDirectWriteFactory;
+end;
+
 function TDrawContext.RenderTarget: ID2D1RenderTarget;
 begin
   Result := FRenderTarget;
-end;
-
-procedure TDrawContext.SetRenderTarget(const RenderTarget: ID2D1RenderTarget);
-begin
-  FRenderTarget := RenderTarget;
 end;
 
 { TMainForm }
@@ -134,6 +136,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
     DC := TDrawContext.Create;
     DC.FD2DFactory := Vcl.Direct2D.D2DFactory;
     DC.FWICFactory := CreateComObject(CLSID_WICImagingFactory) as IWICImagingFactory;
+    DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, IDWriteFactory, IInterface(DC.FDirectWriteFactory));
 
     Result := DC;
   end;
@@ -245,6 +248,7 @@ var
   PF: TD2D1PixelFormat;
   RTP: TD2D1RenderTargetProperties;
   RenderTarget: ID2D1RenderTarget;
+  DrawContextObject: TDrawContext;
 begin
   if DeviceResourcesValid then
     Exit;
@@ -260,7 +264,10 @@ begin
 
   D2DFactory.CreateWicBitmapRenderTarget(WICBitmap, RTP, RenderTarget);
   InteropRenderTarget := RenderTarget as ID2D1GdiInteropRenderTarget;
-  DrawContext.SetRenderTarget(RenderTarget);
+
+  DrawContextObject := TDrawContext(DrawContext);
+  if DrawContextObject is TDrawContext then
+    DrawContextObject.FRenderTarget := RenderTarget;
 
   DeviceResourcesValid := True;
 end;

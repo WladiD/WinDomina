@@ -30,8 +30,8 @@ type
     function CalcCurrentRectGrid: TRect3x3GridArray;
     procedure UpdateRectGrid;
 
-    function XYToTileNum(X, Y: Integer): Integer;
-    procedure TileNumToXY(TileNum: Integer; out X, Y: Integer);
+    function IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
+    function IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
 
   public
     constructor Create; override;
@@ -168,12 +168,6 @@ begin
   FRectGrid := CalcCurrentRectGrid;
 end;
 
-function TGridLayer.XYToTileNum(X, Y: Integer): Integer;
-begin
-
-end;
-
-procedure TGridLayer.TileNumToXY(TileNum: Integer; out X, Y: Integer);
 const
   TileCoord: array[1..9] of TPoint = (
     {1} (X: 0; Y: 2),
@@ -185,19 +179,32 @@ const
     {7} (X: 0; Y: 0),
     {8} (X: 1; Y: 0),
     {9} (X: 2; Y: 0));
+
+function TGridLayer.IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
+var
+  Point: PPoint;
+  cc: Integer;
+begin
+  Result := True;
+  for cc := 1 to 9 do
+  begin
+    Point := @TileCoord[cc];
+    if (Point.X = X) and (Point.Y = Y) then
+      Exit;
+  end;
+  Result := False;
+end;
+
+function TGridLayer.IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
 var
   Point: PPoint;
 begin
-  if (TileNum >= 1) and (TileNum <= 9) then
+  Result := (TileNum >= 1) and (TileNum <= 9);
+  if Result then
   begin
     Point := @TileCoord[TileNum];
     X := Point.X;
     Y := Point.Y;
-  end
-  else
-  begin
-    X := -1;
-    Y := -1;
   end;
 end;
 
@@ -225,12 +232,15 @@ begin
   case Key of
     vkNumpad1..vkNumpad9:
     begin
-      TileNumToXY((Key - vkNumpad1) + 1, TileX, TileY);
-      if (TileX >= 0) or (TileY >= 0) then
+      if IsTileNumToXYConvertible((Key - vkNumpad1) + 1, TileX, TileY) then
       begin
         SizeWindowTile(TileX, TileY);
         Handled := True;
       end;
+    end;
+    vkComma:
+    begin
+
     end;
   end;
 end;
@@ -251,13 +261,43 @@ end;
 procedure TGridLayer.RenderMainContent(const DrawContext: IDrawContext;
   const LayerParams: TD2D1LayerParameters);
 var
-  EllipseBrush: ID2D1SolidColorBrush;
+  UnselectedBrush: ID2D1SolidColorBrush;
+  SelectedBrush: ID2D1SolidColorBrush;
+  GrayBrush, BlackBrush: ID2D1SolidColorBrush;
   RT: ID2D1RenderTarget;
+  TileNum, TileX, TileY: Integer;
+  TextFormat: IDWriteTextFormat;
+
+  procedure DrawTile(Rect: TRect);
+  var
+    TileText: string;
+  begin
+    RT.DrawRectangle(Rect, BlackBrush, 2);
+    Rect.Inflate(-5, -5);
+
+    RT.FillRectangle(Rect, UnselectedBrush);
+
+    TileText := IntToStr(TileNum);
+
+    RT.DrawText(PChar(TileText), Length(TileText), TextFormat, Rect, BlackBrush);
+  end;
+
 begin
   RT := DrawContext.RenderTarget;
 
-  RT.CreateSolidColorBrush(D2D1ColorF(clBlack, 0.5), nil, EllipseBrush);
-  RT.FillEllipse(D2D1Ellipse(D2D1PointF(0, 0), 100, 100), EllipseBrush);
+
+  RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
+  RT.CreateSolidColorBrush(D2D1ColorF(clBlack), nil, BlackBrush);
+  RT.CreateSolidColorBrush(D2D1ColorF(clWhite), nil, SelectedBrush);
+  RT.CreateSolidColorBrush(D2D1ColorF(clWhite, 0.8), nil, UnselectedBrush);
+  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_THIN,
+    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 96, 'de-de', TextFormat);
+  TextFormat.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+  TextFormat.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+  for TileNum := 1 to 9 do
+    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
+      DrawTile(RectGrid[TileX][TileY]);
 end;
 
 procedure TGridLayer.InvalidateMainContentResources;
