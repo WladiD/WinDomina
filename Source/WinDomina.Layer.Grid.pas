@@ -21,11 +21,19 @@ uses
 type
   TRect3x3GridArray = array [0..2] of array [0..2] of TRect;
   TQuotientGridArray = array [0..2] of TPointF;
+  TQuotientGridStyle = (
+    // Alle Kacheln in etwa gleich groß
+    qgsUniform,
+    // 1. Spalte 50%, 2. Spalte 33%, 3. Spalte Restbreite
+    qgsHalfThirdRemain,
+    // 1. Spalte 40%, 2. und 3. jeweils die Hälfte von der Restbreite
+    qgsFortyRemainUniform);
 
   TGridLayer = class(TBaseLayer)
   private
     FRectGrid: TRect3x3GridArray;
     QuotientGrid: TQuotientGridArray;
+    QuotientGridStyle: TQuotientGridStyle;
     FirstTileNumKey: Integer;
     SecondTileNumKey: Integer;
 
@@ -54,7 +62,45 @@ type
     property RectGrid: TRect3x3GridArray read FRectGrid;
   end;
 
+  function GetQuotientGridArray(Style: TQuotientGridStyle): TQuotientGridArray;
+
 implementation
+
+function GetQuotientGridArray(Style: TQuotientGridStyle): TQuotientGridArray;
+begin
+  case Style of
+    qgsUniform:
+    begin
+      Result[0].X := 1/3;
+      Result[1].X := 1/3;
+      Result[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+
+      Result[0].Y := 1/3;
+      Result[1].Y := 1/3;
+      Result[2].Y := 0;
+    end;
+    qgsHalfThirdRemain:
+    begin
+      Result[0].X := 1/2;
+      Result[1].X := 0;
+      Result[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+
+      Result[0].Y := 1/3;
+      Result[1].Y := 1/3;
+      Result[2].Y := 0;
+    end;
+    qgsFortyRemainUniform:
+    begin
+      Result[0].X := 1/2.5;
+      Result[1].X := 0;
+      Result[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
+
+      Result[0].Y := 1/2;
+      Result[1].Y := 1/4;
+      Result[2].Y := 0;
+    end;
+  end;
+end;
 
 { TGridLayer }
 
@@ -62,32 +108,7 @@ constructor TGridLayer.Create;
 begin
   inherited Create;
 
-// Alle Kacheln in etwa gleich groß
-  QuotientGrid[0].X := 1/3;
-  QuotientGrid[1].X := 1/3;
-  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
-
-  QuotientGrid[0].Y := 1/3;
-  QuotientGrid[1].Y := 1/3;
-  QuotientGrid[2].Y := 0;
-
-// 1. Spalte 50%, 2. Spalte 33%, 3. Spalte Restbreite
-//  QuotientGrid[0].X := 1/2;
-//  QuotientGrid[1].X := 1/3;
-//  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
-//
-//  QuotientGrid[0].Y := 1/3;
-//  QuotientGrid[1].Y := 1/3;
-//  QuotientGrid[2].Y := 0;
-
-// 1. Spalte 40%, 2. und 3. jeweils die Hälfte von der Restbreite
-//  QuotientGrid[0].X := 1/2.5;
-//  QuotientGrid[1].X := 0;
-//  QuotientGrid[2].X := 0; // 0 steht für den gleichmäßig verteilten Rest
-//
-//  QuotientGrid[0].Y := 1/2;
-//  QuotientGrid[1].Y := 1/4;
-//  QuotientGrid[2].Y := 0;
+  QuotientGrid := GetQuotientGridArray(qgsUniform);
 
   RegisterLayerActivationKeys([vkNumpad0, vkNumpad1, vkNumpad2, vkNumpad3, vkNumpad4, vkNumpad5,
     vkNumpad6, vkNumpad7, vkNumpad8, vkNumpad9]);
@@ -258,11 +279,21 @@ begin
       SecondTileNumKey := Key;
 
     Handled := True;
-//    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
-//    begin
-//      SizeWindowTile(TileX, TileY);
-//
-//    end;
+  end;
+
+  case Key of
+    VK_DECIMAL:
+    begin
+      if QuotientGridStyle < High(QuotientGridStyle) then
+        QuotientGridStyle := Succ(QuotientGridStyle)
+      else
+        QuotientGridStyle := Low(QuotientGridStyle);
+
+      QuotientGrid := GetQuotientGridArray(QuotientGridStyle);
+      UpdateRectGrid;
+      DoMainContentChanged;
+      Handled := True;
+    end;
   end;
 end;
 
