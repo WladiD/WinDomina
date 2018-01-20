@@ -245,9 +245,14 @@ end;
 
 function TGridLayer.IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
 begin
-  Result := Key in [vkNumpad1..vkNumpad9];
-  if Result then
-    TileNum := (Key - vkNumpad1) + 1;
+  Result := True;
+
+  if Key in [vkNumpad1..vkNumpad9] then
+    TileNum := (Key - vkNumpad1) + 1
+  else if Key in [vk1..vk9] then
+    TileNum := (Key - vk1) + 1
+  else
+    Result := False;
 end;
 
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
@@ -282,7 +287,8 @@ begin
   end;
 
   case Key of
-    VK_DECIMAL:
+    vkDecimal,
+    vkComma:
     begin
       if QuotientGridStyle < High(QuotientGridStyle) then
         QuotientGridStyle := Succ(QuotientGridStyle)
