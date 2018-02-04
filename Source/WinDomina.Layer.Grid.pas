@@ -12,6 +12,10 @@ uses
   Winapi.D2D1,
   Vcl.Graphics,
   Vcl.Direct2D,
+
+  AnyiQuack,
+  AQPSystemTypesAnimations,
+
   WinDomina.Types,
   WinDomina.Layer,
   WinDomina.WindowTools,
@@ -19,7 +23,13 @@ uses
   WinDomina.Types.Drawing;
 
 type
-  TRect3x3GridArray = array [0..2] of array [0..2] of TRect;
+  TTile = class
+  public
+    PrevRect: TRect;
+    Rect: TRect;
+  end;
+
+  TTileGrid = array [0..2] of array [0..2] of TTile;
   TQuotientGridArray = array [0..2] of TPointF;
   TQuotientGridStyle = (
     // Alle Kacheln in etwa gleich groß
@@ -31,14 +41,14 @@ type
 
   TGridLayer = class(TBaseLayer)
   private
-    FRectGrid: TRect3x3GridArray;
+    FTileGrid: TTileGrid;
     QuotientGrid: TQuotientGridArray;
     QuotientGridStyle: TQuotientGridStyle;
     FirstTileNumKey: Integer;
     SecondTileNumKey: Integer;
 
-    function CalcCurrentRectGrid: TRect3x3GridArray;
-    procedure UpdateRectGrid;
+    procedure CalcCurrentTileGrid(var TileGrid: TTileGrid);
+    procedure UpdateTileGrid;
 
     function IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
     function IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
@@ -46,6 +56,7 @@ type
 
   public
     constructor Create; override;
+    destructor Destroy; override;
 
     procedure EnterLayer; override;
     procedure ExitLayer; override;
@@ -59,7 +70,7 @@ type
       const LayerParams: TD2D1LayerParameters); override;
     procedure InvalidateMainContentResources; override;
 
-    property RectGrid: TRect3x3GridArray read FRectGrid;
+    property TileGrid: TTileGrid read FTileGrid;
   end;
 
   function GetQuotientGridArray(Style: TQuotientGridStyle): TQuotientGridArray;
@@ -102,11 +113,31 @@ begin
   end;
 end;
 
+procedure InitializeTileGrid(var TileGrid: TTileGrid);
+var
+  TileX, TileY: Integer;
+begin
+  for TileX := 0 to High(TileGrid) do
+    for TileY := 0 to High(TileGrid[TileX]) do
+      TileGrid[TileX][TileY] := TTile.Create;
+end;
+
+procedure FinalizeTileGrid(var TileGrid: TTileGrid);
+var
+  TileX, TileY: Integer;
+begin
+  for TileX := 0 to High(TileGrid) do
+    for TileY := 0 to High(TileGrid[TileX]) do
+      FreeAndNil(TileGrid[TileX][TileY]);
+end;
+
 { TGridLayer }
 
 constructor TGridLayer.Create;
 begin
   inherited Create;
+
+  InitializeTileGrid(FTileGrid);
 
   QuotientGrid := GetQuotientGridArray(qgsUniform);
 
@@ -114,11 +145,18 @@ begin
     vkNumpad6, vkNumpad7, vkNumpad8, vkNumpad9]);
 end;
 
+destructor TGridLayer.Destroy;
+begin
+  FinalizeTileGrid(FTileGrid);
+
+  inherited Destroy;
+end;
+
 procedure TGridLayer.EnterLayer;
 begin
   inherited EnterLayer;
 
-  UpdateRectGrid;
+  UpdateTileGrid;
 
   AddLog('TGridLayer.EnterLayer');
 end;
@@ -129,7 +167,7 @@ begin
   inherited ExitLayer;
 end;
 
-function TGridLayer.CalcCurrentRectGrid: TRect3x3GridArray;
+procedure TGridLayer.CalcCurrentTileGrid(var TileGrid: TTileGrid);
 var
   XRemainCount, YRemainCount: Integer;
   cc, Xcc, Ycc: Integer;
@@ -147,7 +185,7 @@ begin
   RemainWidth := WAWidth;
   RemainHeight := WAHeight;
 
-  // Anzahl von 0-Definition, diese
+  // Anzahl von 0-Definition, diese werden für die gleichmäßige Verteilung des Restes verwendet
   XRemainCount := 0;
   YRemainCount := 0;
 
@@ -181,7 +219,7 @@ begin
 
     for Ycc := 0 to 2 do
     begin
-      CurRect := @Result[Xcc][Ycc];
+      CurRect := @TileGrid[Xcc][Ycc].Rect;
       CurRect.Left := X;
       CurRect.Top := Y;
 
@@ -198,9 +236,57 @@ begin
   end;
 end;
 
-procedure TGridLayer.UpdateRectGrid;
+procedure TGridLayer.UpdateTileGrid;
+
+  procedure AnimateTile(Tile: TTile);
+  var
+    TargetRect: TRect;
+  begin
+    TargetRect := Tile.Rect;
+    Tile.Rect := Tile.PrevRect;
+    Take(Tile)
+      .FinishAnimations(1)
+      .Plugin<TAQPSystemTypesAnimations>
+      .RectAnimation(TargetRect,
+        function(RefObject: TObject): TRect
+        begin
+          Result := TTile(RefObject).Rect;
+        end,
+        procedure(RefObject: TObject; const NewRect: TRect)
+        begin
+          TTile(RefObject).Rect := NewRect;
+        end,
+        280, 1, TAQ.Ease(TEaseType.etElastic));
+
+  end;
+
+  procedure SaveTileRect(Tile: TTile);
+  begin
+    Tile.PrevRect := Tile.Rect;
+  end;
+
+var
+  TileX, TileY: Integer;
 begin
-  FRectGrid := CalcCurrentRectGrid;
+  for TileX := 0 to High(TileGrid) do
+    for TileY := 0 to High(TileGrid[TileX]) do
+      SaveTileRect(TileGrid[TileX][TileY]);
+
+  CalcCurrentTileGrid(FTileGrid);
+
+  for TileX := 0 to High(TileGrid) do
+    for TileY := 0 to High(TileGrid[TileX]) do
+      AnimateTile(TileGrid[TileX][TileY]);
+
+  // TODO: Das ist erstmal ein Hack und gehört geändert!
+  Take(Self)
+    .CancelTimers(2)
+    .EachTimer(300,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        Result := True;
+        DoMainContentChanged;
+      end, nil, 2);
 end;
 
 const
@@ -268,13 +354,13 @@ procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       Exit;
 
     Window := LocalDominaWindows[0];
-    Rect := RectGrid[TileX][TileY];
+    Rect := TileGrid[TileX][TileY].Rect;
 
     SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
   end;
 
 var
-  TileX, TileY, TileNum: Integer;
+  TileNum: Integer;
 begin
   if IsTileNumKey(Key, TileNum) then
   begin
@@ -296,8 +382,7 @@ begin
         QuotientGridStyle := Low(QuotientGridStyle);
 
       QuotientGrid := GetQuotientGridArray(QuotientGridStyle);
-      UpdateRectGrid;
-      DoMainContentChanged;
+      UpdateTileGrid;
       Handled := True;
     end;
   end;
@@ -325,7 +410,7 @@ var
   var
     HasFirstTileNumKey, HasSecondTileNumKey: Boolean;
     FirstTileNum, SecondTileNum: Integer;
-    FirstRect, SecondRect, ActualRect: TRect;
+    FirstRect, SecondRect: TRect;
     TileX, TileY: Integer;
   begin
     HasFirstTileNumKey := FirstTileNumKey <> 0;
@@ -337,11 +422,11 @@ var
 
     if HasFirstTileNumKey and IsTileNumKey(FirstTileNumKey, FirstTileNum) and
       IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
-      FirstRect := RectGrid[TileX][TileY];
+      FirstRect := TileGrid[TileX][TileY].Rect;
 
     if HasSecondTileNumKey and IsTileNumKey(SecondTileNumKey, SecondTileNum) and
       IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
-      SecondRect := RectGrid[TileX][TileY];
+      SecondRect := TileGrid[TileX][TileY].Rect;
 
     if (FirstTileNum > 0) and (SecondTileNum > 0) then
       SizeWindowRect(TRect.Union(FirstRect, SecondRect))
@@ -395,7 +480,6 @@ var
 begin
   RT := DrawContext.RenderTarget;
 
-
   RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
   RT.CreateSolidColorBrush(D2D1ColorF(clBlack), nil, BlackBrush);
   RT.CreateSolidColorBrush(D2D1ColorF(clWhite), nil, SelectedBrush);
@@ -407,7 +491,7 @@ begin
 
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
-      DrawTile(RectGrid[TileX][TileY]);
+      DrawTile(TileGrid[TileX][TileY].Rect);
 end;
 
 procedure TGridLayer.InvalidateMainContentResources;
