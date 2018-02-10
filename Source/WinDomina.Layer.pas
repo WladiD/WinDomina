@@ -7,19 +7,32 @@ uses
   System.Classes,
   System.Generics.Collections,
   Winapi.D2D1,
+
+  AnyiQuack,
+
   WinDomina.Types,
   WinDomina.Types.Drawing;
 
 type
   TBaseLayer = class
-  protected
-    FIsLayerActive: Boolean;
+  private
+    class var
+    MainContentLoopTimerID: Integer;
+  private
     FOnMainContentChanged: TNotifyEvent;
 
+    procedure DoMainContentChanged;
+
+  protected
+    FIsLayerActive: Boolean;
+    MainContentChanged: Boolean;
+    InvalidateMainContentLoopDepth: Integer;
+
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
-    procedure DoMainContentChanged; virtual;
+    procedure ForceExitInvalidateMainContentLoop;
 
   public
+    class constructor Create;
     constructor Create; virtual;
     destructor Destroy; override;
 
@@ -34,6 +47,10 @@ type
     procedure RenderMainContent(const DrawContext: IDrawContext;
       const LayerParams: TD2D1LayerParameters); virtual;
     procedure InvalidateMainContentResources; virtual;
+    procedure InvalidateMainContent; virtual;
+
+    procedure EnterInvalidateMainContentLoop;
+    procedure ExitInvalidateMainContentLoop;
 
     property IsLayerActive: Boolean read FIsLayerActive;
 
@@ -56,6 +73,11 @@ uses
 
 { TBaseLayer }
 
+class constructor TBaseLayer.Create;
+begin
+  MainContentLoopTimerID := TAQ.GetUniqueID;
+end;
+
 constructor TBaseLayer.Create;
 begin
 
@@ -74,6 +96,7 @@ end;
 
 procedure TBaseLayer.ExitLayer;
 begin
+  ForceExitInvalidateMainContentLoop;
   FIsLayerActive := False;
 end;
 
@@ -119,17 +142,59 @@ begin
 
 end;
 
-// Hier sollten die verwendeten Direct2D-Ressourcen verworfen werden, die evtl. beim zeichnen
-// zwischengespeichert wurden
-procedure TBaseLayer.InvalidateMainContentResources;
-begin
-
-end;
-
 procedure TBaseLayer.DoMainContentChanged;
 begin
   if Assigned(FOnMainContentChanged) then
     FOnMainContentChanged(Self);
+  MainContentChanged := False;
+end;
+
+// Hier sollten die verwendeten Direct2D-Ressourcen verworfen werden, die evtl. beim zeichnen
+// zwischengespeichert wurden.
+// In den abgeleiteten Klassen sollte der inherited-Aufruf dieser Methode am Ende der abgeleiteten
+// Prozedur erfolgen.
+procedure TBaseLayer.InvalidateMainContent;
+begin
+  if not MainContentChanged then
+  begin
+    MainContentChanged := True;
+    DoMainContentChanged;
+  end;
+end;
+
+procedure TBaseLayer.EnterInvalidateMainContentLoop;
+begin
+  if InvalidateMainContentLoopDepth = 0 then
+  begin
+    Take(Self)
+      .EachInterval(10,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        Result := True;
+        TBaseLayer(O).InvalidateMainContent;
+      end, MainContentLoopTimerID);
+  end;
+  Inc(InvalidateMainContentLoopDepth);
+end;
+
+procedure TBaseLayer.ExitInvalidateMainContentLoop;
+begin
+  Dec(InvalidateMainContentLoopDepth);
+  if InvalidateMainContentLoopDepth = 0 then
+    Take(Self).CancelIntervals(MainContentLoopTimerID)
+  else if InvalidateMainContentLoopDepth < 0 then
+    InvalidateMainContentLoopDepth := 0;
+end;
+
+procedure TBaseLayer.ForceExitInvalidateMainContentLoop;
+begin
+  InvalidateMainContentLoopDepth := 1;
+  ExitInvalidateMainContentLoop;
+end;
+
+procedure TBaseLayer.InvalidateMainContentResources;
+begin
+
 end;
 
 end.

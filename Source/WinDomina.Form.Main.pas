@@ -48,6 +48,7 @@ type
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
+    function HasActiveLayer(out Layer: TBaseLayer): Boolean;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
     procedure LayerMainContentChanged(Sender: TObject);
@@ -215,9 +216,7 @@ begin
   try
     RT.Clear(D2D1ColorF(clBlack, 0));
 
-    Layer := GetActiveLayer;
-
-    if Assigned(Layer) and
+    if HasActiveLayer(Layer) and
       Layer.HasMainContent(DrawContext, LayerParams, D2DLayer) then
     begin
       D2DLayerDrawing := Assigned(D2DLayer);
@@ -234,7 +233,7 @@ begin
 
     InteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
     try
-    UpdateWindow(DC);
+      UpdateWindow(DC);
     finally
       InteropRenderTarget.ReleaseDC(TRect.Empty);
     end;
@@ -293,6 +292,13 @@ end;
 function TMainForm.GetActiveLayer: TBaseLayer;
 begin
   Result := ActiveLayers.First;
+end;
+
+function TMainForm.HasActiveLayer(out Layer: TBaseLayer): Boolean;
+begin
+  Result := ActiveLayers.Count > 0;
+  if Result then
+    Layer := ActiveLayers.First;
 end;
 
 procedure TMainForm.EnterLayer(Layer: TBaseLayer);

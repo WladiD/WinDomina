@@ -41,6 +41,9 @@ type
 
   TGridLayer = class(TBaseLayer)
   private
+    class var
+    TileSlideAniID: Integer;
+  private
     FTileGrid: TTileGrid;
     QuotientGrid: TQuotientGridArray;
     QuotientGridStyle: TQuotientGridStyle;
@@ -55,6 +58,8 @@ type
     function IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
 
   public
+    class constructor Create;
+
     constructor Create; override;
     destructor Destroy; override;
 
@@ -132,6 +137,11 @@ begin
 end;
 
 { TGridLayer }
+
+class constructor TGridLayer.Create;
+begin
+  TileSlideAniID := TAQ.GetUniqueID;
+end;
 
 constructor TGridLayer.Create;
 begin
@@ -242,10 +252,12 @@ procedure TGridLayer.UpdateTileGrid;
   var
     TargetRect: TRect;
   begin
+    EnterInvalidateMainContentLoop;
+
     TargetRect := Tile.Rect;
     Tile.Rect := Tile.PrevRect;
     Take(Tile)
-      .FinishAnimations(1)
+      .CancelAnimations(TileSlideAniID)
       .Plugin<TAQPSystemTypesAnimations>
       .RectAnimation(TargetRect,
         function(RefObject: TObject): TRect
@@ -256,8 +268,11 @@ procedure TGridLayer.UpdateTileGrid;
         begin
           TTile(RefObject).Rect := NewRect;
         end,
-        280, 1, TAQ.Ease(TEaseType.etElastic));
-
+        250, TileSlideAniID, TAQ.Ease(TEaseType.etElastic),
+        procedure(Sender: TObject)
+        begin
+          ExitInvalidateMainContentLoop;
+        end);
   end;
 
   procedure SaveTileRect(Tile: TTile);
@@ -268,6 +283,10 @@ procedure TGridLayer.UpdateTileGrid;
 var
   TileX, TileY: Integer;
 begin
+  // Da wir gleich ohnehin wieder in den Loop gehen, erzwingen wir erstmal seine Beendigung,
+  // falls es davor schon ungleichmäßige Enter-/ExitInvalidateMainContentLoop-Aufrufe gab.
+  ForceExitInvalidateMainContentLoop;
+
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
       SaveTileRect(TileGrid[TileX][TileY]);
@@ -277,16 +296,6 @@ begin
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
       AnimateTile(TileGrid[TileX][TileY]);
-
-  // TODO: Das ist erstmal ein Hack und gehört geändert!
-  Take(Self)
-    .CancelTimers(2)
-    .EachTimer(300,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        Result := True;
-        DoMainContentChanged;
-      end, nil, 2);
 end;
 
 const
@@ -478,6 +487,8 @@ var
   end;
 
 begin
+  inherited RenderMainContent(DrawContext, LayerParams);
+
   RT := DrawContext.RenderTarget;
 
   RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
