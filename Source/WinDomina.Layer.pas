@@ -167,6 +167,7 @@ begin
   if InvalidateMainContentLoopDepth = 0 then
   begin
     Take(Self)
+      .CancelDelays(MainContentLoopTimerID)
       .EachInterval(10,
       function(AQ: TAQ; O: TObject): Boolean
       begin
@@ -181,15 +182,21 @@ procedure TBaseLayer.ExitInvalidateMainContentLoop;
 begin
   Dec(InvalidateMainContentLoopDepth);
   if InvalidateMainContentLoopDepth = 0 then
-    Take(Self).CancelIntervals(MainContentLoopTimerID)
+    Take(Self)
+      .EachDelay(200,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        Take(O).CancelIntervals(MainContentLoopTimerID);
+        Result := False;
+      end, MainContentLoopTimerID)
   else if InvalidateMainContentLoopDepth < 0 then
     InvalidateMainContentLoopDepth := 0;
 end;
 
 procedure TBaseLayer.ForceExitInvalidateMainContentLoop;
 begin
-  InvalidateMainContentLoopDepth := 1;
-  ExitInvalidateMainContentLoop;
+  InvalidateMainContentLoopDepth := 0;
+  Take(Self).CancelIntervals(MainContentLoopTimerID);
 end;
 
 procedure TBaseLayer.InvalidateMainContentResources;

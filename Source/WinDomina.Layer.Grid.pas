@@ -12,6 +12,8 @@ uses
   Winapi.D2D1,
   Vcl.Graphics,
   Vcl.Direct2D,
+  Vcl.Forms,
+  Vcl.Controls,
 
   AnyiQuack,
   AQPSystemTypesAnimations,
@@ -163,8 +165,36 @@ begin
 end;
 
 procedure TGridLayer.EnterLayer;
+var
+  TileX, TileY: Integer;
+  WALeft, WATop, WAWidth, WAHeight: Integer;
+  WorkareaRect: TRect;
+
+  procedure InitPos(Tile: TTile);
+  var
+    Rect: PRect;
+  begin
+    Rect := @Tile.Rect;
+    Rect.Left := -WAWidth;
+    Rect.Top := WAHeight;
+    Rect.Right := 0;
+    Rect.Bottom := 0;
+  end;
+
 begin
   inherited EnterLayer;
+
+  Randomize;
+
+  WorkareaRect := Screen.MonitorFromPoint(Mouse.CursorPos).WorkareaRect;
+  WALeft := WorkareaRect.Left;
+  WATop := WorkareaRect.Top;
+  WAWidth := WorkareaRect.Width;
+  WAHeight := WorkareaRect.Height;
+
+  for TileX := 0 to High(TileGrid) do
+    for TileY := 0 to High(TileGrid[TileX]) do
+      InitPos(TileGrid[TileX][TileY]);
 
   UpdateTileGrid;
 
@@ -268,7 +298,7 @@ procedure TGridLayer.UpdateTileGrid;
         begin
           TTile(RefObject).Rect := NewRect;
         end,
-        250, TileSlideAniID, TAQ.Ease(TEaseType.etElastic),
+        250, TileSlideAniID, TAQ.Ease(TEaseType.etSinus),
         procedure(Sender: TObject)
         begin
           ExitInvalidateMainContentLoop;
@@ -470,19 +500,22 @@ var
   GrayBrush, BlackBrush: ID2D1SolidColorBrush;
   RT: ID2D1RenderTarget;
   TileNum, TileX, TileY: Integer;
-  TextFormat: IDWriteTextFormat;
+  TextFormat, TextFormatHollow: IDWriteTextFormat;
 
   procedure DrawTile(Rect: TRect);
   var
     TileText: string;
   begin
-    RT.DrawRectangle(Rect, BlackBrush, 2);
-    Rect.Inflate(-5, -5);
+    RT.DrawRectangle(Rect, BlackBrush, 4);
+    Rect.Inflate(-4, -4);
+    RT.DrawRectangle(Rect, SelectedBrush, 2);
 
-    RT.FillRectangle(Rect, UnselectedBrush);
+//    Rect.Inflate(-5, -5);
+//    RT.FillRectangle(Rect, UnselectedBrush);
 
     TileText := IntToStr(TileNum);
 
+    RT.DrawText(PChar(TileText), Length(TileText), TextFormatHollow, Rect, SelectedBrush);
     RT.DrawText(PChar(TileText), Length(TileText), TextFormat, Rect, BlackBrush);
   end;
 
@@ -499,6 +532,11 @@ begin
     DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 96, 'de-de', TextFormat);
   TextFormat.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
   TextFormat.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_BOLD,
+    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 106, 'de-de', TextFormatHollow);
+  TextFormatHollow.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+  TextFormatHollow.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
