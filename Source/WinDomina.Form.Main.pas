@@ -10,6 +10,7 @@ uses
   System.Types,
   System.UITypes,
   System.Win.ComObj,
+  System.ImageList,
   Winapi.Windows,
   Winapi.Messages,
   Winapi.D2D1,
@@ -21,6 +22,8 @@ uses
   Vcl.Dialogs,
   Vcl.StdCtrls,
   Vcl.Direct2D,
+  Vcl.ExtCtrls,
+  Vcl.ImgList,
   WinDomina.Types,
   WinDomina.WindowTools,
   WinDomina.Registry,
@@ -31,6 +34,8 @@ uses
 
 type
   TMainForm = class(TForm)
+    TrayIcon: TTrayIcon;
+    TrayImageList: TImageList;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -470,6 +475,7 @@ begin
   AdjustWindow;
 
   EnterLayer(Layers.First);
+  TrayIcon.IconIndex := 1;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
@@ -479,6 +485,7 @@ begin
   ExitLayer;
   ActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
+  TrayIcon.IconIndex := 0;
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
