@@ -180,13 +180,13 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2.8"
-     inkscape:cx="285.60995"
-     inkscape:cy="520.76552"
+     inkscape:zoom="11.2"
+     inkscape:cx="172.42195"
+     inkscape:cy="457.45326"
      inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
+     inkscape:current-layer="g4560"
      showgrid="false"
-     inkscape:window-width="2880"
+     inkscape:window-width="3840"
      inkscape:window-height="2066"
      inkscape:window-x="-11"
      inkscape:window-y="-11"
@@ -209,7 +209,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -248,7 +248,7 @@
        inkscape:connector-curvature="0"
        id="use5258"
        d="m 46.945871,192.22598 c -4.291596,-5.05798 -8.757604,-11.35491 -11.977193,-9.62349 -0.979395,0.87001 -0.368347,5.13797 0.471182,9.63005 l -2.012873,2e-5 c -2.19543,-9.61153 -2.811519,-14.05269 -2.56066,-15.34683 2.652648,-7.99646 14.935719,4.37936 16.079544,15.34025 z"
-       style="display:inline;opacity:1;fill:#ff0606;fill-opacity:1;stroke:#ffffff;stroke-width:0.76499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       style="display:inline;opacity:1;fill:#ff0606;fill-opacity:1;stroke:#ff0000;stroke-width:0.76499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        inkscape:label="Brücke weiß"
        inkscape:export-xdpi="300.16263"
        inkscape:export-ydpi="300.16263" />
@@ -317,7 +317,7 @@
        id="use4554-6"
        width="100%"
        height="100%"
-       transform="translate(-20.870373,-0.15695115)"
+       transform="matrix(1.0411892,0,0,1.0411892,-23.675716,-8.1023392)"
        style="display:inline;opacity:1"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300" />
