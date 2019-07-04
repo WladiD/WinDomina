@@ -27,8 +27,14 @@ uses
 type
   TTile = class
   public
+    // Das vorherige Rechteck, welches als Basis für die Berechnung der Animation verwendet wird
     PrevRect: TRect;
+
+    // Das aktuell dargestellte Rechteck, weicht vom TargetRect z.B. während der Animation ab
     Rect: TRect;
+
+    // Das Ziel-Rechteck, welches effektiv benutzt werden soll
+    TargetRect: TRect;
   end;
 
   TTileGrid = array [0..2] of array [0..2] of TTile;
@@ -271,6 +277,7 @@ begin
 
       CurRect.Right := X + XSize;
       CurRect.Bottom := Y;
+      TileGrid[Xcc][Ycc].TargetRect := CurRect^;
     end;
     Inc(X, XSize);
   end;
@@ -461,11 +468,11 @@ var
 
     if HasFirstTileNumKey and IsTileNumKey(FirstTileNumKey, FirstTileNum) and
       IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
-      FirstRect := TileGrid[TileX][TileY].Rect;
+      FirstRect := TileGrid[TileX][TileY].TargetRect;
 
     if HasSecondTileNumKey and IsTileNumKey(SecondTileNumKey, SecondTileNum) and
       IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
-      SecondRect := TileGrid[TileX][TileY].Rect;
+      SecondRect := TileGrid[TileX][TileY].TargetRect;
 
     if (FirstTileNum > 0) and (SecondTileNum > 0) then
       SizeWindowRect(TRect.Union(FirstRect, SecondRect))

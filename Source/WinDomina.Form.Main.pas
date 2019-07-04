@@ -24,18 +24,22 @@ uses
   Vcl.Direct2D,
   Vcl.ExtCtrls,
   Vcl.ImgList,
+  Vcl.Menus,
+
   WinDomina.Types,
   WinDomina.WindowTools,
   WinDomina.Registry,
   WinDomina.Layer,
   WinDomina.KBHKLib,
   WinDomina.Form.Log,
-  WinDomina.Types.Drawing;
+  WinDomina.Types.Drawing,
+  AnyiQuack;
 
 type
   TMainForm = class(TForm)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
+    TrayPopupMenu: TPopupMenu;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
