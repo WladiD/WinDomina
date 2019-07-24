@@ -11,7 +11,10 @@ uses
   WinDomina.Registry in 'WinDomina.Registry.pas',
   WinDomina.KBHKLib in 'WinDomina.KBHKLib.pas',
   WinDomina.Types.Drawing in 'WinDomina.Types.Drawing.pas',
-  WinDomina.Form.Log in 'WinDomina.Form.Log.pas' {LogForm};
+  WinDomina.Form.Log in 'WinDomina.Form.Log.pas' {LogForm},
+  Localization in '..\..\Localization\Localization.pas',
+  Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
+  ProcedureHook in '..\..\Localization\ProcedureHook.pas';
 
 {$R *.res}
 
