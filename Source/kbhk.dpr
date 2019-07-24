@@ -22,14 +22,33 @@ var
 
 procedure EnterDominaMode; stdcall;
 begin
-  DominaModeActivated := True;
-  PostMessage(WindowHandle, WD_ENTER_DOMINA_MODE, 0, 0);
+  if not DominaModeActivated then
+  begin
+    DominaModeActivated := True;
+    PostMessage(WindowHandle, WD_ENTER_DOMINA_MODE, 0, 0);
+  end;
 end;
 
 procedure ExitDominaMode; stdcall;
 begin
-  DominaModeActivated := False;
-  PostMessage(WindowHandle, WD_EXIT_DOMINA_MODE, 0, 0);
+  if DominaModeActivated then
+  begin
+    DominaModeActivated := False;
+    PostMessage(WindowHandle, WD_EXIT_DOMINA_MODE, 0, 0);
+  end;
+end;
+
+procedure ToggleDominaMode; stdcall;
+begin
+  if DominaModeActivated then
+    ExitDominaMode
+  else
+    EnterDominaMode;
+end;
+
+function IsDominaModeActivated: Boolean; stdcall;
+begin
+  Result := DominaModeActivated;
 end;
 
 function LowLevelKeyboardHookProc(nCode: Integer; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
@@ -52,11 +71,7 @@ begin
       CurrentTick := GetTickCount64;
       if LastHotkeyTapTick > (CurrentTick - DoubleTapTime) then
       begin
-        if DominaModeActivated then
-          ExitDominaMode
-        else
-          EnterDominaMode;
-
+        ToggleDominaMode;
         LastHotkeyTapTick := 0;
       end
       else
@@ -116,5 +131,7 @@ exports
   InstallHook,
   UninstallHook,
   EnterDominaMode,
-  ExitDominaMode;
+  ExitDominaMode,
+  ToggleDominaMode,
+  IsDominaModeActivated;
 end.

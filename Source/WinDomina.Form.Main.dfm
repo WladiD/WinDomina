@@ -19,7 +19,9 @@ object MainForm: TMainForm
   object TrayIcon: TTrayIcon
     Hint = 'WinDomina'
     Icons = TrayImageList
+    PopupMenu = TrayPopupMenu
     Visible = True
+    OnDblClick = TrayIconDblClick
     Left = 760
     Top = 376
   end
@@ -30,7 +32,7 @@ object MainForm: TMainForm
     Left = 744
     Top = 312
     Bitmap = {
-      494C0101020008003C0020002000FFFFFFFF2110FFFFFFFFFFFFFFFF424D3600
+      494C010102000800400020002000FFFFFFFF2110FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000800000002000000001002000000000000040
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000002D2D2D6CFFFFFFFFFFFFFFFFFFFFFFFFF5F5F5FA060606280000
@@ -568,5 +570,17 @@ object MainForm: TMainForm
   object TrayPopupMenu: TPopupMenu
     Left = 808
     Top = 312
+    object CloseMenuItem: TMenuItem
+      Action = CloseAction
+    end
+  end
+  object ActionList: TActionList
+    Left = 496
+    Top = 352
+    object CloseAction: TAction
+      Caption = 'Close'
+      HelpKeyword = 'Caption=1'
+      OnExecute = CloseActionExecute
+    end
   end
 end

@@ -11,6 +11,7 @@ uses
   System.UITypes,
   System.Win.ComObj,
   System.ImageList,
+  System.Actions,
   Winapi.Windows,
   Winapi.Messages,
   Winapi.D2D1,
@@ -25,6 +26,10 @@ uses
   Vcl.ExtCtrls,
   Vcl.ImgList,
   Vcl.Menus,
+  Vcl.ActnList,
+
+  AnyiQuack,
+  Localization,
 
   WinDomina.Types,
   WinDomina.WindowTools,
@@ -32,16 +37,20 @@ uses
   WinDomina.Layer,
   WinDomina.KBHKLib,
   WinDomina.Form.Log,
-  WinDomina.Types.Drawing,
-  AnyiQuack;
+  WinDomina.Types.Drawing;
 
 type
   TMainForm = class(TForm)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
     TrayPopupMenu: TPopupMenu;
+    ActionList: TActionList;
+    CloseAction: TAction;
+    CloseMenuItem: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure CloseActionExecute(Sender: TObject);
+    procedure TrayIconDblClick(Sender: TObject);
   private
     Layers: TLayerList;
     ActiveLayers: TLayerList;
@@ -73,6 +82,12 @@ type
     procedure RenderWindowContent;
     procedure CreateDeviceResources;
     procedure InvalidateDeviceResources;
+
+  // ITranslate-Interface
+  private
+    function IsReadyForTranslate: Boolean;
+    procedure OnReadyForTranslate(NotifyEvent: TNotifyEvent);
+    procedure Translate;
   end;
 
 var
@@ -169,6 +184,10 @@ begin
 
   AddLayers;
 
+  // Initialisierung der RuntimeInfo
+  RuntimeInfo.DefaultPath := IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName));
+  RuntimeInfo.CommonPath := IncludeTrailingPathDelimiter(RuntimeInfo.DefaultPath + 'common');
+
   InstallHook(Handle);
 
   DrawContext := CreateDrawContext;
@@ -181,6 +200,8 @@ begin
   WindowPosition := Point(0, 0);
   WindowSize.cx := Width;
   WindowSize.cy := Height;
+
+  InitializeLang(RuntimeInfo.CommonPath);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -189,6 +210,26 @@ begin
   Layers.Free;
 
   UninstallHook;
+end;
+
+function TMainForm.IsReadyForTranslate: Boolean;
+begin
+  Result := True;
+end;
+
+procedure TMainForm.OnReadyForTranslate(NotifyEvent: TNotifyEvent);
+begin
+
+end;
+
+procedure TMainForm.Translate;
+begin
+  TrayIcon.Hint := Lang[0]; // WinDomina
+end;
+
+procedure TMainForm.TrayIconDblClick(Sender: TObject);
+begin
+  ToggleDominaMode;
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
@@ -249,6 +290,11 @@ begin
   finally
     RT.EndDraw;
   end;
+end;
+
+procedure TMainForm.CloseActionExecute(Sender: TObject);
+begin
+  Close;
 end;
 
 procedure TMainForm.CreateDeviceResources;

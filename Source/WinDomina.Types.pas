@@ -65,6 +65,12 @@ type
     constructor Create(Target: TStrings);
   end;
 
+  TRuntimeInfo = class
+  public
+    DefaultPath: string;
+    CommonPath: string;
+  end;
+
 implementation
 
 { TKeyStates }

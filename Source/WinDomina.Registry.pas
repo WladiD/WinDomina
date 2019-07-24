@@ -28,6 +28,8 @@ procedure UnregisterDominaWindowsChangeNotify(Implementor: TObject);
 procedure RegisterLogging(Log: ILogging);
 procedure AddLog(const LogLine: string);
 
+function RuntimeInfo: TRuntimeInfo;
+
 implementation
 
 threadvar
@@ -108,6 +110,16 @@ begin
     LogInterface.AddLog(LogLine);
 end;
 
+var
+  RI: TRuntimeInfo;
+
+function RuntimeInfo: TRuntimeInfo;
+begin
+  if not Assigned(RI) then
+    RI := TRuntimeInfo.Create;
+  Result := RI;
+end;
+
 initialization
 DWChangeEvents := TDWChangeEventsDictionary.Create;
 
@@ -116,6 +128,7 @@ FreeAndNil(WDMKS);
 FreeAndNil(LAK);
 FreeAndNil(DWChangeEvents);
 FreeAndNil(DW);
+FreeAndNil(RI);
 LogInterface := nil;
 
 end.
