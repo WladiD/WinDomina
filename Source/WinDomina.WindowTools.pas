@@ -8,7 +8,9 @@ uses
   System.StrUtils,
   Vcl.Forms,
   Winapi.Windows,
-  Winapi.Dwmapi;
+  Winapi.Dwmapi,
+
+  SendInputHelper;
 
 function GetWorkareaRect(const RefRect: TRect): TRect; overload;
 function GetWorkareaRect(RefWindow: THandle): TRect; overload;
@@ -18,6 +20,9 @@ function WindowStyleToString(Style: Long): string;
 function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
 function GetWindowNonClientOversize(Window: THandle): TRect;
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
+
+procedure SwitchToPreviouslyFocusedAppWindow;
+function GetTaskbarHandle: THandle;
 
 type
   TUpdateLayeredWindowInfo = record
@@ -184,6 +189,31 @@ begin
 
   Result := Winapi.Windows.SetWindowPos(hWnd, hWndInsertAfter, Rect.Left, Rect.Top,
     Rect.Width, Rect.Height, Flags);
+end;
+
+procedure SwitchToPreviouslyFocusedAppWindow;
+var
+  SIH: TSendInputHelper;
+begin
+  SIH := TSendInputHelper.Create;
+  try
+    SIH.AddShift([ssAlt], True, False);
+    SIH.AddDelay(50);
+    SIH.AddVirtualKey(VK_TAB, True, False);
+    SIH.AddDelay(50);
+    SIH.AddVirtualKey(VK_TAB, False, True);
+    SIH.AddShift([ssAlt], False, True);
+    SIH.AddDelay(50);
+
+    SIH.Flush;
+  finally
+    SIH.Free;
+  end;
+end;
+
+function GetTaskbarHandle: THandle;
+begin
+  Result := FindWindow('Shell_TrayWnd', nil);
 end;
 
 end.

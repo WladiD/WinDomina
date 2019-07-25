@@ -18,6 +18,7 @@ object MainForm: TMainForm
   TextHeight = 13
   object TrayIcon: TTrayIcon
     Hint = 'WinDomina'
+    BalloonFlags = bfInfo
     Icons = TrayImageList
     PopupMenu = TrayPopupMenu
     Visible = True
@@ -32,7 +33,7 @@ object MainForm: TMainForm
     Left = 744
     Top = 312
     Bitmap = {
-      494C010102000800400020002000FFFFFFFF2110FFFFFFFFFFFFFFFF424D3600
+      494C0101020008004C0020002000FFFFFFFF2110FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000800000002000000001002000000000000040
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000002D2D2D6CFFFFFFFFFFFFFFFFFFFFFFFFF5F5F5FA060606280000
@@ -570,6 +571,10 @@ object MainForm: TMainForm
   object TrayPopupMenu: TPopupMenu
     Left = 808
     Top = 312
+    object ToggleDominaModeMenuItem: TMenuItem
+      Action = ToggleDominaModeAction
+      Default = True
+    end
     object CloseMenuItem: TMenuItem
       Action = CloseAction
     end
@@ -581,6 +586,10 @@ object MainForm: TMainForm
       Caption = 'Close'
       HelpKeyword = 'Caption=1'
       OnExecute = CloseActionExecute
+    end
+    object ToggleDominaModeAction: TAction
+      Caption = 'Toggle dominate mode'
+      OnExecute = ToggleDominaModeActionExecute
     end
   end
 end

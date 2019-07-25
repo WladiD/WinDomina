@@ -121,6 +121,7 @@
         <DCCReference Include="..\..\Localization\Localization.pas"/>
         <DCCReference Include="..\..\Localization\Localization.VCL.CommonBinding.pas"/>
         <DCCReference Include="..\..\Localization\ProcedureHook.pas"/>
+        <DCCReference Include="..\..\SendInputHelper\SendInputHelper.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -147,7 +148,7 @@
                 </Excluded_Packages>
             </Delphi.Personality>
             <Deployment Version="3">
-                <DeployFile LocalName="..\RuntimeDebug\WinDomina.exe" Configuration="Debug" Class="ProjectOutput">
+                <DeployFile LocalName="..\Runtime\WinDomina.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>WinDomina.exe</RemoteName>
                         <Overwrite>true</Overwrite>

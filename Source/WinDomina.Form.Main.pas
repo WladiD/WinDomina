@@ -12,6 +12,8 @@ uses
   System.Win.ComObj,
   System.ImageList,
   System.Actions,
+  System.Math,
+  System.StrUtils,
   Winapi.Windows,
   Winapi.Messages,
   Winapi.D2D1,
@@ -30,6 +32,7 @@ uses
 
   AnyiQuack,
   Localization,
+  SendInputHelper,
 
   WinDomina.Types,
   WinDomina.WindowTools,
@@ -40,16 +43,19 @@ uses
   WinDomina.Types.Drawing;
 
 type
-  TMainForm = class(TForm)
+  TMainForm = class(TForm, ITranslate)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
     TrayPopupMenu: TPopupMenu;
     ActionList: TActionList;
     CloseAction: TAction;
     CloseMenuItem: TMenuItem;
+    ToggleDominaModeAction: TAction;
+    ToggleDominaModeMenuItem: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure CloseActionExecute(Sender: TObject);
+    procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
   private
     Layers: TLayerList;
@@ -77,6 +83,7 @@ type
     procedure WD_ExitDominaMode(var Message: TMessage); message WD_EXIT_DOMINA_MODE;
     procedure WD_KeyDownDominaMode(var Message: TMessage); message WD_KEYDOWN_DOMINA_MODE;
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
+    procedure DominaModeChanged;
 
     procedure UpdateWindow(SourceDC: HDC);
     procedure RenderWindowContent;
@@ -202,6 +209,14 @@ begin
   WindowSize.cy := Height;
 
   InitializeLang(RuntimeInfo.CommonPath);
+
+  Take(Self)
+    .EachDelay(1000,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        TrayIcon.ShowBalloonHint;
+        Result := True;
+      end);
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
@@ -224,12 +239,36 @@ end;
 
 procedure TMainForm.Translate;
 begin
-  TrayIcon.Hint := Lang[0]; // WinDomina
+  TrayIcon.BalloonTitle := Lang[2]; // Dominate-Modus aktivieren
+  TrayIcon.BalloonHint := Lang[4]; // Tippen Sie doppelt auf die CapsLock-Taste (Feststelltaste) um den Dominate-Modus zu aktivieren
+
+  // Weil es dort statusabhängige Übersetzungen geben kann
+  DominaModeChanged;
+end;
+
+procedure TMainForm.ToggleDominaModeActionExecute(Sender: TObject);
+
+  function IsInvalidFGWindow: Boolean;
+  var
+    FGWindow: THandle;
+  begin
+    FGWindow := GetForegroundWindow;
+    Result := (FGWindow = GetTaskbarHandle) or (FGWindow = Handle) or (FGWindow = Application.Handle);
+  end;
+
+begin
+  // Wenn man über das Tray-Icon (Menü oder Doppelklick) den Dominate-Modus aktiviert, so verliert
+  // das aktuell ausgewählte Fenster den Fokus. Stattdessen ist die Taskleiste fokussiert.
+  // In diesem Fall, sollte der Fokus auf das vorherige Fenster gewechselt werden.
+  if not IsDominaModeActivated and IsInvalidFGWindow then
+    SwitchToPreviouslyFocusedAppWindow;
+
+  ToggleDominaMode;
 end;
 
 procedure TMainForm.TrayIconDblClick(Sender: TObject);
 begin
-  ToggleDominaMode;
+  ToggleDominaModeAction.Execute;
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
@@ -525,7 +564,7 @@ begin
   AdjustWindow;
 
   EnterLayer(Layers.First);
-  TrayIcon.IconIndex := 1;
+  DominaModeChanged;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
@@ -535,7 +574,21 @@ begin
   ExitLayer;
   ActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
-  TrayIcon.IconIndex := 0;
+  DominaModeChanged;
+end;
+
+procedure TMainForm.DominaModeChanged;
+var
+  Activated: Boolean;
+begin
+  Activated := IsDominaModeActivated;
+  TrayIcon.IconIndex := IfThen(Activated, 1, 0);
+
+  TrayIcon.Hint := Lang[0] + sLineBreak + // WinDomina
+    IfThen(Activated, Lang[5] {Dominate-Modus ist aktiv}, Lang[6] {Dominate-Modus ist nicht aktiv}) + sLineBreak +
+    Lang[7]; // Tippen Sie doppelt auf die CapsLock-Taste...
+
+  ToggleDominaModeAction.Caption := IfThen(Activated, {End dominate mode} Lang[3], {Start dominate mode} Lang[2]);
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);

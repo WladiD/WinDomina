@@ -14,7 +14,8 @@ uses
   WinDomina.Form.Log in 'WinDomina.Form.Log.pas' {LogForm},
   Localization in '..\..\Localization\Localization.pas',
   Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
-  ProcedureHook in '..\..\Localization\ProcedureHook.pas';
+  ProcedureHook in '..\..\Localization\ProcedureHook.pas',
+  SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas';
 
 {$R *.res}
 
