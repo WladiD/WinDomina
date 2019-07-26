@@ -60,6 +60,8 @@ type
   private
     FLayers: TLayerList;
     FActiveLayers: TLayerList;
+    FLastUsedLayer: TBaseLayer;
+
     FDrawContext: IDrawContext;
     FWICBitmap: IWICBitmap;
     FInteropRenderTarget: ID2D1GdiInteropRenderTarget;
@@ -563,7 +565,10 @@ begin
 
   AdjustWindow;
 
-  EnterLayer(FLayers.First);
+  if Assigned(FLastUsedLayer) then
+    EnterLayer(FLastUsedLayer)
+  else
+    EnterLayer(FLayers.First);
   DominaModeChanged;
 end;
 
@@ -571,6 +576,7 @@ procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
   LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
+  FLastUsedLayer := GetActiveLayer;
   ExitLayer;
   FActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
