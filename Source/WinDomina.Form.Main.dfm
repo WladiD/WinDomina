@@ -1,6 +1,8 @@
 object MainForm: TMainForm
   Left = 0
   Top = 0
+  HelpType = htKeyword
+  HelpKeyword = 'Caption=0'
   BorderStyle = bsNone
   Caption = 'WinDomina'
   ClientHeight = 450

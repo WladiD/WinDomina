@@ -418,6 +418,7 @@ begin
 
   if not Layer.IsLayerActive then
   begin
+    Caption := Lang[0] + ': ' + Layer.GetDisplayName;
     Layer.EnterLayer;
     RenderWindowContent;
   end;

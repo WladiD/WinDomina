@@ -52,6 +52,8 @@ type
     procedure EnterInvalidateMainContentLoop;
     procedure ExitInvalidateMainContentLoop;
 
+    function GetDisplayName: string; virtual;
+
     property IsLayerActive: Boolean read FIsLayerActive;
 
     // Dieses Ereignis wird ausgelöst, wenn der Layer selbst feststellt, dass er sich neu zeichnen
@@ -197,6 +199,12 @@ procedure TBaseLayer.ForceExitInvalidateMainContentLoop;
 begin
   InvalidateMainContentLoopDepth := 0;
   Take(Self).CancelIntervals(MainContentLoopTimerID);
+end;
+
+// Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann
+function TBaseLayer.GetDisplayName: string;
+begin
+  Result := Copy(ClassName, 2, Pos('Layer', ClassName) - 2);
 end;
 
 procedure TBaseLayer.InvalidateMainContentResources;
