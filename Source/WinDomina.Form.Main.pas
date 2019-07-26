@@ -58,17 +58,17 @@ type
     procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
   private
-    Layers: TLayerList;
-    ActiveLayers: TLayerList;
-    DrawContext: IDrawContext;
-    WICBitmap: IWICBitmap;
-    InteropRenderTarget: ID2D1GdiInteropRenderTarget;
+    FLayers: TLayerList;
+    FActiveLayers: TLayerList;
+    FDrawContext: IDrawContext;
+    FWICBitmap: IWICBitmap;
+    FInteropRenderTarget: ID2D1GdiInteropRenderTarget;
 
-    Blend: TBlendFunction;
-    SourcePosition: TPoint;
-    WindowPosition: TPoint;
-    WindowSize: TSize;
-    DeviceResourcesValid: Boolean;
+    FBlend: TBlendFunction;
+    FSourcePosition: TPoint;
+    FWindowPosition: TPoint;
+    FWindowSize: TSize;
+    FDeviceResourcesValid: Boolean;
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
@@ -183,8 +183,8 @@ begin
   if (ExStyle and WS_EX_LAYERED) = 0 then
     SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
 
-  Layers := TLayerList.Create(True);
-  ActiveLayers := TLayerList.Create(False);
+  FLayers := TLayerList.Create(True);
+  FActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
   RegisterLayerActivationKeys(TKeyLayerList.Create);
   RegisterDominaWindows(TWindowList.Create);
@@ -197,16 +197,16 @@ begin
 
   InstallHook(Handle);
 
-  DrawContext := CreateDrawContext;
-  Blend.BlendOp := AC_SRC_OVER;
-  Blend.BlendFlags := 0;
-  Blend.SourceConstantAlpha := 255;
-  Blend.AlphaFormat := AC_SRC_ALPHA;
+  FDrawContext := CreateDrawContext;
+  FBlend.BlendOp := AC_SRC_OVER;
+  FBlend.BlendFlags := 0;
+  FBlend.SourceConstantAlpha := 255;
+  FBlend.AlphaFormat := AC_SRC_ALPHA;
 
-  SourcePosition := Point(0, 0);
-  WindowPosition := Point(0, 0);
-  WindowSize.cx := Width;
-  WindowSize.cy := Height;
+  FSourcePosition := Point(0, 0);
+  FWindowPosition := Point(0, 0);
+  FWindowSize.cx := Width;
+  FWindowSize.cy := Height;
 
   InitializeLang(RuntimeInfo.CommonPath);
 
@@ -221,8 +221,8 @@ end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
-  ActiveLayers.Free;
-  Layers.Free;
+  FActiveLayers.Free;
+  FLayers.Free;
 
   UninstallHook;
 end;
@@ -277,10 +277,10 @@ var
 begin
   ZeroMemory(@Info, SizeOf(Info));
   Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
-  Info.pptSrc := @SourcePosition;
-  Info.pptDst := @WindowPosition;
-  Info.psize  := @WindowSize;
-  Info.pblend := @Blend;
+  Info.pptSrc := @FSourcePosition;
+  Info.pptDst := @FWindowPosition;
+  Info.psize  := @FWindowSize;
+  Info.pblend := @FBlend;
   Info.dwFlags := ULW_ALPHA;
   Info.hdcSrc := SourceDC;
 
@@ -299,32 +299,32 @@ var
 begin
   CreateDeviceResources;
 
-  RT := DrawContext.RenderTarget;
+  RT := FDrawContext.RenderTarget;
 
   RT.BeginDraw;
   try
     RT.Clear(D2D1ColorF(clBlack, 0));
 
     if HasActiveLayer(Layer) and
-      Layer.HasMainContent(DrawContext, LayerParams, D2DLayer) then
+      Layer.HasMainContent(FDrawContext, LayerParams, D2DLayer) then
     begin
       D2DLayerDrawing := Assigned(D2DLayer);
 
       if D2DLayerDrawing then
         RT.PushLayer(LayerParams, D2DLayer);
       try
-        Layer.RenderMainContent(DrawContext, LayerParams);
+        Layer.RenderMainContent(FDrawContext, LayerParams);
       finally
         if D2DLayerDrawing then
           RT.PopLayer;
       end;
     end;
 
-    InteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
+    FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
     try
       UpdateWindow(DC);
     finally
-      InteropRenderTarget.ReleaseDC(TRect.Empty);
+      FInteropRenderTarget.ReleaseDC(TRect.Empty);
     end;
   finally
     RT.EndDraw;
@@ -343,11 +343,11 @@ var
   RenderTarget: ID2D1RenderTarget;
   DrawContextObject: TDrawContext;
 begin
-  if DeviceResourcesValid then
+  if FDeviceResourcesValid then
     Exit;
 
-  DrawContext.WICFactory.CreateBitmap(Width, Height, @GUID_WICPixelFormat32bppPBGRA,
-    WICBitmapCacheOnLoad, WICBitmap);
+  FDrawContext.WICFactory.CreateBitmap(Width, Height, @GUID_WICPixelFormat32bppPBGRA,
+    WICBitmapCacheOnLoad, FWICBitmap);
 
   PF.format := DXGI_FORMAT_B8G8R8A8_UNORM;
   PF.alphaMode := D2D1_ALPHA_MODE_PREMULTIPLIED;
@@ -355,44 +355,44 @@ begin
   RTP := D2D1RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, PF, 0, 0,
     D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE);
 
-  D2DFactory.CreateWicBitmapRenderTarget(WICBitmap, RTP, RenderTarget);
-  InteropRenderTarget := RenderTarget as ID2D1GdiInteropRenderTarget;
+  D2DFactory.CreateWicBitmapRenderTarget(FWICBitmap, RTP, RenderTarget);
+  FInteropRenderTarget := RenderTarget as ID2D1GdiInteropRenderTarget;
 
-  DrawContextObject := TDrawContext(DrawContext);
+  DrawContextObject := TDrawContext(FDrawContext);
   if DrawContextObject is TDrawContext then
     DrawContextObject.FRenderTarget := RenderTarget;
 
-  DeviceResourcesValid := True;
+  FDeviceResourcesValid := True;
 end;
 
 procedure TMainForm.InvalidateDeviceResources;
 var
   Layer: TBaseLayer;
 begin
-  if not DeviceResourcesValid then
+  if not FDeviceResourcesValid then
     Exit;
 
-  DeviceResourcesValid := False;
+  FDeviceResourcesValid := False;
 
-  for Layer in Layers do
+  for Layer in FLayers do
     Layer.InvalidateMainContentResources;
 end;
 
 procedure TMainForm.AddLayer(Layer: TBaseLayer);
 begin
-  Layers.Add(Layer);
+  FLayers.Add(Layer);
 end;
 
 function TMainForm.GetActiveLayer: TBaseLayer;
 begin
-  Result := ActiveLayers.First;
+  Result := FActiveLayers.First;
 end;
 
 function TMainForm.HasActiveLayer(out Layer: TBaseLayer): Boolean;
 begin
-  Result := ActiveLayers.Count > 0;
+  Result := FActiveLayers.Count > 0;
   if Result then
-    Layer := ActiveLayers.First;
+    Layer := FActiveLayers.First;
 end;
 
 procedure TMainForm.EnterLayer(Layer: TBaseLayer);
@@ -400,19 +400,19 @@ var
   LayerIndex: Integer;
   CurLayer: TBaseLayer;
 begin
-  if ActiveLayers.Count > 0 then
+  if FActiveLayers.Count > 0 then
   begin
     CurLayer := GetActiveLayer;
     if CurLayer.IsLayerActive and (CurLayer <> Layer) then
       CurLayer.ExitLayer;
   end;
 
-  LayerIndex := ActiveLayers.IndexOf(Layer);
+  LayerIndex := FActiveLayers.IndexOf(Layer);
 
   if LayerIndex > 0 then
-    ActiveLayers.Exchange(LayerIndex, 0)
+    FActiveLayers.Exchange(LayerIndex, 0)
   else if LayerIndex = -1 then
-    ActiveLayers.Insert(0, Layer);
+    FActiveLayers.Insert(0, Layer);
 
   if not Layer.IsLayerActive then
   begin
@@ -425,7 +425,7 @@ procedure TMainForm.ExitLayer;
 var
   CurLayer: TBaseLayer;
 begin
-  if ActiveLayers.Count > 0 then
+  if FActiveLayers.Count > 0 then
   begin
     CurLayer := GetActiveLayer;
     if CurLayer.IsLayerActive then
@@ -533,8 +533,8 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
     else
       WorkRect := Screen.MonitorFromPoint(Mouse.CursorPos).WorkareaRect;
 
-    WindowSize.cx := WorkRect.Width;
-    WindowSize.cy := WorkRect.Height;
+    FWindowSize.cx := WorkRect.Width;
+    FWindowSize.cy := WorkRect.Height;
 
     SetWindowPos(Handle, HWND_TOPMOST, WorkRect.Left, WorkRect.Top, WorkRect.Width, WorkRect.Height,
       SWP_SHOWWINDOW or SWP_NOACTIVATE);
@@ -563,7 +563,7 @@ begin
 
   AdjustWindow;
 
-  EnterLayer(Layers.First);
+  EnterLayer(FLayers.First);
   DominaModeChanged;
 end;
 
@@ -572,7 +572,7 @@ begin
   LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
   ExitLayer;
-  ActiveLayers.Clear;
+  FActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
   DominaModeChanged;
 end;

@@ -20,9 +20,5 @@ object LogForm: TLogForm
     Height = 411
     Align = alClient
     TabOrder = 0
-    ExplicitLeft = 472
-    ExplicitTop = 248
-    ExplicitWidth = 185
-    ExplicitHeight = 89
   end
 end
