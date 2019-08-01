@@ -122,6 +122,7 @@
         <DCCReference Include="..\..\Localization\Localization.VCL.CommonBinding.pas"/>
         <DCCReference Include="..\..\Localization\ProcedureHook.pas"/>
         <DCCReference Include="..\..\SendInputHelper\SendInputHelper.pas"/>
+        <DCCReference Include="..\..\WindowEnumerator\WindowEnumerator.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

@@ -15,7 +15,8 @@ uses
   Localization in '..\..\Localization\Localization.pas',
   Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
   ProcedureHook in '..\..\Localization\ProcedureHook.pas',
-  SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas';
+  SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas',
+  WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas';
 
 {$R *.res}
 

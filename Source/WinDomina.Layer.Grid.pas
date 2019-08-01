@@ -159,8 +159,7 @@ begin
 
   QuotientGrid := GetQuotientGridArray(qgsUniform);
 
-  RegisterLayerActivationKeys([vkNumpad0, vkNumpad1, vkNumpad2, vkNumpad3, vkNumpad4, vkNumpad5,
-    vkNumpad6, vkNumpad7, vkNumpad8, vkNumpad9]);
+  RegisterLayerActivationKeys([vkG]);
 end;
 
 destructor TGridLayer.Destroy;

@@ -159,8 +159,8 @@ procedure TMainForm.FormCreate(Sender: TObject);
 
   procedure AddLayers;
   begin
-    AddLayer(CreateLayer(TGridLayer));
     AddLayer(CreateLayer(TMoverLayer));
+    AddLayer(CreateLayer(TGridLayer));
   end;
 
   function CreateDrawContext: IDrawContext;
