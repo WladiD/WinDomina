@@ -96,7 +96,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
   var
     Window: THandle;
-    WinRect, WorkareaRect, OverSizeRect: TRect;
+    WinRect, TestRect, WorkareaRect: TRect;
     TestWin: TWindow;
     NewPos: TPoint;
     PosChanged: Boolean;
@@ -117,6 +117,15 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       Result := (WorkareaRect.Height - WinRect.Height) div 2;
     end;
 
+    // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
+    // eine Mindestdifferenz erfüllt
+    function DiffSnap(A, B: Integer): Boolean;
+    const
+      MinDiff = 5;
+    begin
+      Result := Abs(A - B) >= MinDiff;
+    end;
+
   begin
     if DominaWindows.Count = 0 then
       Exit;
@@ -127,7 +136,6 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     WorkareaRect := GetWorkareaRect(WinRect);
     GetWindowRectDominaStyle(Window, WinRect);
 //    LogMemo.Lines.Add('GetWindowRectDominaStyle: ' + RectToString(WinRect));
-    OverSizeRect := GetWindowNonClientOversize(Window);
 
     UpdateVisibleWindowList;
     NewPos := TPoint.Zero;
@@ -148,14 +156,15 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       begin
         for TestWin in FVisibleWindowList do
         begin
+          TestRect := TestWin.Rect;
           // Rechte Kante
-          if (TestWin.Rect.Right >= WorkareaRect.Left) and (TestWin.Rect.Right < WinRect.Left) and
-            (NewPos.X < TestWin.Rect.Right) then
-            NewPos.X := TestWin.Rect.Right
+          if (TestRect.Right >= WorkareaRect.Left) and (TestRect.Right < WinRect.Left) and
+            (NewPos.X < TestRect.Right) and DiffSnap(TestRect.Right, WinRect.Left) then
+            NewPos.X := TestRect.Right
           // Linke Kante
-          else if (TestWin.Rect.Left >= WorkareaRect.Left) and (TestWin.Rect.Left < WinRect.Left) and
-            (NewPos.X < TestWin.Rect.Left) then
-            NewPos.X := TestWin.Rect.Left;
+          else if (TestRect.Left >= WorkareaRect.Left) and (TestRect.Left < WinRect.Left) and
+            (NewPos.X < TestRect.Left) and DiffSnap(TestRect.Left, WinRect.Left) then
+            NewPos.X := TestRect.Left;
         end;
       end;
     end
@@ -174,14 +183,17 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       begin
         for TestWin in FVisibleWindowList do
         begin
+          TestRect := TestWin.Rect;
           // Linke Kante
-          if (TestWin.Rect.Left <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Left) and
-            (NewPos.X > TestWin.Rect.Left) then
-            NewPos.X := TestWin.Rect.Left
+          if (TestRect.Left <= WorkareaRect.Right) and (TestRect.Left > WinRect.Right) and
+            (NewPos.X > (TestRect.Left - WinRect.Width)) and
+            DiffSnap(TestRect.Left, WinRect.Right) then
+            NewPos.X := TestRect.Left - WinRect.Width
           // Rechte Kante
-          else if (TestWin.Rect.Right <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Right) and
-           (NewPos.X > (TestWin.Rect.Right - WinRect.Width)) then
-            NewPos.X := TestWin.Rect.Right - WinRect.Width;
+          else if (TestRect.Right <= WorkareaRect.Right) and (TestRect.Right > WinRect.Right) and
+           (NewPos.X > (TestRect.Right - WinRect.Width)) and
+           DiffSnap(TestRect.Right, WinRect.Right) then
+            NewPos.X := TestRect.Right - WinRect.Width;
         end;
       end;
     end
@@ -200,14 +212,15 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       begin
         for TestWin in FVisibleWindowList do
         begin
+          TestRect := TestWin.Rect;
           // Untere Kante
-          if (TestWin.Rect.Bottom >= WorkareaRect.Top) and (TestWin.Rect.Bottom < WinRect.Top) and
-            (NewPos.Y < TestWin.Rect.Bottom) then
-            NewPos.Y := TestWin.Rect.Bottom
+          if (TestRect.Bottom >= WorkareaRect.Top) and (TestRect.Bottom < WinRect.Top) and
+            (NewPos.Y < TestRect.Bottom) and DiffSnap(TestRect.Bottom, WinRect.Top) then
+            NewPos.Y := TestRect.Bottom
           // Obere Kante
-          else if (TestWin.Rect.Top >= WorkareaRect.Top) and (TestWin.Rect.Top < WinRect.Top) and
-            (NewPos.Y < TestWin.Rect.Top) then
-            NewPos.Y := TestWin.Rect.Top;
+          else if (TestRect.Top >= WorkareaRect.Top) and (TestRect.Top < WinRect.Top) and
+            (NewPos.Y < TestRect.Top) and DiffSnap(TestRect.Top, WinRect.Top) then
+            NewPos.Y := TestRect.Top;
         end;
       end;
     end
@@ -226,14 +239,17 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       begin
         for TestWin in FVisibleWindowList do
         begin
+          TestRect := TestWin.Rect;
           // Obere Kante
-          if (TestWin.Rect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestWin.Rect.Top) and
-            (NewPos.Y > TestWin.Rect.Top) then
-            NewPos.Y := TestWin.Rect.Top
+          if (TestRect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Top) and
+            (NewPos.Y > (TestRect.Top - WinRect.Height)) and
+            DiffSnap(WinRect.Bottom, TestRect.Top) then
+            NewPos.Y := TestRect.Top - WinRect.Height
           // Untere Kante
-          else if (TestWin.Rect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestWin.Rect.Bottom) and
-           (NewPos.Y > (TestWin.Rect.Bottom - WinRect.Height)) then
-            NewPos.Y := TestWin.Rect.Bottom - WinRect.Height;
+          else if (TestRect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Bottom) and
+           (NewPos.Y > (TestRect.Bottom - WinRect.Height)) and
+           DiffSnap(WinRect.Bottom, TestRect.Bottom) then
+            NewPos.Y := TestRect.Bottom - WinRect.Height;
         end;
       end;
     end
