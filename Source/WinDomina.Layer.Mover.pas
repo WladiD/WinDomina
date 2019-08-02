@@ -10,6 +10,8 @@ uses
   Winapi.Windows,
 
   WindowEnumerator,
+  AnyiQuack,
+  AQPSystemTypesAnimations,
 
   WinDomina.Layer,
   WinDomina.Registry,
@@ -18,12 +20,17 @@ uses
 type
   TMoverLayer = class(TBaseLayer)
   private
+    class var
+    WindowMoveAniID: Integer;
+  private
     FWindowEnumerator: TWindowEnumerator;
     FVisibleWindowList: TWindowList;
+    FAnimatedWindow: TWindow;
 
     procedure UpdateVisibleWindowList;
 
   public
+    class constructor Create;
     constructor Create; override;
     destructor Destroy; override;
 
@@ -37,6 +44,11 @@ type
 implementation
 
 { TMoverLayer }
+
+class constructor TMoverLayer.Create;
+begin
+  WindowMoveAniID := TAQ.GetUniqueID;
+end;
 
 constructor TMoverLayer.Create;
 begin
@@ -57,12 +69,15 @@ begin
       if not GetWindowRectDominaStyle(WindowHandle, Result) then
         Result := TRect.Empty;
     end;
+
+  FAnimatedWindow := TWindow.Create;
 end;
 
 destructor TMoverLayer.Destroy;
 begin
   FWindowEnumerator.Free;
   FVisibleWindowList.Free;
+  FAnimatedWindow.Free;
 
   inherited Destroy;
 end;
@@ -129,6 +144,10 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   begin
     if DominaWindows.Count = 0 then
       Exit;
+
+    // Sollte die Animation noch laufen, so muss sie abgebrochen werden
+    Take(FAnimatedWindow)
+      .FinishAnimations(WindowMoveAniID);
 
     Window := DominaWindows[0];
     GetWindowRect(Window, WinRect);
@@ -258,8 +277,24 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
     if PosChanged then
     begin
+      FAnimatedWindow.Handle := Window;
+      FAnimatedWindow.Rect := WinRect; // Die ursprüngliche Postion des Fensters
+
+      // WinRect enthält ab hier die neue Position
       WinRect.TopLeft := NewPos;
-      SetWindowPosDominaStyle(Window, 0, WinRect, SWP_NOZORDER or SWP_NOSIZE);
+
+      Take(FAnimatedWindow)
+        .Plugin<TAQPSystemTypesAnimations>
+        .RectAnimation(WinRect,
+          function(RefObject: TObject): TRect
+          begin
+            Result := TWindow(RefObject).Rect;
+          end,
+          procedure(RefObject: TObject; const NewRect: TRect)
+          begin
+            SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, SWP_NOZORDER or SWP_NOSIZE);
+          end,
+          250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
     end;
   end;
 
