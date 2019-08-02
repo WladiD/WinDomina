@@ -177,9 +177,12 @@ procedure TMainForm.FormCreate(Sender: TObject);
 
 var
   ExStyle: DWORD;
+  Logger: TStringsLogging;
 begin
   LogForm := TLogForm.Create(Self);
-  RegisterLogging(TStringsLogging.Create(LogForm.LogMemo.Lines));
+  Logger := TStringsLogging.Create(LogForm.LogMemo.Lines);
+  Logger.WindowHandle := LogForm.Handle;
+  RegisterLogging(Logger);
 
   ExStyle := GetWindowLong(Handle, GWL_EXSTYLE);
   if (ExStyle and WS_EX_LAYERED) = 0 then

@@ -27,6 +27,7 @@ procedure UnregisterDominaWindowsChangeNotify(Implementor: TObject);
 // KISS Logging-System
 procedure RegisterLogging(Log: ILogging);
 procedure AddLog(const LogLine: string);
+function Logging: ILogging;
 
 function RuntimeInfo: TRuntimeInfo;
 
@@ -108,6 +109,11 @@ procedure AddLog(const LogLine: string);
 begin
   if Assigned(LogInterface) then
     LogInterface.AddLog(LogLine);
+end;
+
+function Logging: ILogging;
+begin
+  Result := LogInterface;
 end;
 
 var

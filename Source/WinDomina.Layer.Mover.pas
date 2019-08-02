@@ -68,11 +68,15 @@ begin
 end;
 
 procedure TMoverLayer.UpdateVisibleWindowList;
+var
+  LogWinHandle: HWND;
 begin
   FVisibleWindowList.Free;
   FVisibleWindowList := FWindowEnumerator.Enumerate;
   // Aktuell dominiertes Fenster aus der Liste entfernen
   FVisibleWindowList.Remove(DominaWindows[0]);
+  if Logging.HasWindowHandle(LogWinHandle) then
+    FVisibleWindowList.Remove(LogWinHandle);
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -92,21 +96,25 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
   var
     Window: THandle;
-//    FastMode: Boolean;
-//    FMStepX, FMStepY: Integer;
     WinRect, WorkareaRect, OverSizeRect: TRect;
     TestWin: TWindow;
     NewPos: TPoint;
     PosChanged: Boolean;
+    Center: Integer;
 
     procedure AdjustForFastModeStep(var TargetVar: Integer; Step: Integer);
     begin
       TargetVar := (TargetVar div Step) * Step;
     end;
 
-    function RightToWinLeft(const R: TRect): Integer;
+    function CalcXCenter: Integer;
     begin
-      Result := R.Right ;
+      Result := (WorkareaRect.Width - WinRect.Width) div 2;
+    end;
+
+    function CalcYCenter: Integer;
+    begin
+      Result := (WorkareaRect.Height - WinRect.Height) div 2;
     end;
 
   begin
@@ -130,31 +138,103 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       NewPos.X := WorkareaRect.Left;
       NewPos.Y := WinRect.Top;
 
-      for TestWin in FVisibleWindowList do
+      if FVisibleWindowList.Count = 0 then
       begin
-        // An der rechten Kante andocken
-        if (TestWin.Rect.Right >= WorkareaRect.Left) and (TestWin.Rect.Right < WinRect.Left) and
-          (NewPos.X < TestWin.Rect.Right) then
-          NewPos.X := TestWin.Rect.Right - (OverSizeRect.Right * 2)
-        // An der linken Kante andocken
-        else if (TestWin.Rect.Left >= WorkareaRect.Left) and (TestWin.Rect.Left < WinRect.Left) and
-          (NewPos.X < TestWin.Rect.Left) then
-          NewPos.X := TestWin.Rect.Left - (OverSizeRect.Left * 2);
+        Center := CalcXCenter;
+        if WinRect.Left > Center then
+          NewPos.X := Center;
+      end
+      else
+      begin
+        for TestWin in FVisibleWindowList do
+        begin
+          // Rechte Kante
+          if (TestWin.Rect.Right >= WorkareaRect.Left) and (TestWin.Rect.Right < WinRect.Left) and
+            (NewPos.X < TestWin.Rect.Right) then
+            NewPos.X := TestWin.Rect.Right
+          // Linke Kante
+          else if (TestWin.Rect.Left >= WorkareaRect.Left) and (TestWin.Rect.Left < WinRect.Left) and
+            (NewPos.X < TestWin.Rect.Left) then
+            NewPos.X := TestWin.Rect.Left;
+        end;
       end;
     end
     else if DeltaX > 0 then // Nach rechts
     begin
-      NewPos.X := WorkareaRect.Right + (OverSizeRect.Right * 2) + (Abs(OverSizeRect.Left) * 2) - WinRect.Width;
+      NewPos.X := WorkareaRect.Right - WinRect.Width;
       NewPos.Y := WinRect.Top;
 
-      for TestWin in FVisibleWindowList do
+      if FVisibleWindowList.Count = 0 then
       begin
-        if (TestWin.Rect.Left <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Left) and
-          (NewPos.X > TestWin.Rect.Left) then
-          NewPos.X := TestWin.Rect.Left - (OverSizeRect.Left * 2)
-        else if (TestWin.Rect.Right <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Right) and
-         (NewPos.X > TestWin.Rect.Right) then
-          NewPos.X := TestWin.Rect.Right + Abs(OverSizeRect.Left) + OverSizeRect.Right - WinRect.Width;
+        Center := CalcXCenter;
+        if WinRect.Left < Center then
+          NewPos.X := Center;
+      end
+      else
+      begin
+        for TestWin in FVisibleWindowList do
+        begin
+          // Linke Kante
+          if (TestWin.Rect.Left <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Left) and
+            (NewPos.X > TestWin.Rect.Left) then
+            NewPos.X := TestWin.Rect.Left
+          // Rechte Kante
+          else if (TestWin.Rect.Right <= WorkareaRect.Right) and (WinRect.Right < TestWin.Rect.Right) and
+           (NewPos.X > (TestWin.Rect.Right - WinRect.Width)) then
+            NewPos.X := TestWin.Rect.Right - WinRect.Width;
+        end;
+      end;
+    end
+    else if DeltaY < 0 then // Nach oben
+    begin
+      NewPos.X := WinRect.Left;
+      NewPos.Y := WorkareaRect.Top;
+
+      if FVisibleWindowList.Count = 0 then
+      begin
+        Center := CalcYCenter;
+        if WinRect.Top > Center then
+          NewPos.Y := Center;
+      end
+      else
+      begin
+        for TestWin in FVisibleWindowList do
+        begin
+          // Untere Kante
+          if (TestWin.Rect.Bottom >= WorkareaRect.Top) and (TestWin.Rect.Bottom < WinRect.Top) and
+            (NewPos.Y < TestWin.Rect.Bottom) then
+            NewPos.Y := TestWin.Rect.Bottom
+          // Obere Kante
+          else if (TestWin.Rect.Top >= WorkareaRect.Top) and (TestWin.Rect.Top < WinRect.Top) and
+            (NewPos.Y < TestWin.Rect.Top) then
+            NewPos.Y := TestWin.Rect.Top;
+        end;
+      end;
+    end
+    else if DeltaY > 0 then // Nach unten
+    begin
+      NewPos.X := WinRect.Left;
+      NewPos.Y := WorkareaRect.Bottom - WinRect.Height;
+
+      if FVisibleWindowList.Count = 0 then
+      begin
+        Center := CalcYCenter;
+        if WinRect.Top < Center then
+          NewPos.Y := Center;
+      end
+      else
+      begin
+        for TestWin in FVisibleWindowList do
+        begin
+          // Obere Kante
+          if (TestWin.Rect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestWin.Rect.Top) and
+            (NewPos.Y > TestWin.Rect.Top) then
+            NewPos.Y := TestWin.Rect.Top
+          // Untere Kante
+          else if (TestWin.Rect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestWin.Rect.Bottom) and
+           (NewPos.Y > (TestWin.Rect.Bottom - WinRect.Height)) then
+            NewPos.Y := TestWin.Rect.Bottom - WinRect.Height;
+        end;
       end;
     end
     else
@@ -164,61 +244,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     begin
       WinRect.TopLeft := NewPos;
       SetWindowPosDominaStyle(Window, 0, WinRect, SWP_NOZORDER or SWP_NOSIZE);
-//      SetWindowPos(Window, 0, NewPos.X, NewPos.Y, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
     end;
-
-
-//    FastMode := not WDMKeyStates.IsShiftKeyPressed;
-//
-//    if FastMode then
-//    begin
-//      FMStepX := (WorkareaRect.Width div 90);
-//      FMStepY := (WorkareaRect.Height div 90);
-//      DeltaX := DeltaX * FMStepX;
-//      DeltaY := DeltaY * FMStepY;
-//    end
-//    else
-//    begin
-//      FMStepX := 0;
-//      FMStepY := 0;
-//    end;
-//
-//    if WDMKeyStates.IsControlKeyPressed then
-//    begin
-//      if FastMode then
-//      begin
-//        if DeltaX <> 0 then
-//          AdjustForFastModeStep(WinRect.Right, FMStepX);
-//        if DeltaY <> 0 then
-//          AdjustForFastModeStep(WinRect.Bottom, FMStepY);
-//      end;
-//
-//      Inc(WinRect.Right, DeltaX + -OverSizeRect.Right);
-//      Inc(WinRect.Bottom, DeltaY + -OverSizeRect.Bottom);
-//      SetWindowPos(Window, 0, 0, 0, WinRect.Width, WinRect.Height, SWP_NOZORDER or SWP_NOMOVE);
-//    end
-//    else
-//    begin
-//      if FastMode then
-//      begin
-//        if DeltaX <> 0 then
-//          AdjustForFastModeStep(WinRect.Left, FMStepX);
-//        if DeltaY <> 0 then
-//          AdjustForFastModeStep(WinRect.Top, FMStepY);
-//      end;
-//
-//      if (WinRect.Left <= WorkareaRect.Left) and FastMode and (DeltaX < 0) then
-//        WinRect.Left := WorkareaRect.Left + OverSizeRect.Left
-//      else
-//        Inc(WinRect.Left, DeltaX + -OverSizeRect.Left);
-//
-//      if (WinRect.Top <= WorkareaRect.Top) and FastMode and (DeltaY < 0) then
-//        WinRect.Top := WorkareaRect.Top + OverSizeRect.Top
-//      else
-//        Inc(WinRect.Top, DeltaY + -OverSizeRect.Top);
-//
-//      SetWindowPos(Window, 0, WinRect.Left, WinRect.Top, 0, 0, SWP_NOZORDER or SWP_NOSIZE);
-//    end;
   end;
 
 var

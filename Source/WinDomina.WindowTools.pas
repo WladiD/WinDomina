@@ -136,6 +136,8 @@ begin
   WindowInfo.WindowSizeable := (WindowStyle and WS_SIZEBOX) <> 0;
 end;
 
+// GetWindowRect liefert das Fensterrechteck inkl. ggf vorhandenem Fensterschatten. Diese Funktion
+// zieht den Schatten vom Rechteck ab und liefert das effektiv genutzte Fenster.
 function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
 begin
   InitWindowInfo(Window);
@@ -144,10 +146,10 @@ begin
   // Extend the given rect by shadow
   if not WindowInfo.DropShadowSize.IsEmpty then
   begin
-    Inc(Rect.Left, WindowInfo.DropShadowSize.Left);
-    Inc(Rect.Top, WindowInfo.DropShadowSize.Top);
-    Inc(Rect.Right, WindowInfo.DropShadowSize.Right);
-    Inc(Rect.Bottom, WindowInfo.DropShadowSize.Bottom);
+    Dec(Rect.Left, WindowInfo.DropShadowSize.Left);
+    Dec(Rect.Top, WindowInfo.DropShadowSize.Top);
+    Dec(Rect.Right, WindowInfo.DropShadowSize.Right);
+    Dec(Rect.Bottom, WindowInfo.DropShadowSize.Bottom);
   end;
 end;
 

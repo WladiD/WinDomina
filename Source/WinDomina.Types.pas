@@ -54,6 +54,7 @@ type
     ['{CCEF1BD9-1233-4B1C-84C0-863AE319FACB}']
 
     procedure AddLog(const LogLine: string);
+    function HasWindowHandle(out Handle: HWND): Boolean;
   end;
 
   TStringsLogging = class(TInterfacedObject, ILogging)
@@ -61,7 +62,11 @@ type
     FStrings: TStrings;
 
     procedure AddLog(const LogLine: string);
+    function HasWindowHandle(out Handle: HWND): Boolean;
+
   public
+    WindowHandle: HWND;
+
     constructor Create(Target: TStrings);
   end;
 
@@ -128,6 +133,12 @@ end;
 procedure TStringsLogging.AddLog(const LogLine: string);
 begin
   FStrings.Add(LogLine);
+end;
+
+function TStringsLogging.HasWindowHandle(out Handle: HWND): Boolean;
+begin
+  Result := WindowHandle <> 0;
+  Handle := WindowHandle;
 end;
 
 end.
