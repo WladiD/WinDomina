@@ -31,6 +31,8 @@ const
   WD_KEYUP_DOMINA_MODE = WM_USER + 72;
 
 type
+  TDirection = (dirUnknown, dirUp, dirRight, dirDown, dirLeft);
+
   TKeyStates = class
   protected
     States: TBits;

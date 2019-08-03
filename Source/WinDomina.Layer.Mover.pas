@@ -13,6 +13,7 @@ uses
   AnyiQuack,
   AQPSystemTypesAnimations,
 
+  WinDomina.Types,
   WinDomina.Layer,
   WinDomina.Registry,
   WinDomina.WindowTools;
@@ -24,7 +25,7 @@ type
     WindowMoveAniID: Integer;
   private
     FWindowEnumerator: TWindowEnumerator;
-    FVisibleWindowList: TWindowList;
+    FVisibleWindowList: WindowEnumerator.TWindowList;
     FAnimatedWindow: TWindow;
 
     procedure UpdateVisibleWindowList;
@@ -108,37 +109,57 @@ end;
 
 procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
-  procedure MoveSizeWindow(DeltaX, DeltaY: Integer);
+  procedure MoveSizeWindow(Direction: TDirection);
   var
     Window: THandle;
     WinRect, TestRect, WorkareaRect: TRect;
     TestWin: TWindow;
     NewPos: TPoint;
-    PosChanged: Boolean;
-    Center: Integer;
+    PosChanged, EdgeMatch: Boolean;
 
     procedure AdjustForFastModeStep(var TargetVar: Integer; Step: Integer);
     begin
       TargetVar := (TargetVar div Step) * Step;
     end;
 
-    function CalcXCenter: Integer;
-    begin
-      Result := (WorkareaRect.Width - WinRect.Width) div 2;
-    end;
-
-    function CalcYCenter: Integer;
-    begin
-      Result := (WorkareaRect.Height - WinRect.Height) div 2;
-    end;
-
     // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
     // eine Mindestdifferenz erfüllt
-    function DiffSnap(A, B: Integer): Boolean;
-    const
-      MinDiff = 5;
+    // NoSnap
+    // UnlikeValues
+    function NoSnap(A, B: Integer): Boolean;
     begin
-      Result := Abs(A - B) >= MinDiff;
+      Result := Abs(A - B) >= 5;
+    end;
+
+    function Snap(A, B: Integer): Boolean;
+    begin
+      Result := Abs(A - B) < 5;
+    end;
+
+    procedure NoXEdgeMatch;
+    var
+      Center: Integer;
+    begin
+      Center := (WorkareaRect.Width - WinRect.Width) div 2;
+      if NoSnap(WinRect.Left, Center) and
+        (
+          ((Direction = dirLeft) and (WinRect.Left > Center)) or
+          ((Direction = dirRight) and (WinRect.Left < Center))
+        ) then
+        NewPos.X := Center;
+    end;
+
+    procedure NoYEdgeMatch;
+    var
+      Center: Integer;
+    begin
+      Center := (WorkareaRect.Height - WinRect.Height) div 2;
+      if NoSnap(WinRect.Top, Center) and
+        (
+          ((Direction = dirUp) and (WinRect.Top > Center)) or
+          ((Direction = dirDown) and (WinRect.Top < Center))
+        ) then
+        NewPos.Y := Center;
     end;
 
   begin
@@ -159,118 +180,119 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     UpdateVisibleWindowList;
     NewPos := TPoint.Zero;
     PosChanged := True;
+    EdgeMatch := False;
 
-    if DeltaX < 0 then // Nach links
+    if Direction = dirLeft then
     begin
       NewPos.X := WorkareaRect.Left;
       NewPos.Y := WinRect.Top;
 
-      if FVisibleWindowList.Count = 0 then
+      for TestWin in FVisibleWindowList do
       begin
-        Center := CalcXCenter;
-        if WinRect.Left > Center then
-          NewPos.X := Center;
-      end
-      else
-      begin
-        for TestWin in FVisibleWindowList do
+        TestRect := TestWin.Rect;
+        // Rechte Kante
+        if (TestRect.Right >= WorkareaRect.Left) and (TestRect.Right < WinRect.Left) and
+          (NewPos.X < TestRect.Right) and NoSnap(TestRect.Right, WinRect.Left) then
         begin
-          TestRect := TestWin.Rect;
-          // Rechte Kante
-          if (TestRect.Right >= WorkareaRect.Left) and (TestRect.Right < WinRect.Left) and
-            (NewPos.X < TestRect.Right) and DiffSnap(TestRect.Right, WinRect.Left) then
-            NewPos.X := TestRect.Right
-          // Linke Kante
-          else if (TestRect.Left >= WorkareaRect.Left) and (TestRect.Left < WinRect.Left) and
-            (NewPos.X < TestRect.Left) and DiffSnap(TestRect.Left, WinRect.Left) then
-            NewPos.X := TestRect.Left;
+          NewPos.X := TestRect.Right;
+          EdgeMatch := True;
+        end
+        // Linke Kante
+        else if (TestRect.Left >= WorkareaRect.Left) and (TestRect.Left < WinRect.Left) and
+          (NewPos.X < TestRect.Left) and NoSnap(TestRect.Left, WinRect.Left) then
+        begin
+          NewPos.X := TestRect.Left;
+          EdgeMatch := True;
         end;
       end;
+
+      if not EdgeMatch then
+        NoXEdgeMatch;
     end
-    else if DeltaX > 0 then // Nach rechts
+    else if Direction = dirRight then
     begin
       NewPos.X := WorkareaRect.Right - WinRect.Width;
       NewPos.Y := WinRect.Top;
 
-      if FVisibleWindowList.Count = 0 then
+      for TestWin in FVisibleWindowList do
       begin
-        Center := CalcXCenter;
-        if WinRect.Left < Center then
-          NewPos.X := Center;
-      end
-      else
-      begin
-        for TestWin in FVisibleWindowList do
+        TestRect := TestWin.Rect;
+        // Linke Kante
+        if (TestRect.Left <= WorkareaRect.Right) and (TestRect.Left > WinRect.Right) and
+          (NewPos.X > (TestRect.Left - WinRect.Width)) and
+          NoSnap(TestRect.Left, WinRect.Right) then
         begin
-          TestRect := TestWin.Rect;
-          // Linke Kante
-          if (TestRect.Left <= WorkareaRect.Right) and (TestRect.Left > WinRect.Right) and
-            (NewPos.X > (TestRect.Left - WinRect.Width)) and
-            DiffSnap(TestRect.Left, WinRect.Right) then
-            NewPos.X := TestRect.Left - WinRect.Width
-          // Rechte Kante
-          else if (TestRect.Right <= WorkareaRect.Right) and (TestRect.Right > WinRect.Right) and
-           (NewPos.X > (TestRect.Right - WinRect.Width)) and
-           DiffSnap(TestRect.Right, WinRect.Right) then
-            NewPos.X := TestRect.Right - WinRect.Width;
+          NewPos.X := TestRect.Left - WinRect.Width;
+          EdgeMatch := True;
+        end
+        // Rechte Kante
+        else if (TestRect.Right <= WorkareaRect.Right) and (TestRect.Right > WinRect.Right) and
+         (NewPos.X > (TestRect.Right - WinRect.Width)) and
+         NoSnap(TestRect.Right, WinRect.Right) then
+        begin
+          NewPos.X := TestRect.Right - WinRect.Width;
+          EdgeMatch := True;
         end;
       end;
+
+      if not EdgeMatch then
+        NoXEdgeMatch;
     end
-    else if DeltaY < 0 then // Nach oben
+    else if Direction = DirUp then
     begin
       NewPos.X := WinRect.Left;
       NewPos.Y := WorkareaRect.Top;
 
-      if FVisibleWindowList.Count = 0 then
+      for TestWin in FVisibleWindowList do
       begin
-        Center := CalcYCenter;
-        if WinRect.Top > Center then
-          NewPos.Y := Center;
-      end
-      else
-      begin
-        for TestWin in FVisibleWindowList do
+        TestRect := TestWin.Rect;
+        // Untere Kante
+        if (TestRect.Bottom >= WorkareaRect.Top) and (TestRect.Bottom < WinRect.Top) and
+          (NewPos.Y < TestRect.Bottom) and NoSnap(TestRect.Bottom, WinRect.Top) then
         begin
-          TestRect := TestWin.Rect;
-          // Untere Kante
-          if (TestRect.Bottom >= WorkareaRect.Top) and (TestRect.Bottom < WinRect.Top) and
-            (NewPos.Y < TestRect.Bottom) and DiffSnap(TestRect.Bottom, WinRect.Top) then
-            NewPos.Y := TestRect.Bottom
-          // Obere Kante
-          else if (TestRect.Top >= WorkareaRect.Top) and (TestRect.Top < WinRect.Top) and
-            (NewPos.Y < TestRect.Top) and DiffSnap(TestRect.Top, WinRect.Top) then
-            NewPos.Y := TestRect.Top;
+          NewPos.Y := TestRect.Bottom;
+          EdgeMatch := True;
+        end
+        // Obere Kante
+        else if (TestRect.Top >= WorkareaRect.Top) and (TestRect.Top < WinRect.Top) and
+          (NewPos.Y < TestRect.Top) and NoSnap(TestRect.Top, WinRect.Top) then
+        begin
+          NewPos.Y := TestRect.Top;
+          EdgeMatch := True;
         end;
       end;
+
+      if not EdgeMatch then
+        NoYEdgeMatch;
     end
-    else if DeltaY > 0 then // Nach unten
+    else if Direction = dirDown then
     begin
       NewPos.X := WinRect.Left;
       NewPos.Y := WorkareaRect.Bottom - WinRect.Height;
 
-      if FVisibleWindowList.Count = 0 then
+      for TestWin in FVisibleWindowList do
       begin
-        Center := CalcYCenter;
-        if WinRect.Top < Center then
-          NewPos.Y := Center;
-      end
-      else
-      begin
-        for TestWin in FVisibleWindowList do
+        TestRect := TestWin.Rect;
+        // Obere Kante
+        if (TestRect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Top) and
+          (NewPos.Y > (TestRect.Top - WinRect.Height)) and
+          NoSnap(WinRect.Bottom, TestRect.Top) then
         begin
-          TestRect := TestWin.Rect;
-          // Obere Kante
-          if (TestRect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Top) and
-            (NewPos.Y > (TestRect.Top - WinRect.Height)) and
-            DiffSnap(WinRect.Bottom, TestRect.Top) then
-            NewPos.Y := TestRect.Top - WinRect.Height
-          // Untere Kante
-          else if (TestRect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Bottom) and
-           (NewPos.Y > (TestRect.Bottom - WinRect.Height)) and
-           DiffSnap(WinRect.Bottom, TestRect.Bottom) then
-            NewPos.Y := TestRect.Bottom - WinRect.Height;
+          NewPos.Y := TestRect.Top - WinRect.Height;
+          EdgeMatch := True;
+        end
+        // Untere Kante
+        else if (TestRect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Bottom) and
+         (NewPos.Y > (TestRect.Bottom - WinRect.Height)) and
+         NoSnap(WinRect.Bottom, TestRect.Bottom) then
+        begin
+          NewPos.Y := TestRect.Bottom - WinRect.Height;
+          EdgeMatch := True;
         end;
       end;
+
+      if not EdgeMatch then
+        NoYEdgeMatch;
     end
     else
       PosChanged := False;
@@ -300,24 +322,24 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
 var
   DeltaX, DeltaY: Integer;
+  Direction: TDirection;
 begin
-  DeltaX := 0;
-  DeltaY := 0;
+  Direction := dirUnknown;
 
   case Key of
     vkLeft:
-      DeltaX := -1;
+      Direction := dirLeft;
     VK_RIGHT:
-      DeltaX := 1;
+      Direction := dirRight;
     VK_UP:
-      DeltaY := -1;
+      Direction := dirUp;
     VK_DOWN:
-      DeltaY := 1;
+      Direction := dirDown;
   end;
 
-  if (DeltaX <> 0) or (DeltaY <> 0) then
+  if Direction <> dirUnknown then
   begin
-    MoveSizeWindow(DeltaX, DeltaY);
+    MoveSizeWindow(Direction);
     Handled := True;
   end;
 end;
