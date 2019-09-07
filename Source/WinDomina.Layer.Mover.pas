@@ -7,28 +7,40 @@ uses
   System.Classes,
   System.UITypes,
   System.Types,
+  System.Generics.Collections,
   Winapi.Windows,
+  Winapi.D2D1,
+  Vcl.Direct2D,
 
   WindowEnumerator,
   AnyiQuack,
   AQPSystemTypesAnimations,
 
   WinDomina.Types,
+  WinDomina.Types.Drawing,
   WinDomina.Layer,
   WinDomina.Registry,
   WinDomina.WindowTools;
 
 type
+  TRectEdge = (reUnknown, reTop, reRight, reBottom, reLeft);
+
+  TAnimationBase = class;
+  TAnimationList = TObjectList<TAnimationBase>;
+
   TMoverLayer = class(TBaseLayer)
   private
     class var
     WindowMoveAniID: Integer;
+    AlignIndicatorAniID: Integer;
   private
     FWindowEnumerator: TWindowEnumerator;
     FVisibleWindowList: WindowEnumerator.TWindowList;
     FAnimatedWindow: TWindow;
+    FAnimations: TAnimationList;
 
     procedure UpdateVisibleWindowList;
+    procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 
   public
     class constructor Create;
@@ -38,8 +50,34 @@ type
     procedure EnterLayer; override;
     procedure ExitLayer; override;
 
+    function HasMainContent(const DrawContext: IDrawContext;
+      var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean; override;
+    procedure RenderMainContent(const DrawContext: IDrawContext;
+      const LayerParams: TD2D1LayerParameters); override;
+
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
+  end;
+
+  TAnimationBase = class
+  protected
+    FProgress: Real;
+
+  public
+    procedure Render(const RenderTarget: ID2D1RenderTarget); virtual; abstract;
+    property Progress: Real read FProgress write FProgress;
+  end;
+
+  TAlignIndicatorAnimation = class(TAnimationBase)
+  private
+    FFrom: TRect;
+    FTo: TRect;
+    FWhiteBrush: ID2D1SolidColorBrush;
+    FBlackBrush: ID2D1SolidColorBrush;
+
+  public
+    constructor Create(const AlignTarget, Workarea: TRect; Edge: TRectEdge);
+    procedure Render(const RenderTarget: ID2D1RenderTarget); override;
   end;
 
 implementation
@@ -49,6 +87,7 @@ implementation
 class constructor TMoverLayer.Create;
 begin
   WindowMoveAniID := TAQ.GetUniqueID;
+  AlignIndicatorAniID := TAQ.GetUniqueID;
 end;
 
 constructor TMoverLayer.Create;
@@ -62,6 +101,7 @@ begin
   FWindowEnumerator.IncludeMask := WS_CAPTION or WS_VISIBLE;
   FWindowEnumerator.ExcludeMask := WS_DISABLED;
   FWindowEnumerator.VirtualDesktopFilter := True;
+  FWindowEnumerator.HiddenWindowsFilter := True;
   FWindowEnumerator.OverlappedWindowsFilter := True;
   FWindowEnumerator.CloakedWindowsFilter := True;
   FWindowEnumerator.GetWindowRectFunction :=
@@ -72,6 +112,7 @@ begin
     end;
 
   FAnimatedWindow := TWindow.Create;
+  FAnimations := TAnimationList.Create(True);
 end;
 
 destructor TMoverLayer.Destroy;
@@ -79,6 +120,7 @@ begin
   FWindowEnumerator.Free;
   FVisibleWindowList.Free;
   FAnimatedWindow.Free;
+  FAnimations.Free;
 
   inherited Destroy;
 end;
@@ -95,6 +137,31 @@ begin
     FVisibleWindowList.Remove(LogWinHandle);
 end;
 
+procedure TMoverLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
+begin
+  if FAnimations.Count = 0 then
+    EnterInvalidateMainContentLoop;
+
+  FAnimations.Add(Animation);
+
+  Take(Animation)
+    .EachAnimation(Duration,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        TAnimationBase(O).Progress := AQ.CurrentInterval.Progress;
+        Result := True;
+      end,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        AQ.Remove(O);
+        FAnimations.Remove(TAnimationBase(O));
+        if FAnimations.Count = 0 then
+          ExitInvalidateMainContentLoop;
+//        AQ.Die;
+        Result := True;
+      end, AnimationID);
+end;
+
 procedure TMoverLayer.EnterLayer;
 begin
   inherited EnterLayer;
@@ -107,25 +174,38 @@ begin
   inherited ExitLayer;
 end;
 
+function TMoverLayer.HasMainContent(const DrawContext: IDrawContext;
+  var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean;
+begin
+  Result := IsLayerActive;
+end;
+
+procedure TMoverLayer.RenderMainContent(const DrawContext: IDrawContext;
+  const LayerParams: TD2D1LayerParameters);
+var
+  Animation: TAnimationBase;
+  RT: ID2D1RenderTarget;
+begin
+  if FAnimations.Count > 0 then
+  begin
+    RT := DrawContext.RenderTarget;
+    for Animation in FAnimations do
+      Animation.Render(RT);
+  end;
+end;
+
 procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
   procedure MoveSizeWindow(Direction: TDirection);
   var
     Window: THandle;
-    WinRect, TestRect, WorkareaRect: TRect;
+    WinRect, MatchRect, TestRect, WorkareaRect: TRect;
     TestWin: TWindow;
     NewPos: TPoint;
-    PosChanged, EdgeMatch: Boolean;
-
-    procedure AdjustForFastModeStep(var TargetVar: Integer; Step: Integer);
-    begin
-      TargetVar := (TargetVar div Step) * Step;
-    end;
+    MatchEdge: TRectEdge;
 
     // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
     // eine Mindestdifferenz erfüllt
-    // NoSnap
-    // UnlikeValues
     function NoSnap(A, B: Integer): Boolean;
     begin
       Result := Abs(A - B) >= 5;
@@ -172,15 +252,13 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
     Window := DominaWindows[0];
     GetWindowRect(Window, WinRect);
-//    LogMemo.Lines.Add('GetWindowRect: ' + RectToString(WinRect));
     WorkareaRect := GetWorkareaRect(WinRect);
     GetWindowRectDominaStyle(Window, WinRect);
-//    LogMemo.Lines.Add('GetWindowRectDominaStyle: ' + RectToString(WinRect));
 
     UpdateVisibleWindowList;
     NewPos := TPoint.Zero;
-    PosChanged := True;
-    EdgeMatch := False;
+    MatchRect := TRect.Empty;
+    MatchEdge := reUnknown;
 
     if Direction = dirLeft then
     begin
@@ -195,19 +273,18 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
           (NewPos.X < TestRect.Right) and NoSnap(TestRect.Right, WinRect.Left) then
         begin
           NewPos.X := TestRect.Right;
-          EdgeMatch := True;
+          MatchEdge := reRight;
+          MatchRect := TestRect;
         end
         // Linke Kante
         else if (TestRect.Left >= WorkareaRect.Left) and (TestRect.Left < WinRect.Left) and
           (NewPos.X < TestRect.Left) and NoSnap(TestRect.Left, WinRect.Left) then
         begin
           NewPos.X := TestRect.Left;
-          EdgeMatch := True;
+          MatchEdge := reLeft;
+          MatchRect := TestRect;
         end;
       end;
-
-      if not EdgeMatch then
-        NoXEdgeMatch;
     end
     else if Direction = dirRight then
     begin
@@ -223,7 +300,8 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
           NoSnap(TestRect.Left, WinRect.Right) then
         begin
           NewPos.X := TestRect.Left - WinRect.Width;
-          EdgeMatch := True;
+          MatchEdge := reLeft;
+          MatchRect := TestRect;
         end
         // Rechte Kante
         else if (TestRect.Right <= WorkareaRect.Right) and (TestRect.Right > WinRect.Right) and
@@ -231,12 +309,10 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
          NoSnap(TestRect.Right, WinRect.Right) then
         begin
           NewPos.X := TestRect.Right - WinRect.Width;
-          EdgeMatch := True;
+          MatchEdge := reRight;
+          MatchRect := TestRect;
         end;
       end;
-
-      if not EdgeMatch then
-        NoXEdgeMatch;
     end
     else if Direction = DirUp then
     begin
@@ -251,19 +327,18 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
           (NewPos.Y < TestRect.Bottom) and NoSnap(TestRect.Bottom, WinRect.Top) then
         begin
           NewPos.Y := TestRect.Bottom;
-          EdgeMatch := True;
+          MatchEdge := reBottom;
+          MatchRect := TestRect;
         end
         // Obere Kante
         else if (TestRect.Top >= WorkareaRect.Top) and (TestRect.Top < WinRect.Top) and
           (NewPos.Y < TestRect.Top) and NoSnap(TestRect.Top, WinRect.Top) then
         begin
           NewPos.Y := TestRect.Top;
-          EdgeMatch := True;
+          MatchEdge := reTop;
+          MatchRect := TestRect;
         end;
       end;
-
-      if not EdgeMatch then
-        NoYEdgeMatch;
     end
     else if Direction = dirDown then
     begin
@@ -279,7 +354,8 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
           NoSnap(WinRect.Bottom, TestRect.Top) then
         begin
           NewPos.Y := TestRect.Top - WinRect.Height;
-          EdgeMatch := True;
+          MatchEdge := reTop;
+          MatchRect := TestRect;
         end
         // Untere Kante
         else if (TestRect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Bottom) and
@@ -287,41 +363,49 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
          NoSnap(WinRect.Bottom, TestRect.Bottom) then
         begin
           NewPos.Y := TestRect.Bottom - WinRect.Height;
-          EdgeMatch := True;
+          MatchEdge := reBottom;
+          MatchRect := TestRect;
         end;
       end;
-
-      if not EdgeMatch then
-        NoYEdgeMatch;
     end
     else
-      PosChanged := False;
+      Exit;
 
-    if PosChanged then
-    begin
-      FAnimatedWindow.Handle := Window;
-      FAnimatedWindow.Rect := WinRect; // Die ursprüngliche Postion des Fensters
+    // Zentrierungen, wenn es keine Kollisionskanten gibt
+    if MatchEdge = reUnknown then
+      case Direction of
+        dirUp,
+        dirDown:
+          NoYEdgeMatch;
+        dirRight,
+        dirLeft:
+          NoXEdgeMatch;
+      end;
 
-      // WinRect enthält ab hier die neue Position
-      WinRect.TopLeft := NewPos;
+    FAnimatedWindow.Handle := Window;
+    FAnimatedWindow.Rect := WinRect; // Die ursprüngliche Postion des Fensters
 
-      Take(FAnimatedWindow)
-        .Plugin<TAQPSystemTypesAnimations>
-        .RectAnimation(WinRect,
-          function(RefObject: TObject): TRect
-          begin
-            Result := TWindow(RefObject).Rect;
-          end,
-          procedure(RefObject: TObject; const NewRect: TRect)
-          begin
-            SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, SWP_NOZORDER or SWP_NOSIZE);
-          end,
-          250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
-    end;
+    // WinRect enthält ab hier die neue Position
+    WinRect.TopLeft := NewPos;
+
+    Take(FAnimatedWindow)
+      .Plugin<TAQPSystemTypesAnimations>
+      .RectAnimation(WinRect,
+        function(RefObject: TObject): TRect
+        begin
+          Result := TWindow(RefObject).Rect;
+        end,
+        procedure(RefObject: TObject; const NewRect: TRect)
+        begin
+          SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, SWP_NOZORDER or SWP_NOSIZE);
+        end,
+        250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+
+    if not MatchRect.IsEmpty then
+      AddAnimation(TAlignIndicatorAnimation.Create(MatchRect, WorkareaRect, MatchEdge), 500, AlignIndicatorAniID);
   end;
 
 var
-  DeltaX, DeltaY: Integer;
   Direction: TDirection;
 begin
   Direction := dirUnknown;
@@ -329,11 +413,11 @@ begin
   case Key of
     vkLeft:
       Direction := dirLeft;
-    VK_RIGHT:
+    vkRight:
       Direction := dirRight;
-    VK_UP:
+    vkUp:
       Direction := dirUp;
-    VK_DOWN:
+    vkDown:
       Direction := dirDown;
   end;
 
@@ -347,6 +431,64 @@ end;
 procedure TMoverLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
 begin
 
+end;
+
+{ TAlignIndicatorAnimation }
+
+constructor TAlignIndicatorAnimation.Create(const AlignTarget, Workarea: TRect; Edge: TRectEdge);
+const
+  XMargin = 4;
+  YMargin = 4;
+begin
+  case Edge of
+    reTop:
+    begin
+      FFrom := Rect(AlignTarget.Left, AlignTarget.Top - YMargin,
+        AlignTarget.Right, AlignTarget.Top + YMargin);
+      FTo := FFrom;
+      FTo.Left := Workarea.Left;
+      FTo.Right := Workarea.Right;
+    end;
+    reBottom:
+    begin
+      FFrom := Rect(AlignTarget.Left, AlignTarget.Bottom - YMargin,
+        AlignTarget.Right, AlignTarget.Bottom + YMargin);
+      FTo := FFrom;
+      FTo.Left := Workarea.Left;
+      FTo.Right := Workarea.Right;
+    end;
+    reLeft:
+    begin
+      FFrom := Rect(AlignTarget.Left - XMargin, AlignTarget.Top,
+        AlignTarget.Left + XMargin, AlignTarget.Bottom);
+      FTo := FFrom;
+      FTo.Top := Workarea.Top;
+      FTo.Bottom := Workarea.Bottom;
+    end;
+    reRight:
+    begin
+      FFrom := Rect(AlignTarget.Right - XMargin, AlignTarget.Top,
+        AlignTarget.Right + XMargin, AlignTarget.Bottom);
+      FTo := FFrom;
+      FTo.Top := Workarea.Top;
+      FTo.Bottom := Workarea.Bottom;
+    end;
+  end;
+end;
+
+procedure TAlignIndicatorAnimation.Render(const RenderTarget: ID2D1RenderTarget);
+var
+  CurRect: TRect;
+begin
+  if not Assigned(FWhiteBrush) then
+    RenderTarget.CreateSolidColorBrush(D2D1ColorF(TColors.White), nil, FWhiteBrush);
+  if not Assigned(FBlackBrush) then
+    RenderTarget.CreateSolidColorBrush(D2D1ColorF(TColors.Black), nil, FBlackBrush);
+
+  CurRect := TAQ.EaseRect(FFrom, FTo, FProgress, etSinus);
+  RenderTarget.FillRectangle(CurRect, FWhiteBrush);
+  CurRect.Inflate(-2, -2);
+  RenderTarget.FillRectangle(CurRect, FBlackBrush);
 end;
 
 end.

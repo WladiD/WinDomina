@@ -179,6 +179,12 @@ var
   ExStyle: DWORD;
   Logger: TStringsLogging;
 begin
+  // Diese Prüfung ist eigentlich nicht notwendig und ist mehr ein Workaround, damit der
+  // Klassenkonstruktor von TDirect2DCanvas ausgeführt wird. Sonst gibt es eine AV, zumindest in
+  // Delphi 10.3.
+  if not TDirect2DCanvas.Supported then
+    raise Exception.Create('TDirect2DCanvas not supported');
+
   LogForm := TLogForm.Create(Self);
   Logger := TStringsLogging.Create(LogForm.LogMemo.Lines);
   Logger.WindowHandle := LogForm.Handle;
