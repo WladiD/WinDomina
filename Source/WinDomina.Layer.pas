@@ -3,10 +3,11 @@ unit WinDomina.Layer;
 interface
 
 uses
+  Winapi.D2D1,
   System.SysUtils,
   System.Classes,
   System.Generics.Collections,
-  Winapi.D2D1,
+
 
   AnyiQuack,
 
@@ -18,6 +19,7 @@ type
   private
     class var
     MainContentLoopTimerID: Integer;
+    LayerInvalidateDelayID: Integer;
   private
     FOnMainContentChanged: TNotifyEvent;
 
@@ -29,7 +31,6 @@ type
     InvalidateMainContentLoopDepth: Integer;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
-    procedure ForceExitInvalidateMainContentLoop;
 
   public
     class constructor Create;
@@ -48,9 +49,6 @@ type
       const LayerParams: TD2D1LayerParameters); virtual;
     procedure InvalidateMainContentResources; virtual;
     procedure InvalidateMainContent; virtual;
-
-    procedure EnterInvalidateMainContentLoop;
-    procedure ExitInvalidateMainContentLoop;
 
     function GetDisplayName: string; virtual;
 
@@ -78,6 +76,7 @@ uses
 class constructor TBaseLayer.Create;
 begin
   MainContentLoopTimerID := TAQ.GetUniqueID;
+  LayerInvalidateDelayID := TAQ.GetUniqueID;
 end;
 
 constructor TBaseLayer.Create;
@@ -98,7 +97,6 @@ end;
 
 procedure TBaseLayer.ExitLayer;
 begin
-  ForceExitInvalidateMainContentLoop;
   FIsLayerActive := False;
 end;
 
@@ -160,45 +158,15 @@ begin
   if not MainContentChanged then
   begin
     MainContentChanged := True;
-    DoMainContentChanged;
-  end;
-end;
-
-procedure TBaseLayer.EnterInvalidateMainContentLoop;
-begin
-  if InvalidateMainContentLoopDepth = 0 then
-  begin
     Take(Self)
-      .CancelDelays(MainContentLoopTimerID)
-      .EachInterval(10,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        Result := True;
-        TBaseLayer(O).InvalidateMainContent;
-      end, MainContentLoopTimerID);
+      .CancelDelays(LayerInvalidateDelayID)
+      .EachDelay(10,
+        function(AQ: TAQ; O: TObject): Boolean
+        begin
+          DoMainContentChanged;
+          Result := True;
+        end, LayerInvalidateDelayID);
   end;
-  Inc(InvalidateMainContentLoopDepth);
-end;
-
-procedure TBaseLayer.ExitInvalidateMainContentLoop;
-begin
-  Dec(InvalidateMainContentLoopDepth);
-  if InvalidateMainContentLoopDepth = 0 then
-    Take(Self)
-      .EachDelay(200,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        Take(O).CancelIntervals(MainContentLoopTimerID);
-        Result := False;
-      end, MainContentLoopTimerID)
-  else if InvalidateMainContentLoopDepth < 0 then
-    InvalidateMainContentLoopDepth := 0;
-end;
-
-procedure TBaseLayer.ForceExitInvalidateMainContentLoop;
-begin
-  InvalidateMainContentLoopDepth := 0;
-  Take(Self).CancelIntervals(MainContentLoopTimerID);
 end;
 
 // Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann

@@ -139,9 +139,6 @@ end;
 
 procedure TMoverLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 begin
-  if FAnimations.Count = 0 then
-    EnterInvalidateMainContentLoop;
-
   FAnimations.Add(Animation);
 
   Take(Animation)
@@ -149,15 +146,14 @@ begin
       function(AQ: TAQ; O: TObject): Boolean
       begin
         TAnimationBase(O).Progress := AQ.CurrentInterval.Progress;
+        InvalidateMainContent;
         Result := True;
       end,
       function(AQ: TAQ; O: TObject): Boolean
       begin
         AQ.Remove(O);
         FAnimations.Remove(TAnimationBase(O));
-        if FAnimations.Count = 0 then
-          ExitInvalidateMainContentLoop;
-//        AQ.Die;
+        InvalidateMainContent;
         Result := True;
       end, AnimationID);
 end;

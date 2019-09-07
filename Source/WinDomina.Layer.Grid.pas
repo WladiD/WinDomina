@@ -288,8 +288,6 @@ procedure TGridLayer.UpdateTileGrid;
   var
     TargetRect: TRect;
   begin
-    EnterInvalidateMainContentLoop;
-
     TargetRect := Tile.Rect;
     Tile.Rect := Tile.PrevRect;
     Take(Tile)
@@ -303,12 +301,9 @@ procedure TGridLayer.UpdateTileGrid;
         procedure(RefObject: TObject; const NewRect: TRect)
         begin
           TTile(RefObject).Rect := NewRect;
+          InvalidateMainContent;
         end,
-        250, TileSlideAniID, TAQ.Ease(TEaseType.etSinus),
-        procedure(Sender: TObject)
-        begin
-          ExitInvalidateMainContentLoop;
-        end);
+        250, TileSlideAniID, TAQ.Ease(TEaseType.etSinus));
   end;
 
   procedure SaveTileRect(Tile: TTile);
@@ -319,10 +314,6 @@ procedure TGridLayer.UpdateTileGrid;
 var
   TileX, TileY: Integer;
 begin
-  // Da wir gleich ohnehin wieder in den Loop gehen, erzwingen wir erstmal seine Beendigung,
-  // falls es davor schon ungleichm‰ﬂige Enter-/ExitInvalidateMainContentLoop-Aufrufe gab.
-  ForceExitInvalidateMainContentLoop;
-
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
       SaveTileRect(TileGrid[TileX][TileY]);

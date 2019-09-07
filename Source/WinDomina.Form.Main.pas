@@ -14,6 +14,7 @@ uses
   System.Actions,
   System.Math,
   System.StrUtils,
+  System.Diagnostics,
   Winapi.Windows,
   Winapi.Messages,
   Winapi.D2D1,
@@ -307,8 +308,14 @@ var
   LayerParams: TD2D1LayerParameters;
   D2DLayer: ID2D1Layer;
   D2DLayerDrawing: Boolean;
+  WholeStopper, BottleneckStopper: TStopwatch;
 begin
+  WholeStopper := TStopwatch.StartNew;
+
+  BottleneckStopper := TStopwatch.StartNew;
   CreateDeviceResources;
+  BottleneckStopper.Stop;
+  Logging.AddLog('Dauer CreateDeviceResources ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
 
   RT := FDrawContext.RenderTarget;
 
@@ -319,6 +326,8 @@ begin
     if HasActiveLayer(Layer) and
       Layer.HasMainContent(FDrawContext, LayerParams, D2DLayer) then
     begin
+      BottleneckStopper := TStopwatch.StartNew;
+
       D2DLayerDrawing := Assigned(D2DLayer);
 
       if D2DLayerDrawing then
@@ -329,7 +338,12 @@ begin
         if D2DLayerDrawing then
           RT.PopLayer;
       end;
+
+      BottleneckStopper.Stop;
+      Logging.AddLog('Dauer RenderMainContent ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
     end;
+
+    BottleneckStopper := TStopwatch.StartNew;
 
     FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
     try
@@ -337,9 +351,16 @@ begin
     finally
       FInteropRenderTarget.ReleaseDC(TRect.Empty);
     end;
+
+    BottleneckStopper.Stop;
+    Logging.AddLog('Dauer UpdateWindow ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
   finally
     RT.EndDraw;
   end;
+
+  WholeStopper.Stop;
+  Logging.AddLog('Dauer kompletter RenderWindowContent ' + WholeStopper.ElapsedMilliseconds.ToString + ' msec.');
+  Logging.AddLog('---');
 end;
 
 procedure TMainForm.CloseActionExecute(Sender: TObject);
@@ -429,6 +450,7 @@ begin
   begin
     Caption := Lang[0] + ': ' + Layer.GetDisplayName;
     Layer.EnterLayer;
+    InvalidateDeviceResources;
     RenderWindowContent;
   end;
 end;
