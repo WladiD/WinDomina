@@ -160,7 +160,7 @@ begin
     MainContentChanged := True;
     Take(Self)
       .CancelDelays(LayerInvalidateDelayID)
-      .EachDelay(10,
+      .EachDelay(5,
         function(AQ: TAQ; O: TObject): Boolean
         begin
           DoMainContentChanged;

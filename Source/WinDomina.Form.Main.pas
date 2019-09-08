@@ -301,6 +301,7 @@ begin
 end;
 
 procedure TMainForm.RenderWindowContent;
+{.$DEFINE BOTTLENECK_LOG}
 var
   RT: ID2D1RenderTarget;
   DC: HDC;
@@ -308,14 +309,20 @@ var
   LayerParams: TD2D1LayerParameters;
   D2DLayer: ID2D1Layer;
   D2DLayerDrawing: Boolean;
+{$IFDEF BOTTLENECK_LOG}
   WholeStopper, BottleneckStopper: TStopwatch;
+{$ENDIF}
+  EndDrawResult: HRESULT;
 begin
+{$IFDEF BOTTLENECK_LOG}
   WholeStopper := TStopwatch.StartNew;
-
   BottleneckStopper := TStopwatch.StartNew;
+{$ENDIF}
   CreateDeviceResources;
+{$IFDEF BOTTLENECK_LOG}
   BottleneckStopper.Stop;
   Logging.AddLog('Dauer CreateDeviceResources ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
+{$ENDIF}
 
   RT := FDrawContext.RenderTarget;
 
@@ -326,8 +333,9 @@ begin
     if HasActiveLayer(Layer) and
       Layer.HasMainContent(FDrawContext, LayerParams, D2DLayer) then
     begin
+{$IFDEF BOTTLENECK_LOG}
       BottleneckStopper := TStopwatch.StartNew;
-
+{$ENDIF}
       D2DLayerDrawing := Assigned(D2DLayer);
 
       if D2DLayerDrawing then
@@ -339,11 +347,14 @@ begin
           RT.PopLayer;
       end;
 
+{$IFDEF BOTTLENECK_LOG}
       BottleneckStopper.Stop;
       Logging.AddLog('Dauer RenderMainContent ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
+{$ENDIF}
     end;
-
+{$IFDEF BOTTLENECK_LOG}
     BottleneckStopper := TStopwatch.StartNew;
+{$ENDIF}
 
     FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
     try
@@ -351,16 +362,21 @@ begin
     finally
       FInteropRenderTarget.ReleaseDC(TRect.Empty);
     end;
-
+{$IFDEF BOTTLENECK_LOG}
     BottleneckStopper.Stop;
     Logging.AddLog('Dauer UpdateWindow ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
+{$ENDIF}
   finally
-    RT.EndDraw;
+    EndDrawResult := RT.EndDraw;
   end;
 
+  if EndDrawResult = D2DERR_RECREATE_TARGET then
+    InvalidateDeviceResources;
+{$IFDEF BOTTLENECK_LOG}
   WholeStopper.Stop;
   Logging.AddLog('Dauer kompletter RenderWindowContent ' + WholeStopper.ElapsedMilliseconds.ToString + ' msec.');
   Logging.AddLog('---');
+{$ENDIF}
 end;
 
 procedure TMainForm.CloseActionExecute(Sender: TObject);
