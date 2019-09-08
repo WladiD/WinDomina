@@ -24,6 +24,9 @@ function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Fl
 procedure SwitchToPreviouslyFocusedAppWindow;
 function GetTaskbarHandle: THandle;
 
+function NoSnap(A, B: Integer): Boolean;
+function Snap(A, B: Integer): Boolean;
+
 type
   TUpdateLayeredWindowInfo = record
     cbSize: DWORD;
@@ -216,6 +219,18 @@ end;
 function GetTaskbarHandle: THandle;
 begin
   Result := FindWindow('Shell_TrayWnd', nil);
+end;
+
+// Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
+// eine Mindestdifferenz erfüllt
+function NoSnap(A, B: Integer): Boolean;
+begin
+  Result := Abs(A - B) >= 5;
+end;
+
+function Snap(A, B: Integer): Boolean;
+begin
+  Result := Abs(A - B) < 5;
 end;
 
 end.

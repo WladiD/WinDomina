@@ -8,6 +8,7 @@ uses
   System.UITypes,
   System.Types,
   System.Generics.Collections,
+  System.Contnrs,
   Winapi.Windows,
   Winapi.D2D1,
   Vcl.Direct2D,
@@ -20,11 +21,10 @@ uses
   WinDomina.Types.Drawing,
   WinDomina.Layer,
   WinDomina.Registry,
-  WinDomina.WindowTools;
+  WinDomina.WindowTools,
+  WinDomina.WindowMatchSnap;
 
 type
-  TRectEdge = (reUnknown, reTop, reRight, reBottom, reLeft);
-
   TAnimationBase = class;
   TAnimationList = TObjectList<TAnimationBase>;
 
@@ -195,22 +195,11 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   procedure MoveSizeWindow(Direction: TDirection);
   var
     Window: THandle;
-    WinRect, MatchRect, TestRect, WorkareaRect: TRect;
-    TestWin: TWindow;
+    WinRect, MatchRect, WorkareaRect: TRect;
     NewPos: TPoint;
     MatchEdge: TRectEdge;
-
-    // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
-    // eine Mindestdifferenz erfüllt
-    function NoSnap(A, B: Integer): Boolean;
-    begin
-      Result := Abs(A - B) >= 5;
-    end;
-
-    function Snap(A, B: Integer): Boolean;
-    begin
-      Result := Abs(A - B) < 5;
-    end;
+    MatchWindow: TWindow;
+    Snapper: TWindowMatchSnap;
 
     procedure NoXEdgeMatch;
     var
@@ -256,116 +245,31 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     MatchRect := TRect.Empty;
     MatchEdge := reUnknown;
 
-    if Direction = dirLeft then
-    begin
-      NewPos.X := WorkareaRect.Left;
-      NewPos.Y := WinRect.Top;
-
-      for TestWin in FVisibleWindowList do
+    Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
+    try
+      if
+        (
+          (Direction = dirLeft) and
+          Snapper.HasMatchSnapWindowLeft(MatchWindow, MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = dirRight) and
+          Snapper.HasMatchSnapWindowRight(MatchWindow, MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = DirUp) and
+          Snapper.HasMatchSnapWindowTop(MatchWindow, MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = dirDown) and
+          Snapper.HasMatchSnapWindowBottom(MatchWindow, MatchEdge, NewPos)
+        ) then
       begin
-        TestRect := TestWin.Rect;
-        // Rechte Kante
-        if (TestRect.Right >= WorkareaRect.Left) and (TestRect.Right < WinRect.Left) and
-          (NewPos.X < TestRect.Right) and NoSnap(TestRect.Right, WinRect.Left) then
-        begin
-          NewPos.X := TestRect.Right;
-          MatchEdge := reRight;
-          MatchRect := TestRect;
-        end
-        // Linke Kante
-        else if (TestRect.Left >= WorkareaRect.Left) and (TestRect.Left < WinRect.Left) and
-          (NewPos.X < TestRect.Left) and NoSnap(TestRect.Left, WinRect.Left) then
-        begin
-          NewPos.X := TestRect.Left;
-          MatchEdge := reLeft;
-          MatchRect := TestRect;
-        end;
+        MatchRect := MatchWindow.Rect;
       end;
-    end
-    else if Direction = dirRight then
-    begin
-      NewPos.X := WorkareaRect.Right - WinRect.Width;
-      NewPos.Y := WinRect.Top;
-
-      for TestWin in FVisibleWindowList do
-      begin
-        TestRect := TestWin.Rect;
-        // Linke Kante
-        if (TestRect.Left <= WorkareaRect.Right) and (TestRect.Left > WinRect.Right) and
-          (NewPos.X > (TestRect.Left - WinRect.Width)) and
-          NoSnap(TestRect.Left, WinRect.Right) then
-        begin
-          NewPos.X := TestRect.Left - WinRect.Width;
-          MatchEdge := reLeft;
-          MatchRect := TestRect;
-        end
-        // Rechte Kante
-        else if (TestRect.Right <= WorkareaRect.Right) and (TestRect.Right > WinRect.Right) and
-         (NewPos.X > (TestRect.Right - WinRect.Width)) and
-         NoSnap(TestRect.Right, WinRect.Right) then
-        begin
-          NewPos.X := TestRect.Right - WinRect.Width;
-          MatchEdge := reRight;
-          MatchRect := TestRect;
-        end;
-      end;
-    end
-    else if Direction = DirUp then
-    begin
-      NewPos.X := WinRect.Left;
-      NewPos.Y := WorkareaRect.Top;
-
-      for TestWin in FVisibleWindowList do
-      begin
-        TestRect := TestWin.Rect;
-        // Untere Kante
-        if (TestRect.Bottom >= WorkareaRect.Top) and (TestRect.Bottom < WinRect.Top) and
-          (NewPos.Y < TestRect.Bottom) and NoSnap(TestRect.Bottom, WinRect.Top) then
-        begin
-          NewPos.Y := TestRect.Bottom;
-          MatchEdge := reBottom;
-          MatchRect := TestRect;
-        end
-        // Obere Kante
-        else if (TestRect.Top >= WorkareaRect.Top) and (TestRect.Top < WinRect.Top) and
-          (NewPos.Y < TestRect.Top) and NoSnap(TestRect.Top, WinRect.Top) then
-        begin
-          NewPos.Y := TestRect.Top;
-          MatchEdge := reTop;
-          MatchRect := TestRect;
-        end;
-      end;
-    end
-    else if Direction = dirDown then
-    begin
-      NewPos.X := WinRect.Left;
-      NewPos.Y := WorkareaRect.Bottom - WinRect.Height;
-
-      for TestWin in FVisibleWindowList do
-      begin
-        TestRect := TestWin.Rect;
-        // Obere Kante
-        if (TestRect.Top <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Top) and
-          (NewPos.Y > (TestRect.Top - WinRect.Height)) and
-          NoSnap(WinRect.Bottom, TestRect.Top) then
-        begin
-          NewPos.Y := TestRect.Top - WinRect.Height;
-          MatchEdge := reTop;
-          MatchRect := TestRect;
-        end
-        // Untere Kante
-        else if (TestRect.Bottom <= WorkareaRect.Bottom) and (WinRect.Bottom < TestRect.Bottom) and
-         (NewPos.Y > (TestRect.Bottom - WinRect.Height)) and
-         NoSnap(WinRect.Bottom, TestRect.Bottom) then
-        begin
-          NewPos.Y := TestRect.Bottom - WinRect.Height;
-          MatchEdge := reBottom;
-          MatchRect := TestRect;
-        end;
-      end;
-    end
-    else
-      Exit;
+    finally
+      Snapper.Free;
+    end;
 
     // Zentrierungen, wenn es keine Kollisionskanten gibt
     if MatchEdge = reUnknown then

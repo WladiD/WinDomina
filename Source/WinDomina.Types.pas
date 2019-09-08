@@ -32,6 +32,7 @@ const
 
 type
   TDirection = (dirUnknown, dirUp, dirRight, dirDown, dirLeft);
+  TRectEdge = (reUnknown, reTop, reRight, reBottom, reLeft);
 
   TKeyStates = class
   protected
