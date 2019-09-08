@@ -201,30 +201,28 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     MatchWindow: TWindow;
     Snapper: TWindowMatchSnap;
 
-    procedure NoXEdgeMatch;
+    // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
+    // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
+    procedure IndentMatchRect;
+    const
+      IndentFactor = 0.45;
     var
-      Center: Integer;
+      Indent: Integer;
     begin
-      Center := (WorkareaRect.Width - WinRect.Width) div 2;
-      if NoSnap(WinRect.Left, Center) and
-        (
-          ((Direction = dirLeft) and (WinRect.Left > Center)) or
-          ((Direction = dirRight) and (WinRect.Left < Center))
-        ) then
-        NewPos.X := Center;
-    end;
-
-    procedure NoYEdgeMatch;
-    var
-      Center: Integer;
-    begin
-      Center := (WorkareaRect.Height - WinRect.Height) div 2;
-      if NoSnap(WinRect.Top, Center) and
-        (
-          ((Direction = dirUp) and (WinRect.Top > Center)) or
-          ((Direction = dirDown) and (WinRect.Top < Center))
-        ) then
-        NewPos.Y := Center;
+      case Direction of
+        dirLeft, dirRight:
+        begin
+          Indent := Trunc(MatchRect.Height * IndentFactor);
+          Inc(MatchRect.Top, Indent);
+          Dec(MatchRect.Bottom, Indent);
+        end;
+        dirUp, dirDown:
+        begin
+          Indent := Trunc(MatchRect.Width * IndentFactor);
+          Inc(MatchRect.Left, Indent);
+          Dec(MatchRect.Right, Indent);
+        end;
+      end;
     end;
 
   begin
@@ -247,6 +245,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
     try
+      // Zuerst suchen wir nach einer benachbarten Fensterkante...
       if
         (
           (Direction = dirLeft) and
@@ -266,21 +265,58 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         ) then
       begin
         MatchRect := MatchWindow.Rect;
+      end
+      // ...dann suchen wir nach einer horizontalen...
+      else if (Direction in [dirLeft, dirRight]) and
+        Snapper.HasWorkAreaCenterMatchHorizontal(Direction, NewPos) then
+      begin
+        MatchRect := WorkareaRect;
+        Dec(MatchRect.Right, MatchRect.Width div 2);
+        IndentMatchRect;
+        MatchEdge := reRight;
+      end
+      // ...oder vertikalen Mitte der Arbeitsfläche...
+      else if (Direction in [dirUp, dirDown]) and
+        Snapper.HasWorkAreaCenterMatchVertical(Direction, NewPos) then
+      begin
+        MatchRect := WorkareaRect;
+        Dec(MatchRect.Bottom, MatchRect.Height div 2);
+        IndentMatchRect;
+        MatchEdge := reBottom;
+      end
+      // ...hier angekommen suchen wir nach einer Arbeitskante.
+      else if
+        (
+          (Direction = dirLeft) and
+          Snapper.HasWorkAreaEdgeMatchLeft(MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = dirRight) and
+          Snapper.HasWorkAreaEdgeMatchRight(MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = dirUp) and
+          Snapper.HasWorkAreaEdgeMatchTop(MatchEdge, NewPos)
+        ) or
+        (
+          (Direction = dirDown) and
+          Snapper.HasWorkAreaEdgeMatchBottom(MatchEdge, NewPos)
+        )
+        then
+      begin
+        MatchRect := WorkareaRect;
+        MatchRect.Inflate(-4, -4);
+        IndentMatchRect;
+      end
+      else
+      begin
+        //AddLog('Keine Fenster- oder Arbeitsflächenkante gefunden');
+        // Hier kann man testen, ob man zu einem anderen Bildschirm wechseln kann
+        Exit;
       end;
     finally
       Snapper.Free;
     end;
-
-    // Zentrierungen, wenn es keine Kollisionskanten gibt
-    if MatchEdge = reUnknown then
-      case Direction of
-        dirUp,
-        dirDown:
-          NoYEdgeMatch;
-        dirRight,
-        dirLeft:
-          NoXEdgeMatch;
-      end;
 
     FAnimatedWindow.Handle := Window;
     FAnimatedWindow.Rect := WinRect; // Die ursprüngliche Postion des Fensters

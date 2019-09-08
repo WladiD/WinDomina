@@ -16,7 +16,8 @@ uses
   Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
   ProcedureHook in '..\..\Localization\ProcedureHook.pas',
   SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas',
-  WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas';
+  WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas',
+  WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas';
 
 {$R *.res}
 

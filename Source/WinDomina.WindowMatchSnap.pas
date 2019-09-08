@@ -19,6 +19,11 @@ type
     FWorkArea: TRect;
     FWindowList: TWindowList;
 
+    function GetRefRectDefaultPositionLeft: TPoint;
+    function GetRefRectDefaultPositionRight: TPoint;
+    function GetRefRectDefaultPositionTop: TPoint;
+    function GetRefRectDefaultPositionBottom: TPoint;
+
   public
     constructor Create(const RefRect, WorkArea: TRect; WindowList: TWindowList);
 
@@ -29,6 +34,20 @@ type
     function HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
       out NewRefRectPos: TPoint): Boolean;
     function HasMatchSnapWindowBottom(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
+      out NewRefRectPos: TPoint): Boolean;
+
+    function HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge;
+      out NewRefRectPos: TPoint): Boolean;
+    function HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge;
+      out NewRefRectPos: TPoint): Boolean;
+    function HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge;
+      out NewRefRectPos: TPoint): Boolean;
+    function HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge;
+      out NewRefRectPos: TPoint): Boolean;
+
+    function HasWorkAreaCenterMatchHorizontal(Direction: TDirection;
+      out NewRefRectPos: TPoint): Boolean;
+    function HasWorkAreaCenterMatchVertical(Direction: TDirection;
       out NewRefRectPos: TPoint): Boolean;
   end;
 
@@ -48,33 +67,35 @@ function TWindowMatchSnap.HasMatchSnapWindowLeft(out MatchWindow: TWindow; out M
 var
   TestWin: TWindow;
   TestRect: TRect;
+  TempPos: TPoint;
 begin
   MatchEdge := reUnknown;
-  NewRefRectPos.X := FWorkArea.Left;
-  NewRefRectPos.Y := FRefRect.Top;
+  TempPos := GetRefRectDefaultPositionLeft;
 
   for TestWin in FWindowList do
   begin
     TestRect := TestWin.Rect;
     // Rechte Kante
     if (TestRect.Right >= FWorkArea.Left) and (TestRect.Right < FRefRect.Left) and
-      (NewRefRectPos.X < TestRect.Right) and NoSnap(TestRect.Right, FRefRect.Left) then
+      (TempPos.X < TestRect.Right) and NoSnap(TestRect.Right, FRefRect.Left) then
     begin
-      NewRefRectPos.X := TestRect.Right;
+      TempPos.X := TestRect.Right;
       MatchEdge := reRight;
       MatchWindow := TestWin;
     end
     // Linke Kante
     else if (TestRect.Left >= FWorkArea.Left) and (TestRect.Left < FRefRect.Left) and
-      (NewRefRectPos.X < TestRect.Left) and NoSnap(TestRect.Left, FRefRect.Left) then
+      (TempPos.X < TestRect.Left) and NoSnap(TestRect.Left, FRefRect.Left) then
     begin
-      NewRefRectPos.X := TestRect.Left;
+      TempPos.X := TestRect.Left;
       MatchEdge := reLeft;
       MatchWindow := TestWin;
     end;
   end;
 
   Result := MatchEdge > reUnknown;
+  if Result then
+    NewRefRectPos := TempPos;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowRight(out MatchWindow: TWindow;
@@ -82,35 +103,37 @@ function TWindowMatchSnap.HasMatchSnapWindowRight(out MatchWindow: TWindow;
 var
   TestWin: TWindow;
   TestRect: TRect;
+  TempPos: TPoint;
 begin
   MatchEdge := reUnknown;
-  NewRefRectPos.X := FWorkArea.Right - FRefRect.Width;
-  NewRefRectPos.Y := FRefRect.Top;
+  TempPos := GetRefRectDefaultPositionRight;
 
   for TestWin in FWindowList do
   begin
     TestRect := TestWin.Rect;
     // Linke Kante
-    if (TestRect.Left <= FWorkarea.Right) and (TestRect.Left > FRefRect.Right) and
-      (NewRefRectPos.X > (TestRect.Left - FRefRect.Width)) and
+    if (TestRect.Left <= FWorkArea.Right) and (TestRect.Left > FRefRect.Right) and
+      (TempPos.X > (TestRect.Left - FRefRect.Width)) and
       NoSnap(TestRect.Left, FRefRect.Right) then
     begin
-      NewRefRectPos.X := TestRect.Left - FRefRect.Width;
+      TempPos.X := TestRect.Left - FRefRect.Width;
       MatchEdge := reLeft;
       MatchWindow := TestWin;
     end
     // Rechte Kante
-    else if (TestRect.Right <= FWorkarea.Right) and (TestRect.Right > FRefRect.Right) and
-     (NewRefRectPos.X > (TestRect.Right - FRefRect.Width)) and
+    else if (TestRect.Right <= FWorkArea.Right) and (TestRect.Right > FRefRect.Right) and
+     (TempPos.X > (TestRect.Right - FRefRect.Width)) and
      NoSnap(TestRect.Right, FRefRect.Right) then
     begin
-      NewRefRectPos.X := TestRect.Right - FRefRect.Width;
+      TempPos.X := TestRect.Right - FRefRect.Width;
       MatchEdge := reRight;
       MatchWindow := TestWin;
     end;
   end;
 
   Result := MatchEdge > reUnknown;
+  if Result then
+    NewRefRectPos := TempPos;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
@@ -118,33 +141,35 @@ function TWindowMatchSnap.HasMatchSnapWindowTop(out MatchWindow: TWindow; out Ma
 var
   TestWin: TWindow;
   TestRect: TRect;
+  TempPos: TPoint;
 begin
   MatchEdge := reUnknown;
-  NewRefRectPos.X := FRefRect.Left;
-  NewRefRectPos.Y := FWorkarea.Top;
+  TempPos := GetRefRectDefaultPositionTop;
 
   for TestWin in FWindowList do
   begin
     TestRect := TestWin.Rect;
     // Untere Kante
-    if (TestRect.Bottom >= FWorkarea.Top) and (TestRect.Bottom < FRefRect.Top) and
-      (NewRefRectPos.Y < TestRect.Bottom) and NoSnap(TestRect.Bottom, FRefRect.Top) then
+    if (TestRect.Bottom >= FWorkArea.Top) and (TestRect.Bottom < FRefRect.Top) and
+      (TempPos.Y < TestRect.Bottom) and NoSnap(TestRect.Bottom, FRefRect.Top) then
     begin
-      NewRefRectPos.Y := TestRect.Bottom;
+      TempPos.Y := TestRect.Bottom;
       MatchEdge := reBottom;
       MatchWindow := TestWin;
     end
     // Obere Kante
-    else if (TestRect.Top >= FWorkarea.Top) and (TestRect.Top < FRefRect.Top) and
-      (NewRefRectPos.Y < TestRect.Top) and NoSnap(TestRect.Top, FRefRect.Top) then
+    else if (TestRect.Top >= FWorkArea.Top) and (TestRect.Top < FRefRect.Top) and
+      (TempPos.Y < TestRect.Top) and NoSnap(TestRect.Top, FRefRect.Top) then
     begin
-      NewRefRectPos.Y := TestRect.Top;
+      TempPos.Y := TestRect.Top;
       MatchEdge := reTop;
       MatchWindow := TestWin;
     end;
   end;
 
   Result := MatchEdge > reUnknown;
+  if Result then
+    NewRefRectPos := TempPos;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowBottom(out MatchWindow: TWindow;
@@ -152,35 +177,150 @@ function TWindowMatchSnap.HasMatchSnapWindowBottom(out MatchWindow: TWindow;
 var
   TestWin: TWindow;
   TestRect: TRect;
+  TempPos: TPoint;
 begin
   MatchEdge := reUnknown;
-  NewRefRectPos.X := FRefRect.Left;
-  NewRefRectPos.Y := FWorkarea.Bottom - FRefRect.Height;
+  TempPos := GetRefRectDefaultPositionBottom;
 
   for TestWin in FWindowList do
   begin
     TestRect := TestWin.Rect;
     // Obere Kante
-    if (TestRect.Top <= FWorkarea.Bottom) and (FRefRect.Bottom < TestRect.Top) and
-      (NewRefRectPos.Y > (TestRect.Top - FRefRect.Height)) and
+    if (TestRect.Top <= FWorkArea.Bottom) and (FRefRect.Bottom < TestRect.Top) and
+      (TempPos.Y > (TestRect.Top - FRefRect.Height)) and
       NoSnap(FRefRect.Bottom, TestRect.Top) then
     begin
-      NewRefRectPos.Y := TestRect.Top - FRefRect.Height;
+      TempPos.Y := TestRect.Top - FRefRect.Height;
       MatchEdge := reTop;
       MatchWindow := TestWin;
     end
     // Untere Kante
-    else if (TestRect.Bottom <= FWorkarea.Bottom) and (FRefRect.Bottom < TestRect.Bottom) and
-     (NewRefRectPos.Y > (TestRect.Bottom - FRefRect.Height)) and
+    else if (TestRect.Bottom <= FWorkArea.Bottom) and (FRefRect.Bottom < TestRect.Bottom) and
+     (TempPos.Y > (TestRect.Bottom - FRefRect.Height)) and
      NoSnap(FRefRect.Bottom, TestRect.Bottom) then
     begin
-      NewRefRectPos.Y := TestRect.Bottom - FRefRect.Height;
+      TempPos.Y := TestRect.Bottom - FRefRect.Height;
       MatchEdge := reBottom;
       MatchWindow := TestWin;
     end;
   end;
 
   Result := MatchEdge > reUnknown;
+  if Result then
+    NewRefRectPos := TempPos;
+end;
+
+function TWindowMatchSnap.HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  TempPos: TPoint;
+begin
+  TempPos := GetRefRectDefaultPositionLeft;
+  Result := TempPos <> FRefRect.Location;
+  if Result then
+  begin
+    MatchEdge := reLeft;
+    NewRefRectPos := TempPos;
+  end;
+end;
+
+function TWindowMatchSnap.HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  TempPos: TPoint;
+begin
+  TempPos := GetRefRectDefaultPositionRight;
+  Result := TempPos <> FRefRect.Location;
+  if Result then
+  begin
+    MatchEdge := reRight;
+    NewRefRectPos := TempPos;
+  end;
+end;
+
+function TWindowMatchSnap.HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  TempPos: TPoint;
+begin
+  TempPos := GetRefRectDefaultPositionTop;
+  Result := TempPos <> FRefRect.Location;
+  if Result then
+  begin
+    MatchEdge := reTop;
+    NewRefRectPos := TempPos;
+  end;
+end;
+
+function TWindowMatchSnap.HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  TempPos: TPoint;
+begin
+  TempPos := GetRefRectDefaultPositionBottom;
+  Result := TempPos <> FRefRect.Location;
+  if Result then
+  begin
+    MatchEdge := reBottom;
+    NewRefRectPos := TempPos;
+  end;
+end;
+
+function TWindowMatchSnap.HasWorkAreaCenterMatchHorizontal(Direction: TDirection;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  Center: Integer;
+begin
+  Center := (FWorkArea.Width - FRefRect.Width) div 2;
+  Result := NoSnap(FRefRect.Left, Center) and
+    (
+      ((Direction = dirLeft) and (FRefRect.Left > Center)) or
+      ((Direction = dirRight) and (FRefRect.Left < Center))
+    );
+
+  if Result then
+  begin
+    NewRefRectPos := FRefRect.Location;
+    NewRefRectPos.X := Center;
+  end;
+end;
+
+function TWindowMatchSnap.HasWorkAreaCenterMatchVertical(Direction: TDirection;
+  out NewRefRectPos: TPoint): Boolean;
+var
+  Center: Integer;
+begin
+  Center := (FWorkArea.Height - FRefRect.Height) div 2;
+  Result := NoSnap(FRefRect.Top, Center) and
+    (
+      ((Direction = dirUp) and (FRefRect.Top > Center)) or
+      ((Direction = dirDown) and (FRefRect.Top < Center))
+    );
+  if Result then
+  begin
+    NewRefRectPos := FRefRect.Location;
+    NewRefRectPos.Y := Center;
+  end;
+end;
+
+function TWindowMatchSnap.GetRefRectDefaultPositionLeft: TPoint;
+begin
+  Result := Point(FWorkArea.Left, FRefRect.Top);
+end;
+
+function TWindowMatchSnap.GetRefRectDefaultPositionRight: TPoint;
+begin
+  Result := Point(FWorkArea.Right - FRefRect.Width, FRefRect.Top);
+end;
+
+function TWindowMatchSnap.GetRefRectDefaultPositionTop: TPoint;
+begin
+  Result := Point(FRefRect.Left, FWorkArea.Top);
+end;
+
+function TWindowMatchSnap.GetRefRectDefaultPositionBottom: TPoint;
+begin
+  Result := Point(FRefRect.Left, FWorkArea.Bottom - FRefRect.Height);
 end;
 
 end.
