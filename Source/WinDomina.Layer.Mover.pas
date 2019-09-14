@@ -12,6 +12,7 @@ uses
   Winapi.Windows,
   Winapi.D2D1,
   Vcl.Direct2D,
+  Vcl.Forms,
 
   WindowEnumerator,
   AnyiQuack,
@@ -200,6 +201,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     MatchEdge: TRectEdge;
     MatchWindow: TWindow;
     Snapper: TWindowMatchSnap;
+    AdjacentMonitor: TMonitor;
 
     // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
     // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
@@ -223,6 +225,22 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
           Dec(MatchRect.Right, Indent);
         end;
       end;
+    end;
+
+    procedure AdjustXOnAdjacentMonitor;
+    begin
+      if NewPos.X < AdjacentMonitor.WorkareaRect.Left then
+        NewPos.X := AdjacentMonitor.WorkareaRect.Left
+      else if (NewPos.X + WinRect.Width) > AdjacentMonitor.WorkareaRect.Right then
+        NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
+    end;
+
+    procedure AdjustYOnAdjacentMonitor;
+    begin
+      if NewPos.Y < AdjacentMonitor.WorkareaRect.Top then
+        NewPos.Y := AdjacentMonitor.WorkareaRect.Top
+      else if (NewPos.Y + WinRect.Height) > AdjacentMonitor.WorkareaRect.Bottom then
+        NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
     end;
 
   begin
@@ -308,12 +326,39 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         MatchRect.Inflate(-4, -4);
         IndentMatchRect;
       end
-      else
+      // Suche nach einem benachbartem Monitor
+      else if MonitorHandler.HasAdjacentMonitor(Direction, AdjacentMonitor) then
       begin
-        //AddLog('Keine Fenster- oder Arbeitsflächenkante gefunden');
-        // Hier kann man testen, ob man zu einem anderen Bildschirm wechseln kann
+        MonitorHandler.CurrentMonitor := AdjacentMonitor;
+        NewPos := WinRect.Location;
+        case Direction of
+          dirLeft:
+          begin
+            NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
+            AdjustYOnAdjacentMonitor;
+          end;
+          dirRight:
+          begin
+            NewPos.X := AdjacentMonitor.WorkareaRect.Left;
+            AdjustYOnAdjacentMonitor;
+          end;
+          dirUp:
+          begin
+            NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
+            AdjustXOnAdjacentMonitor;
+          end;
+          dirDown:
+          begin
+            NewPos.Y := AdjacentMonitor.WorkareaRect.Top;
+            AdjustXOnAdjacentMonitor;
+          end;
+        else
+          Exit;
+        end;
+      end
+      // Nichts trifft zu, also raus hier
+      else
         Exit;
-      end;
     finally
       Snapper.Free;
     end;

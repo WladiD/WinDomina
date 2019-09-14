@@ -44,7 +44,7 @@ uses
   WinDomina.Types.Drawing;
 
 type
-  TMainForm = class(TForm, ITranslate)
+  TMainForm = class(TForm, ITranslate, IMonitorHandler)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
     TrayPopupMenu: TPopupMenu;
@@ -88,6 +88,9 @@ type
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
     procedure DominaModeChanged;
 
+    procedure AdjustWindowWorkarea(Workarea: TRect);
+    procedure AdjustWindowWorkareaFromPoint(Point: TPoint);
+    procedure AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
     procedure UpdateWindow(SourceDC: HDC);
     procedure RenderWindowContent;
     procedure CreateDeviceResources;
@@ -98,6 +101,18 @@ type
     function IsReadyForTranslate: Boolean;
     procedure OnReadyForTranslate(NotifyEvent: TNotifyEvent);
     procedure Translate;
+
+  // IMonitorHandler-Interface
+  private
+    function HasAdjacentMonitor(Direction: TDirection; out AdjacentMonitor: TMonitor): Boolean;
+    function HasNextMonitor(out Monitor: TMonitor): Boolean;
+    function HasPrevMonitor(out Monitor: TMonitor): Boolean;
+
+    function ClientToScreen(const Rect: TRect): TRect; overload;
+    function ScreenToClient(const Rect: TRect): TRect; overload;
+
+    function GetCurrentMonitor: TMonitor;
+    procedure SetCurrentMonitor(Monitor: TMonitor);
   end;
 
 var
@@ -155,6 +170,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
   function CreateLayer(LayerClass: TBaseLayerClass): TBaseLayer;
   begin
     Result := LayerClass.Create;
+    Result.MonitorHandler := Self;
     Result.OnMainContentChanged := LayerMainContentChanged;
   end;
 
@@ -258,6 +274,119 @@ begin
   DominaModeChanged;
 end;
 
+function HasMonitorIndex(Monitor: TMonitor; out MonitorIndex: Integer): Boolean;
+var
+  cc: Integer;
+begin
+  Result := True;
+  for cc := 0 to Screen.MonitorCount - 1 do
+    if Monitor = Screen.Monitors[cc] then
+    begin
+      MonitorIndex := cc;
+      Exit;
+    end;
+  Result := False;
+end;
+
+function TMainForm.HasAdjacentMonitor(Direction: TDirection; out AdjacentMonitor: TMonitor): Boolean;
+var
+  CurMonitorIndex: Integer;
+  CurBounds: TRect;
+  cc: Integer;
+  TestMonitor: TMonitor;
+begin
+  Result := (Screen.MonitorCount > 1) and HasMonitorIndex(Monitor, CurMonitorIndex);
+  if not Result then
+    Exit;
+
+  CurBounds := Monitor.BoundsRect;
+
+  for cc := 0 to Screen.MonitorCount - 1 do
+  begin
+    if cc = CurMonitorIndex then
+      Continue;
+
+    TestMonitor := Screen.Monitors[cc];
+    if
+      (
+        (Direction = dirLeft) and
+        Snap(CurBounds.Left, TestMonitor.BoundsRect.Right)
+      ) or
+      (
+        (Direction = dirRight) and
+        Snap(CurBounds.Right, TestMonitor.BoundsRect.Left)
+      ) or
+      (
+        (Direction = dirUp) and
+        Snap(CurBounds.Top, TestMonitor.BoundsRect.Bottom)
+      ) or
+      (
+        (Direction = dirDown) and
+        Snap(CurBounds.Bottom, TestMonitor.BoundsRect.Top)
+      ) then
+    begin
+      AdjacentMonitor := TestMonitor;
+      Exit;
+    end;
+  end;
+
+  Result := False;
+end;
+
+function TMainForm.HasNextMonitor(out Monitor: TMonitor): Boolean;
+var
+  MonitorIndex: Integer;
+begin
+  Result := (Screen.MonitorCount > 1) and HasMonitorIndex(Self.Monitor, MonitorIndex);
+  if not Result then
+    Exit;
+
+  Inc(MonitorIndex);
+  if MonitorIndex >= Screen.MonitorCount then
+    MonitorIndex := 0;
+
+  Monitor := Screen.Monitors[MonitorIndex];
+end;
+
+function TMainForm.HasPrevMonitor(out Monitor: TMonitor): Boolean;
+var
+  MonitorIndex: Integer;
+begin
+  Result := (Screen.MonitorCount > 1) and HasMonitorIndex(Self.Monitor, MonitorIndex);
+  if not Result then
+    Exit;
+
+  Dec(MonitorIndex);
+  if MonitorIndex < 0 then
+    MonitorIndex := Screen.MonitorCount - 1;
+
+  Monitor := Screen.Monitors[MonitorIndex];
+end;
+
+function TMainForm.ClientToScreen(const Rect: TRect): TRect;
+begin
+  Result.TopLeft := ClientToScreen(Rect.TopLeft);
+  Result.Width := Rect.Width;
+  Result.Height := Rect.Height;
+end;
+
+function TMainForm.ScreenToClient(const Rect: TRect): TRect;
+begin
+  Result.TopLeft := ScreenToClient(Rect.TopLeft);
+  Result.Width := Rect.Width;
+  Result.Height := Rect.Height;
+end;
+
+function TMainForm.GetCurrentMonitor: TMonitor;
+begin
+  Result := Monitor;
+end;
+
+procedure TMainForm.SetCurrentMonitor(Monitor: TMonitor);
+begin
+  AdjustWindowWorkareaFromMonitor(Monitor);
+end;
+
 procedure TMainForm.ToggleDominaModeActionExecute(Sender: TObject);
 
   function IsInvalidFGWindow: Boolean;
@@ -281,6 +410,32 @@ end;
 procedure TMainForm.TrayIconDblClick(Sender: TObject);
 begin
   ToggleDominaModeAction.Execute;
+end;
+
+// Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
+procedure TMainForm.AdjustWindowWorkarea(Workarea: TRect);
+begin
+  FWindowPosition := Workarea.Location;
+  FWindowSize.cx := Workarea.Width;
+  FWindowSize.cy := Workarea.Height;
+
+  SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
+    SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
+  UpdateBoundsRect(Workarea);
+
+  InvalidateDeviceResources;
+  RenderWindowContent;
+end;
+
+procedure TMainForm.AdjustWindowWorkareaFromPoint(Point: TPoint);
+begin
+  AdjustWindowWorkareaFromMonitor(Screen.MonitorFromPoint(Point));
+end;
+
+procedure TMainForm.AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
+begin
+  if Assigned(Monitor) then
+    AdjustWindowWorkarea(Monitor.WorkareaRect);
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
@@ -574,22 +729,6 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
     end;
   end;
 
-  procedure AdjustWindow;
-  var
-    WorkRect: TRect;
-  begin
-    if DominaWindows.Count > 0 then
-      WorkRect := GetWorkareaRect(DominaWindows[0])
-    else
-      WorkRect := Screen.MonitorFromPoint(Mouse.CursorPos).WorkareaRect;
-
-    FWindowSize.cx := WorkRect.Width;
-    FWindowSize.cy := WorkRect.Height;
-
-    SetWindowPos(Handle, HWND_TOPMOST, WorkRect.Left, WorkRect.Top, WorkRect.Width, WorkRect.Height,
-      SWP_SHOWWINDOW or SWP_NOACTIVATE);
-  end;
-
 var
   AppWins: TWindowList;
   AppWin: THandle;
@@ -611,7 +750,7 @@ begin
     AppWins.Free;
   end;
 
-  AdjustWindow;
+  AdjustWindowWorkareaFromPoint(Mouse.CursorPos);
 
   if Assigned(FLastUsedLayer) then
     EnterLayer(FLastUsedLayer)
@@ -650,6 +789,7 @@ var
   Handled: Boolean;
   Key: Integer;
   Layer, CurActiveLayer: TBaseLayer;
+  Monitor: TMonitor;
 begin
   Key := Message.WParam;
   WDMKeyStates.KeyPressed[Key] := True;
@@ -668,6 +808,9 @@ begin
   if not Handled then
   begin
     case Key of
+      vkTab:
+        if HasNextMonitor(Monitor) then
+          SetCurrentMonitor(Monitor);
       vkEscape:
         ExitDominaMode;
       vkF12:

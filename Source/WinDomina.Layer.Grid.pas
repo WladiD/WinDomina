@@ -191,7 +191,7 @@ begin
 
   Randomize;
 
-  WorkareaRect := Screen.MonitorFromPoint(Mouse.CursorPos).WorkareaRect;
+  WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WALeft := WorkareaRect.Left;
   WATop := WorkareaRect.Top;
   WAWidth := WorkareaRect.Width;
@@ -218,13 +218,11 @@ var
   cc, Xcc, Ycc: Integer;
   X, Y, XSize: Integer;
   WAWidth, WAHeight, RemainWidth, RemainHeight: Integer;
-  LocalDominaWindows: TWindowList;
   WorkareaRect: TRect;
   XQuotient, YQuotient: Single;
   CurRect: System.Types.PRect;
 begin
-  LocalDominaWindows := DominaWindows;
-  WorkareaRect := GetWorkareaRect(LocalDominaWindows[0]);
+  WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WAWidth := WorkareaRect.Width;
   WAHeight := WorkareaRect.Height;
   RemainWidth := WAWidth;
@@ -264,7 +262,7 @@ begin
 
     for Ycc := 0 to 2 do
     begin
-      CurRect := @TileGrid[Xcc][Ycc].Rect;
+      CurRect := @(TileGrid[Xcc][Ycc].Rect);
       CurRect.Left := X;
       CurRect.Top := Y;
 
@@ -456,13 +454,16 @@ var
       (HasSecondTileNumKey and WDMKeyStates.KeyPressed[SecondTileNumKey]) then
       Exit;
 
+    FirstTileNum := 0;
+    SecondTileNum := 0;
+
     if HasFirstTileNumKey and IsTileNumKey(FirstTileNumKey, FirstTileNum) and
       IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
-      FirstRect := TileGrid[TileX][TileY].TargetRect;
+      FirstRect := MonitorHandler.ClientToScreen(TileGrid[TileX][TileY].TargetRect);
 
     if HasSecondTileNumKey and IsTileNumKey(SecondTileNumKey, SecondTileNum) and
       IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
-      SecondRect := TileGrid[TileX][TileY].TargetRect;
+      SecondRect := MonitorHandler.ClientToScreen(TileGrid[TileX][TileY].TargetRect);
 
     if (FirstTileNum > 0) and (SecondTileNum > 0) then
       SizeWindowRect(TRect.Union(FirstRect, SecondRect))
@@ -542,7 +543,7 @@ end;
 
 procedure TGridLayer.InvalidateMainContentResources;
 begin
-
+  UpdateTileGrid;
 end;
 
 end.

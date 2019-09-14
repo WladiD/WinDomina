@@ -8,7 +8,8 @@ uses
   System.Generics.Collections,
   System.UITypes,
   Winapi.Windows,
-  Winapi.Messages;
+  Winapi.Messages,
+  Vcl.Forms;
 
 type
   // Structure used by WH_KEYBOARD_LL
@@ -51,6 +52,24 @@ type
     procedure ReleaseAllKeys;
 
     property KeyPressed[Key: Integer]: Boolean read GetKeyPressed write SetKeyPressed;
+  end;
+
+  IMonitorHandler = interface
+    ['{3A878286-2948-47C1-A9F7-F356ABB7F4CD}']
+
+    function HasAdjacentMonitor(Direction: TDirection; out Monitor: TMonitor): Boolean;
+    function HasNextMonitor(out Monitor: TMonitor): Boolean;
+    function HasPrevMonitor(out Monitor: TMonitor): Boolean;
+
+    function ClientToScreen(const Point: TPoint): TPoint; overload;
+    function ScreenToClient(const Point: TPoint): TPoint; overload;
+    function ClientToScreen(const Rect: TRect): TRect; overload;
+    function ScreenToClient(const Rect: TRect): TRect; overload;
+
+    function GetCurrentMonitor: TMonitor;
+    procedure SetCurrentMonitor(Monitor: TMonitor);
+
+    property CurrentMonitor: TMonitor read GetCurrentMonitor write SetCurrentMonitor;
   end;
 
   ILogging = interface

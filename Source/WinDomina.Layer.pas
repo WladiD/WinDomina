@@ -8,7 +8,6 @@ uses
   System.Classes,
   System.Generics.Collections,
 
-
   AnyiQuack,
 
   WinDomina.Types,
@@ -27,8 +26,8 @@ type
 
   protected
     FIsLayerActive: Boolean;
+    FMonitorHandler: IMonitorHandler;
     MainContentChanged: Boolean;
-    InvalidateMainContentLoopDepth: Integer;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
 
@@ -53,7 +52,7 @@ type
     function GetDisplayName: string; virtual;
 
     property IsLayerActive: Boolean read FIsLayerActive;
-
+    property MonitorHandler: IMonitorHandler read FMonitorHandler write FMonitorHandler;
     // Dieses Ereignis wird ausgelöst, wenn der Layer selbst feststellt, dass er sich neu zeichnen
     // muss
     property OnMainContentChanged: TNotifyEvent read FOnMainContentChanged

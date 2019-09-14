@@ -271,7 +271,7 @@ function TWindowMatchSnap.HasWorkAreaCenterMatchHorizontal(Direction: TDirection
 var
   Center: Integer;
 begin
-  Center := (FWorkArea.Width - FRefRect.Width) div 2;
+  Center := FWorkArea.Left + ((FWorkArea.Width - FRefRect.Width) div 2);
   Result := NoSnap(FRefRect.Left, Center) and
     (
       ((Direction = dirLeft) and (FRefRect.Left > Center)) or
@@ -290,7 +290,7 @@ function TWindowMatchSnap.HasWorkAreaCenterMatchVertical(Direction: TDirection;
 var
   Center: Integer;
 begin
-  Center := (FWorkArea.Height - FRefRect.Height) div 2;
+  Center := FWorkArea.Top + ((FWorkArea.Height - FRefRect.Height) div 2);
   Result := NoSnap(FRefRect.Top, Center) and
     (
       ((Direction = dirUp) and (FRefRect.Top > Center)) or
