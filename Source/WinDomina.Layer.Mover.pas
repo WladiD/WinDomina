@@ -63,10 +63,14 @@ type
   TAnimationBase = class
   protected
     FProgress: Real;
+    FLayer: TBaseLayer;
 
   public
+    constructor Create(Layer: TBaseLayer);
+
     procedure Render(const RenderTarget: ID2D1RenderTarget); virtual; abstract;
     property Progress: Real read FProgress write FProgress;
+    property Layer: TBaseLayer read FLayer;
   end;
 
   TAlignIndicatorAnimation = class(TAnimationBase)
@@ -77,7 +81,7 @@ type
     FBlackBrush: ID2D1SolidColorBrush;
 
   public
-    constructor Create(const AlignTarget, Workarea: TRect; Edge: TRectEdge);
+    constructor Create(Layer: TBaseLayer; const AlignTarget, Workarea: TRect; Edge: TRectEdge);
     procedure Render(const RenderTarget: ID2D1RenderTarget); override;
   end;
 
@@ -383,7 +387,8 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
 
     if not MatchRect.IsEmpty then
-      AddAnimation(TAlignIndicatorAnimation.Create(MatchRect, WorkareaRect, MatchEdge), 500, AlignIndicatorAniID);
+      AddAnimation(TAlignIndicatorAnimation.Create(Self, MatchRect, WorkareaRect, MatchEdge), 500,
+        AlignIndicatorAniID);
   end;
 
 var
@@ -414,13 +419,23 @@ begin
 
 end;
 
+{ TAnimationBase }
+
+constructor TAnimationBase.Create(Layer: TBaseLayer);
+begin
+  FLayer := Layer;
+end;
+
 { TAlignIndicatorAnimation }
 
-constructor TAlignIndicatorAnimation.Create(const AlignTarget, Workarea: TRect; Edge: TRectEdge);
+constructor TAlignIndicatorAnimation.Create(Layer: TBaseLayer; const AlignTarget, Workarea: TRect;
+  Edge: TRectEdge);
 const
   XMargin = 4;
   YMargin = 4;
 begin
+  inherited Create(Layer);
+
   case Edge of
     reTop:
     begin
@@ -466,7 +481,8 @@ begin
   if not Assigned(FBlackBrush) then
     RenderTarget.CreateSolidColorBrush(D2D1ColorF(TColors.Black), nil, FBlackBrush);
 
-  CurRect := TAQ.EaseRect(FFrom, FTo, FProgress, etSinus);
+  CurRect := Layer.MonitorHandler.ScreenToClient(
+    TAQ.EaseRect(FFrom, FTo, FProgress, etSinus));
   RenderTarget.FillRectangle(CurRect, FWhiteBrush);
   CurRect.Inflate(-2, -2);
   RenderTarget.FillRectangle(CurRect, FBlackBrush);
