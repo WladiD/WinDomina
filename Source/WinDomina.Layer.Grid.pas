@@ -17,6 +17,7 @@ uses
 
   AnyiQuack,
   AQPSystemTypesAnimations,
+  WindowEnumerator,
 
   WinDomina.Types,
   WinDomina.Layer,
@@ -376,23 +377,6 @@ begin
 end;
 
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
-
-  procedure SizeWindowTile(TileX, TileY: Integer);
-  var
-    Window: THandle;
-    Rect: TRect;
-    LocalDominaWindows: TWindowList;
-  begin
-    LocalDominaWindows := DominaWindows;
-    if LocalDominaWindows.Count = 0 then
-      Exit;
-
-    Window := LocalDominaWindows[0];
-    Rect := TileGrid[TileX][TileY].Rect;
-
-    SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
-  end;
-
 var
   TileNum: Integer;
 begin
@@ -428,16 +412,12 @@ var
 
   procedure SizeWindowRect(const Rect: TRect);
   var
-    Window: THandle;
-    LocalDominaWindows: TWindowList;
+    WindowList: TWindowList;
   begin
-    LocalDominaWindows := DominaWindows;
-    if LocalDominaWindows.Count = 0 then
-      Exit;
-
-    Window := LocalDominaWindows[0];
-
-    SetWindowPosDominaStyle(Window, 0, Rect, SWP_NOZORDER);
+    WindowsHandler.UpdateWindowList(wldDominaTargets);
+    WindowList := WindowsHandler.GetWindowList(wldDominaTargets);
+    if WindowList.Count > 0 then
+      SetWindowPosDominaStyle(WindowList[0].Handle, 0, Rect, SWP_NOZORDER);
   end;
 
   procedure HandleTileNumKey;

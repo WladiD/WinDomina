@@ -27,6 +27,7 @@ type
   protected
     FIsLayerActive: Boolean;
     FMonitorHandler: IMonitorHandler;
+    FWindowsHandler: IWindowsHandler;
     MainContentChanged: Boolean;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
@@ -53,6 +54,7 @@ type
 
     property IsLayerActive: Boolean read FIsLayerActive;
     property MonitorHandler: IMonitorHandler read FMonitorHandler write FMonitorHandler;
+    property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
     // Dieses Ereignis wird ausgelöst, wenn der Layer selbst feststellt, dass er sich neu zeichnen
     // muss
     property OnMainContentChanged: TNotifyEvent read FOnMainContentChanged

@@ -16,14 +16,6 @@ function WDMKeyStates: TKeyStates;
 procedure RegisterLayerActivationKeys(List: TKeyLayerList);
 function LayerActivationKeys: TKeyLayerList;
 
-// DominaWindows hält eine Liste von Fenstern, die sich aktuell unter Kontrolle von WinDomina
-// befinden
-procedure RegisterDominaWindows(DominaWindows: TWindowList);
-function DominaWindows: TWindowList;
-procedure BroadcastDominaWindowsChangeNotify;
-procedure RegisterDominaWindowsChangeNotify(EventHandler: TProc; Implementor: TObject);
-procedure UnregisterDominaWindowsChangeNotify(Implementor: TObject);
-
 // KISS Logging-System
 procedure RegisterLogging(Log: ILogging);
 procedure AddLog(const LogLine: string);
@@ -61,42 +53,6 @@ begin
   Result := LAK;
 end;
 
-type
-  TDWChangeEventsDictionary = TDictionary<TObject, TProc>;
-
-threadvar
-  DW: TWindowList;
-  DWChangeEvents: TDWChangeEventsDictionary;
-
-procedure RegisterDominaWindows(DominaWindows: TWindowList);
-begin
-  DW.Free;
-  DW := DominaWindows;
-end;
-
-function DominaWindows: TWindowList;
-begin
-  Result := DW;
-end;
-
-procedure BroadcastDominaWindowsChangeNotify;
-var
-  EventHandler: TProc;
-begin
-  for EventHandler in DWChangeEvents.Values do
-    EventHandler;
-end;
-
-procedure RegisterDominaWindowsChangeNotify(EventHandler: TProc; Implementor: TObject);
-begin
-  DWChangeEvents.AddOrSetValue(Implementor, EventHandler);
-end;
-
-procedure UnregisterDominaWindowsChangeNotify(Implementor: TObject);
-begin
-  DWChangeEvents.Remove(Implementor);
-end;
-
 var
   LogInterface: ILogging;
 
@@ -127,13 +83,10 @@ begin
 end;
 
 initialization
-DWChangeEvents := TDWChangeEventsDictionary.Create;
 
 finalization
 FreeAndNil(WDMKS);
 FreeAndNil(LAK);
-FreeAndNil(DWChangeEvents);
-FreeAndNil(DW);
 FreeAndNil(RI);
 LogInterface := nil;
 

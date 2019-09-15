@@ -34,6 +34,7 @@ uses
   AnyiQuack,
   Localization,
   SendInputHelper,
+  WindowEnumerator,
 
   WinDomina.Types,
   WinDomina.WindowTools,
@@ -44,7 +45,7 @@ uses
   WinDomina.Types.Drawing;
 
 type
-  TMainForm = class(TForm, ITranslate, IMonitorHandler)
+  TMainForm = class(TForm, ITranslate, IMonitorHandler, IWindowsHandler)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
     TrayPopupMenu: TPopupMenu;
@@ -59,9 +60,16 @@ type
     procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
   private
+    type
+    TDomainWindowEnumeratorList = TObjectDictionary<TWindowListDomain, TWindowEnumerator>;
+    TDomainWindowList = TObjectDictionary<TWindowListDomain, TWindowList>;
+
+    var
     FLayers: TLayerList;
     FActiveLayers: TLayerList;
     FLastUsedLayer: TBaseLayer;
+    FWindowEnumerators: TDomainWindowEnumeratorList;
+    FWindowList: TDomainWindowList;
 
     FDrawContext: IDrawContext;
     FWICBitmap: IWICBitmap;
@@ -113,6 +121,12 @@ type
 
     function GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
+
+  // IWindowsHandler-Interface
+  private
+    function CreateWindowList(Domain: TWindowListDomain): TWindowList;
+    procedure UpdateWindowList(Domain: TWindowListDomain);
+    function GetWindowList(Domain: TWindowListDomain): TWindowList;
   end;
 
 var
@@ -171,6 +185,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
   begin
     Result := LayerClass.Create;
     Result.MonitorHandler := Self;
+    Result.WindowsHandler := Self;
     Result.OnMainContentChanged := LayerMainContentChanged;
   end;
 
@@ -211,11 +226,12 @@ begin
   if (ExStyle and WS_EX_LAYERED) = 0 then
     SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
 
+  FWindowEnumerators := TDomainWindowEnumeratorList.Create([doOwnsValues]);
+  FWindowList := TDomainWindowList.Create([doOwnsValues]);
   FLayers := TLayerList.Create(True);
   FActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
   RegisterLayerActivationKeys(TKeyLayerList.Create);
-  RegisterDominaWindows(TWindowList.Create);
 
   AddLayers;
 
@@ -251,6 +267,8 @@ procedure TMainForm.FormDestroy(Sender: TObject);
 begin
   FActiveLayers.Free;
   FLayers.Free;
+  FWindowEnumerators.Free;
+  FWindowList.Free;
 
   UninstallHook;
 end;
@@ -387,23 +405,78 @@ begin
   AdjustWindowWorkareaFromMonitor(Monitor);
 end;
 
-procedure TMainForm.ToggleDominaModeActionExecute(Sender: TObject);
+function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
 
-  function IsInvalidFGWindow: Boolean;
-  var
-    FGWindow: THandle;
+  function CreateWindowEnumerator: TWindowEnumerator;
   begin
-    FGWindow := GetForegroundWindow;
-    Result := (FGWindow = GetTaskbarHandle) or (FGWindow = Handle) or (FGWindow = Application.Handle);
+    Result := TWindowEnumerator.Create;
+    Result.GetWindowRectFunction :=
+      function(WindowHandle: HWND): TRect
+      begin
+        if not GetWindowRectDominaStyle(WindowHandle, Result) then
+          Result := TRect.Empty;
+      end;
+    Result.GetCurrentMonitorFunction :=
+      function: TMonitor
+      begin
+        Result := Monitor;
+      end;
+
+    Result.RequiredWindowInfos := [wiRect];
+    Result.IncludeMask := WS_CAPTION or WS_VISIBLE;
+    Result.ExcludeMask := WS_DISABLED;
+    Result.CloakedWindowsFilter := True;
+    Result.VirtualDesktopFilter := True;
+    Result.HiddenWindowsFilter := True;
+
+    case Domain of
+      wldDominaTargets:
+      begin
+        // Hierfür brauchen wir vorerst keine weiteren Filter
+      end;
+      wldAlignTargets:
+      begin
+        Result.OverlappedWindowsFilter := True;
+        Result.MonitorFilter := True;
+      end;
+      wldSwitchTargets:
+      begin
+        Result.MonitorFilter := True;
+      end;
+    end;
   end;
 
+var
+  WinEnumerator: TWindowEnumerator;
 begin
-  // Wenn man über das Tray-Icon (Menü oder Doppelklick) den Dominate-Modus aktiviert, so verliert
-  // das aktuell ausgewählte Fenster den Fokus. Stattdessen ist die Taskleiste fokussiert.
-  // In diesem Fall, sollte der Fokus auf das vorherige Fenster gewechselt werden.
-  if not IsDominaModeActivated and IsInvalidFGWindow then
-    SwitchToPreviouslyFocusedAppWindow;
+  if not FWindowEnumerators.TryGetValue(Domain, WinEnumerator) then
+  begin
+    WinEnumerator := CreateWindowEnumerator;
+    FWindowEnumerators.Add(Domain, WinEnumerator);
+  end;
 
+  Result := WinEnumerator.Enumerate;
+
+  FWindowList.AddOrSetValue(Domain, Result.Clone);
+end;
+
+procedure TMainForm.UpdateWindowList(Domain: TWindowListDomain);
+begin
+  FWindowList.AddOrSetValue(Domain, CreateWindowList(Domain));
+end;
+
+function TMainForm.GetWindowList(Domain: TWindowListDomain): TWindowList;
+begin
+  if not FWindowList.TryGetValue(Domain, Result) then
+  begin
+    UpdateWindowList(Domain);
+    if not FWindowList.TryGetValue(Domain, Result) then
+      raise Exception.CreateFmt('WindowList for Domain %d could not be updated', [Ord(Domain)]);
+  end;
+end;
+
+procedure TMainForm.ToggleDominaModeActionExecute(Sender: TObject);
+begin
   ToggleDominaMode;
 end;
 
@@ -677,26 +750,6 @@ begin
   Result := True;
 end;
 
-function EnumAppWindowsProc(Window: THandle; Target: Pointer): Boolean; stdcall;
-var
-  WindowsList: TWindowList absolute Target;
-  WindowStyle: NativeInt;
-  Rect: TRect;
-
-  function HasStyle(CheckMask: FixedUInt): Boolean;
-  begin
-    Result := (WindowStyle and CheckMask) = CheckMask;
-  end;
-
-begin
-  WindowStyle := GetWindowLong(Window, GWL_STYLE);
-  if HasStyle(WS_VISIBLE) and HasStyle(WS_SIZEBOX) and (not HasStyle(WS_POPUP)) and
-    GetWindowRect(Window, Rect) and not Rect.IsEmpty then
-    WindowsList.Add(Window);
-
-  Result := True;
-end;
-
 procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
 
   function HasParentWindow(Window: HWND; out ParentWindow: HWND): Boolean;
@@ -710,47 +763,20 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
     Result := (ParentWindow > 0) {and (ParentWindow <> Window)};
   end;
 
-  function CreateAppWindowList: TWindowList;
-  var
-    WindowThreadID: Cardinal;
-    FGWindow: THandle;
-  begin
-    Result := TWindowList.Create;
-    try
-      FGWindow := GetForegroundWindow;
-      WindowThreadID := GetWindowThreadProcessId(FGWindow, nil);
-      EnumFoundWindow := 0;
-      EnumThreadWindows(WindowThreadID, @EnumAppWindowsProc, NativeInt(Result));
-      if Result.Count = 0 then
-        Result.Add(FGWindow);
-    except
-      Result.Free;
-      raise;
-    end;
-  end;
-
 var
-  AppWins: TWindowList;
-  AppWin: THandle;
+  WindowList: TWindowList;
+  ActivateFromPoint: TPoint;
 begin
   LogForm.Caption := 'Domina-Modus aktiv';
   LogForm.LogMemo.Lines.Clear;
 
-  AppWins := CreateAppWindowList;
-  try
-    for AppWin in AppWins do
-    begin
-      LogWindow(AppWin);
-    end;
-
-    DominaWindows.Clear;
-    DominaWindows.AddRange(AppWins);
-//    BroadcastDominaWindowsChangeNotify;
-  finally
-    AppWins.Free;
-  end;
-
-  AdjustWindowWorkareaFromPoint(Mouse.CursorPos);
+  UpdateWindowList(wldDominaTargets);
+  WindowList := GetWindowList(wldDominaTargets);
+  if WindowList.Count > 0 then
+    ActivateFromPoint := WindowList[0].Rect.Location
+  else
+    ActivateFromPoint := Mouse.CursorPos;
+  AdjustWindowWorkareaFromPoint(ActivateFromPoint);
 
   if Assigned(FLastUsedLayer) then
     EnterLayer(FLastUsedLayer)

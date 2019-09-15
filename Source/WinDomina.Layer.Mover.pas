@@ -35,12 +35,13 @@ type
     WindowMoveAniID: Integer;
     AlignIndicatorAniID: Integer;
   private
-    FWindowEnumerator: TWindowEnumerator;
-    FVisibleWindowList: WindowEnumerator.TWindowList;
+    FVisibleWindowList: TWindowList;
+    FDominaTargetsWindowList: TWindowList;
     FAnimatedWindow: TWindow;
     FAnimations: TAnimationList;
 
     procedure UpdateVisibleWindowList;
+    procedure UpdateDominaTargetsWindowList;
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 
   public
@@ -100,30 +101,14 @@ begin
   inherited Create;
 
   RegisterLayerActivationKeys([vkM]);
-
-  FWindowEnumerator := TWindowEnumerator.Create;
-  FWindowEnumerator.RequiredWindowInfos := [wiRect];
-  FWindowEnumerator.IncludeMask := WS_CAPTION or WS_VISIBLE;
-  FWindowEnumerator.ExcludeMask := WS_DISABLED;
-  FWindowEnumerator.VirtualDesktopFilter := True;
-  FWindowEnumerator.HiddenWindowsFilter := True;
-  FWindowEnumerator.OverlappedWindowsFilter := True;
-  FWindowEnumerator.CloakedWindowsFilter := True;
-  FWindowEnumerator.GetWindowRectFunction :=
-    function(WindowHandle: HWND): TRect
-    begin
-      if not GetWindowRectDominaStyle(WindowHandle, Result) then
-        Result := TRect.Empty;
-    end;
-
   FAnimatedWindow := TWindow.Create;
   FAnimations := TAnimationList.Create(True);
 end;
 
 destructor TMoverLayer.Destroy;
 begin
-  FWindowEnumerator.Free;
   FVisibleWindowList.Free;
+  FDominaTargetsWindowList.Free;
   FAnimatedWindow.Free;
   FAnimations.Free;
 
@@ -135,11 +120,17 @@ var
   LogWinHandle: HWND;
 begin
   FVisibleWindowList.Free;
-  FVisibleWindowList := FWindowEnumerator.Enumerate;
+  FVisibleWindowList := WindowsHandler.CreateWindowList(wldAlignTargets);
   // Aktuell dominiertes Fenster aus der Liste entfernen
-  FVisibleWindowList.Remove(DominaWindows[0]);
+  FVisibleWindowList.Remove(FDominaTargetsWindowList[0].Handle);
   if Logging.HasWindowHandle(LogWinHandle) then
     FVisibleWindowList.Remove(LogWinHandle);
+end;
+
+procedure TMoverLayer.UpdateDominaTargetsWindowList;
+begin
+  FDominaTargetsWindowList.Free;
+  FDominaTargetsWindowList := WindowsHandler.CreateWindowList(wldDominaTargets);
 end;
 
 procedure TMoverLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
@@ -166,6 +157,7 @@ end;
 procedure TMoverLayer.EnterLayer;
 begin
   inherited EnterLayer;
+  UpdateDominaTargetsWindowList;
   AddLog('TMoverLayer.EnterLayer');
 end;
 
@@ -248,14 +240,15 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     end;
 
   begin
-    if DominaWindows.Count = 0 then
+    UpdateDominaTargetsWindowList;
+    if FDominaTargetsWindowList.Count = 0 then
       Exit;
 
     // Sollte die Animation noch laufen, so muss sie abgebrochen werden
     Take(FAnimatedWindow)
       .FinishAnimations(WindowMoveAniID);
 
-    Window := DominaWindows[0];
+    Window := FDominaTargetsWindowList[0].Handle;
     GetWindowRect(Window, WinRect);
     WorkareaRect := GetWorkareaRect(WinRect);
     GetWindowRectDominaStyle(Window, WinRect);

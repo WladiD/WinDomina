@@ -9,7 +9,9 @@ uses
   System.UITypes,
   Winapi.Windows,
   Winapi.Messages,
-  Vcl.Forms;
+  Vcl.Forms,
+
+  WindowEnumerator;
 
 type
   // Structure used by WH_KEYBOARD_LL
@@ -21,8 +23,6 @@ type
     dwExtraInfo: DWORD;
   end;
   PKBDLLHOOKSTRUCT = ^KBDLLHOOKSTRUCT;
-
-  TWindowList = TList<THandle>;
 
 // Private Message types
 const
@@ -70,6 +70,26 @@ type
     procedure SetCurrentMonitor(Monitor: TMonitor);
 
     property CurrentMonitor: TMonitor read GetCurrentMonitor write SetCurrentMonitor;
+  end;
+
+  TWindowListDomain = (
+    wldUndefined,
+    // Liste mit allen sinnvollen Fenstern auf dem aktuellen Desktop
+    wldDominaTargets,
+    // Liste mit Fenstern, an denen eine Ausrichtung sinnvoll ist
+    // Ob es sich dann um Fenster von allen Monitoren oder nur vom Aktuellen handeln soll...das
+    // muss dann so implementiert werden, dass der Anwender das selbst festlegen kann.
+    wldAlignTargets,
+    // Liste mit Fenstern zu denen man über irgendwelche Tastenkürzel schnell wechseln kann
+    // Auch hier gilt: Der Anwender soll entscheiden können, welche Fenster dafür in Frage kommen.
+    wldSwitchTargets);
+
+  IWindowsHandler = interface
+    ['{91E74F0F-9230-425F-84E1-78A2E05B54BA}']
+
+    function CreateWindowList(Domain: TWindowListDomain): TWindowList;
+    procedure UpdateWindowList(Domain: TWindowListDomain);
+    function GetWindowList(Domain: TWindowListDomain): TWindowList;
   end;
 
   ILogging = interface
