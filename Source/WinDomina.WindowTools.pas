@@ -26,6 +26,7 @@ function GetTaskbarHandle: THandle;
 
 function NoSnap(A, B: Integer): Boolean;
 function Snap(A, B: Integer): Boolean;
+function SnapRect(const A, B: TRect): Boolean;
 
 type
   TUpdateLayeredWindowInfo = record
@@ -231,6 +232,12 @@ end;
 function Snap(A, B: Integer): Boolean;
 begin
   Result := Abs(A - B) < 5;
+end;
+
+function SnapRect(const A, B: TRect): Boolean;
+begin
+  Result := Snap(A.Left, B.Left) and Snap(A.Top, B.Top) and
+    Snap(A.Right, B.Right) and Snap(A.Bottom, B.Bottom);
 end;
 
 end.

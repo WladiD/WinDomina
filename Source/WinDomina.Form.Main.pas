@@ -38,6 +38,7 @@ uses
 
   WinDomina.Types,
   WinDomina.WindowTools,
+  WinDomina.WindowPositioner,
   WinDomina.Registry,
   WinDomina.Layer,
   WinDomina.KBHKLib,
@@ -207,6 +208,12 @@ procedure TMainForm.FormCreate(Sender: TObject);
     Result := DC;
   end;
 
+  function CreateWindowPositioner: TWindowPositioner;
+  begin
+    Result := TWindowPositioner.Create;
+    Result.WindowsHandler := Self;
+  end;
+
 var
   ExStyle: DWORD;
   Logger: TStringsLogging;
@@ -232,6 +239,7 @@ begin
   FActiveLayers := TLayerList.Create(False);
   RegisterWDMKeyStates(TKeyStates.Create);
   RegisterLayerActivationKeys(TKeyLayerList.Create);
+  RegisterWindowPositioner(CreateWindowPositioner);
 
   AddLayers;
 
@@ -794,6 +802,8 @@ begin
   FActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
   DominaModeChanged;
+
+  WindowPositioner.PushChangedWindowsPositions;
 end;
 
 procedure TMainForm.DominaModeChanged;

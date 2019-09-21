@@ -17,7 +17,8 @@ uses
   ProcedureHook in '..\..\Localization\ProcedureHook.pas',
   SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas',
   WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas',
-  WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas';
+  WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas',
+  WinDomina.WindowPositioner in 'WinDomina.WindowPositioner.pas';
 
 {$R *.res}
 

@@ -6,7 +6,8 @@ uses
   System.SysUtils,
   System.Generics.Collections,
   WinDomina.Types,
-  WinDomina.Layer;
+  WinDomina.Layer,
+  WinDomina.WindowPositioner;
 
 // WDMKeyStates protokolliert den Zustand der Tasten im WinDomina-Modus
 procedure RegisterWDMKeyStates(States: TKeyStates);
@@ -22,6 +23,9 @@ procedure AddLog(const LogLine: string);
 function Logging: ILogging;
 
 function RuntimeInfo: TRuntimeInfo;
+
+procedure RegisterWindowPositioner(Positioner: TWindowPositioner);
+function WindowPositioner: TWindowPositioner;
 
 implementation
 
@@ -82,6 +86,20 @@ begin
   Result := RI;
 end;
 
+var
+  WP: TWindowPositioner;
+
+procedure RegisterWindowPositioner(Positioner: TWindowPositioner);
+begin
+  WP.Free;
+  WP := Positioner;
+end;
+
+function WindowPositioner: TWindowPositioner;
+begin
+  Result := WP;
+end;
+
 initialization
 
 finalization
@@ -89,5 +107,6 @@ FreeAndNil(WDMKS);
 FreeAndNil(LAK);
 FreeAndNil(RI);
 LogInterface := nil;
+FreeAndNil(WP);
 
 end.

@@ -32,17 +32,16 @@ type
   TMoverLayer = class(TBaseLayer)
   private
     class var
-    WindowMoveAniID: Integer;
     AlignIndicatorAniID: Integer;
   private
     FVisibleWindowList: TWindowList;
     FDominaTargetsWindowList: TWindowList;
-    FAnimatedWindow: TWindow;
     FAnimations: TAnimationList;
 
     procedure UpdateVisibleWindowList;
     procedure UpdateDominaTargetsWindowList;
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
+    procedure MoveSizeWindow(Direction: TDirection);
 
   public
     class constructor Create;
@@ -92,7 +91,6 @@ implementation
 
 class constructor TMoverLayer.Create;
 begin
-  WindowMoveAniID := TAQ.GetUniqueID;
   AlignIndicatorAniID := TAQ.GetUniqueID;
 end;
 
@@ -101,7 +99,6 @@ begin
   inherited Create;
 
   RegisterLayerActivationKeys([vkM]);
-  FAnimatedWindow := TWindow.Create;
   FAnimations := TAnimationList.Create(True);
 end;
 
@@ -109,7 +106,6 @@ destructor TMoverLayer.Destroy;
 begin
   FVisibleWindowList.Free;
   FDominaTargetsWindowList.Free;
-  FAnimatedWindow.Free;
   FAnimations.Free;
 
   inherited Destroy;
@@ -187,68 +183,63 @@ begin
   end;
 end;
 
-procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
+procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
+var
+  Window: THandle;
+  WinRect, MatchRect, WorkareaRect: TRect;
+  NewPos: TPoint;
+  MatchEdge: TRectEdge;
+  MatchWindow: TWindow;
+  Snapper: TWindowMatchSnap;
+  AdjacentMonitor: TMonitor;
 
-  procedure MoveSizeWindow(Direction: TDirection);
+  // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
+  // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
+  procedure IndentMatchRect;
+  const
+    IndentFactor = 0.45;
   var
-    Window: THandle;
-    WinRect, MatchRect, WorkareaRect: TRect;
-    NewPos: TPoint;
-    MatchEdge: TRectEdge;
-    MatchWindow: TWindow;
-    Snapper: TWindowMatchSnap;
-    AdjacentMonitor: TMonitor;
-
-    // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
-    // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
-    procedure IndentMatchRect;
-    const
-      IndentFactor = 0.45;
-    var
-      Indent: Integer;
-    begin
-      case Direction of
-        dirLeft, dirRight:
-        begin
-          Indent := Trunc(MatchRect.Height * IndentFactor);
-          Inc(MatchRect.Top, Indent);
-          Dec(MatchRect.Bottom, Indent);
-        end;
-        dirUp, dirDown:
-        begin
-          Indent := Trunc(MatchRect.Width * IndentFactor);
-          Inc(MatchRect.Left, Indent);
-          Dec(MatchRect.Right, Indent);
-        end;
+    Indent: Integer;
+  begin
+    case Direction of
+      dirLeft, dirRight:
+      begin
+        Indent := Trunc(MatchRect.Height * IndentFactor);
+        Inc(MatchRect.Top, Indent);
+        Dec(MatchRect.Bottom, Indent);
+      end;
+      dirUp, dirDown:
+      begin
+        Indent := Trunc(MatchRect.Width * IndentFactor);
+        Inc(MatchRect.Left, Indent);
+        Dec(MatchRect.Right, Indent);
       end;
     end;
+  end;
 
-    procedure AdjustXOnAdjacentMonitor;
-    begin
-      if NewPos.X < AdjacentMonitor.WorkareaRect.Left then
-        NewPos.X := AdjacentMonitor.WorkareaRect.Left
-      else if (NewPos.X + WinRect.Width) > AdjacentMonitor.WorkareaRect.Right then
-        NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
-    end;
-
-    procedure AdjustYOnAdjacentMonitor;
-    begin
-      if NewPos.Y < AdjacentMonitor.WorkareaRect.Top then
-        NewPos.Y := AdjacentMonitor.WorkareaRect.Top
-      else if (NewPos.Y + WinRect.Height) > AdjacentMonitor.WorkareaRect.Bottom then
-        NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
-    end;
-
+  procedure AdjustXOnAdjacentMonitor;
   begin
-    UpdateDominaTargetsWindowList;
-    if FDominaTargetsWindowList.Count = 0 then
-      Exit;
+    if NewPos.X < AdjacentMonitor.WorkareaRect.Left then
+      NewPos.X := AdjacentMonitor.WorkareaRect.Left
+    else if (NewPos.X + WinRect.Width) > AdjacentMonitor.WorkareaRect.Right then
+      NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
+  end;
 
-    // Sollte die Animation noch laufen, so muss sie abgebrochen werden
-    Take(FAnimatedWindow)
-      .FinishAnimations(WindowMoveAniID);
+  procedure AdjustYOnAdjacentMonitor;
+  begin
+    if NewPos.Y < AdjacentMonitor.WorkareaRect.Top then
+      NewPos.Y := AdjacentMonitor.WorkareaRect.Top
+    else if (NewPos.Y + WinRect.Height) > AdjacentMonitor.WorkareaRect.Bottom then
+      NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
+  end;
 
-    Window := FDominaTargetsWindowList[0].Handle;
+begin
+  Window := FDominaTargetsWindowList[0].Handle;
+  Snapper := nil;
+
+  // Sollte die Animation noch laufen, so muss sie abgebrochen werden
+  WindowPositioner.EnterWindow(Window);
+  try
     GetWindowRect(Window, WinRect);
     WorkareaRect := GetWorkareaRect(WinRect);
     GetWindowRectDominaStyle(Window, WinRect);
@@ -259,119 +250,120 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     MatchEdge := reUnknown;
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
-    try
-      Snapper.AddPhantomWorkareaCenterWindows;
+    Snapper.AddPhantomWorkareaCenterWindows;
 
-      // Zuerst suchen wir nach einer benachbarten Fensterkante...
-      if
-        (
-          (Direction = dirLeft) and
-          Snapper.HasMatchSnapWindowLeft(MatchWindow, MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = dirRight) and
-          Snapper.HasMatchSnapWindowRight(MatchWindow, MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = DirUp) and
-          Snapper.HasMatchSnapWindowTop(MatchWindow, MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = dirDown) and
-          Snapper.HasMatchSnapWindowBottom(MatchWindow, MatchEdge, NewPos)
-        ) then
-      begin
-        MatchRect := MatchWindow.Rect;
-        IndentMatchRect;
-      end
-      // ...hier angekommen suchen wir nach einer Arbeitskante.
-      else if
-        (
-          (Direction = dirLeft) and
-          Snapper.HasWorkAreaEdgeMatchLeft(MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = dirRight) and
-          Snapper.HasWorkAreaEdgeMatchRight(MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = dirUp) and
-          Snapper.HasWorkAreaEdgeMatchTop(MatchEdge, NewPos)
-        ) or
-        (
-          (Direction = dirDown) and
-          Snapper.HasWorkAreaEdgeMatchBottom(MatchEdge, NewPos)
-        )
-        then
-      begin
-        MatchRect := WorkareaRect;
-        MatchRect.Inflate(-4, -4);
-        IndentMatchRect;
-      end
-      // Suche nach einem benachbartem Monitor
-      else if MonitorHandler.HasAdjacentMonitor(Direction, AdjacentMonitor) then
-      begin
-        MonitorHandler.CurrentMonitor := AdjacentMonitor;
-        NewPos := WinRect.Location;
-        case Direction of
-          dirLeft:
-          begin
-            NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
-            AdjustYOnAdjacentMonitor;
-          end;
-          dirRight:
-          begin
-            NewPos.X := AdjacentMonitor.WorkareaRect.Left;
-            AdjustYOnAdjacentMonitor;
-          end;
-          dirUp:
-          begin
-            NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
-            AdjustXOnAdjacentMonitor;
-          end;
-          dirDown:
-          begin
-            NewPos.Y := AdjacentMonitor.WorkareaRect.Top;
-            AdjustXOnAdjacentMonitor;
-          end;
-        else
-          Exit;
+    // Zuerst suchen wir nach einer benachbarten Fensterkante...
+    if
+      (
+        (Direction = dirLeft) and
+        Snapper.HasMatchSnapWindowLeft(MatchWindow, MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = dirRight) and
+        Snapper.HasMatchSnapWindowRight(MatchWindow, MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = DirUp) and
+        Snapper.HasMatchSnapWindowTop(MatchWindow, MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = dirDown) and
+        Snapper.HasMatchSnapWindowBottom(MatchWindow, MatchEdge, NewPos)
+      ) then
+    begin
+      MatchRect := MatchWindow.Rect;
+      IndentMatchRect;
+    end
+    // ...hier angekommen suchen wir nach einer Arbeitskante.
+    else if
+      (
+        (Direction = dirLeft) and
+        Snapper.HasWorkAreaEdgeMatchLeft(MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = dirRight) and
+        Snapper.HasWorkAreaEdgeMatchRight(MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = dirUp) and
+        Snapper.HasWorkAreaEdgeMatchTop(MatchEdge, NewPos)
+      ) or
+      (
+        (Direction = dirDown) and
+        Snapper.HasWorkAreaEdgeMatchBottom(MatchEdge, NewPos)
+      )
+      then
+    begin
+      MatchRect := WorkareaRect;
+      MatchRect.Inflate(-4, -4);
+      IndentMatchRect;
+    end
+    // Suche nach einem benachbartem Monitor
+    else if MonitorHandler.HasAdjacentMonitor(Direction, AdjacentMonitor) then
+    begin
+      MonitorHandler.CurrentMonitor := AdjacentMonitor;
+      NewPos := WinRect.Location;
+      case Direction of
+        dirLeft:
+        begin
+          NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
+          AdjustYOnAdjacentMonitor;
         end;
-      end
-      // Nichts trifft zu, also raus hier
+        dirRight:
+        begin
+          NewPos.X := AdjacentMonitor.WorkareaRect.Left;
+          AdjustYOnAdjacentMonitor;
+        end;
+        dirUp:
+        begin
+          NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
+          AdjustXOnAdjacentMonitor;
+        end;
+        dirDown:
+        begin
+          NewPos.Y := AdjacentMonitor.WorkareaRect.Top;
+          AdjustXOnAdjacentMonitor;
+        end;
       else
         Exit;
-    finally
-      Snapper.Free;
-    end;
-
-    FAnimatedWindow.Handle := Window;
-    FAnimatedWindow.Rect := WinRect; // Die ursprüngliche Postion des Fensters
+      end;
+    end
+    // Nichts trifft zu, also raus hier
+    else
+      Exit;
 
     // WinRect enthält ab hier die neue Position
     WinRect.TopLeft := NewPos;
-
-    Take(FAnimatedWindow)
-      .Plugin<TAQPSystemTypesAnimations>
-      .RectAnimation(WinRect,
-        function(RefObject: TObject): TRect
-        begin
-          Result := TWindow(RefObject).Rect;
-        end,
-        procedure(RefObject: TObject; const NewRect: TRect)
-        begin
-          SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, SWP_NOZORDER or SWP_NOSIZE);
-        end,
-        250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+    WindowPositioner.MoveWindow(NewPos);
 
     if not MatchRect.IsEmpty then
       AddAnimation(TAlignIndicatorAnimation.Create(Self, MatchRect, WorkareaRect, MatchEdge), 500,
         AlignIndicatorAniID);
+  finally
+    Snapper.Free;
+    WindowPositioner.ExitWindow;
+  end;
+end;
+
+procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
+
+  procedure PopPrevKnownWindowPosition;
+  begin
+    WindowPositioner.EnterWindow(FDominaTargetsWindowList[0].Handle);
+    try
+      WindowPositioner.PopWindowPosition;
+    finally
+      WindowPositioner.ExitWindow;
+    end;
   end;
 
 var
   Direction: TDirection;
 begin
+  UpdateDominaTargetsWindowList;
+  if FDominaTargetsWindowList.Count = 0 then
+    Exit;
+
   Direction := dirUnknown;
 
   case Key of
@@ -383,6 +375,11 @@ begin
       Direction := dirUp;
     vkDown:
       Direction := dirDown;
+    vkBack:
+    begin
+      PopPrevKnownWindowPosition;
+      Handled := True;
+    end;
   end;
 
   if Direction <> dirUnknown then

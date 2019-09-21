@@ -126,6 +126,7 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <DCCReference Include="..\..\SendInputHelper\SendInputHelper.pas"/>
         <DCCReference Include="..\..\WindowEnumerator\WindowEnumerator.pas"/>
         <DCCReference Include="WinDomina.WindowMatchSnap.pas"/>
+        <DCCReference Include="WinDomina.WindowPositioner.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
