@@ -173,7 +173,7 @@ end;
 procedure TGridLayer.EnterLayer;
 var
   TileX, TileY: Integer;
-  WALeft, WATop, WAWidth, WAHeight: Integer;
+  WAWidth, WAHeight: Integer;
   WorkareaRect: TRect;
 
   procedure InitPos(Tile: TTile);
@@ -193,8 +193,6 @@ begin
   Randomize;
 
   WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
-  WALeft := WorkareaRect.Left;
-  WATop := WorkareaRect.Top;
   WAWidth := WorkareaRect.Width;
   WAHeight := WorkareaRect.Height;
 

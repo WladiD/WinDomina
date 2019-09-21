@@ -260,6 +260,8 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
     try
+      Snapper.AddPhantomWorkareaCenterWindows;
+
       // Zuerst suchen wir nach einer benachbarten Fensterkante...
       if
         (
@@ -280,24 +282,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         ) then
       begin
         MatchRect := MatchWindow.Rect;
-      end
-      // ...dann suchen wir nach einer horizontalen...
-      else if (Direction in [dirLeft, dirRight]) and
-        Snapper.HasWorkAreaCenterMatchHorizontal(Direction, NewPos) then
-      begin
-        MatchRect := WorkareaRect;
-        Dec(MatchRect.Right, MatchRect.Width div 2);
         IndentMatchRect;
-        MatchEdge := reRight;
-      end
-      // ...oder vertikalen Mitte der Arbeitsfläche...
-      else if (Direction in [dirUp, dirDown]) and
-        Snapper.HasWorkAreaCenterMatchVertical(Direction, NewPos) then
-      begin
-        MatchRect := WorkareaRect;
-        Dec(MatchRect.Bottom, MatchRect.Height div 2);
-        IndentMatchRect;
-        MatchEdge := reBottom;
       end
       // ...hier angekommen suchen wir nach einer Arbeitskante.
       else if

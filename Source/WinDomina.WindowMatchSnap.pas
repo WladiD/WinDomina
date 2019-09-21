@@ -6,11 +6,11 @@ uses
   System.Types,
   System.Classes,
   System.SysUtils,
+  System.Math,
 
   WinDomina.Types,
   WinDomina.WindowTools,
   WindowEnumerator;
-
 
 type
   TWindowMatchSnap = class
@@ -18,14 +18,26 @@ type
     FRefRect: TRect;
     FWorkArea: TRect;
     FWindowList: TWindowList;
+    // WAC = WorkAreaCenter
+    FPhantomWACLeft: TWindow;
+    FPhantomWACTop: TWindow;
+    FPhantomWACRight: TWindow;
+    FPhantomWACBottom: TWindow;
+    FPhantomWindowsHolder: TWindowList;
 
     function GetRefRectDefaultPositionLeft: TPoint;
     function GetRefRectDefaultPositionRight: TPoint;
     function GetRefRectDefaultPositionTop: TPoint;
     function GetRefRectDefaultPositionBottom: TPoint;
 
+    function CreatePhantomWindow: TWindow;
+
   public
     constructor Create(const RefRect, WorkArea: TRect; WindowList: TWindowList);
+    destructor Destroy; override;
+
+    procedure AddPhantomWorkareaCenterWindows;
+    function IsPhantomWindow(Window: TWindow): Boolean;
 
     function HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
       out NewRefRectPos: TPoint): Boolean;
@@ -44,14 +56,12 @@ type
       out NewRefRectPos: TPoint): Boolean;
     function HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge;
       out NewRefRectPos: TPoint): Boolean;
-
-    function HasWorkAreaCenterMatchHorizontal(Direction: TDirection;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasWorkAreaCenterMatchVertical(Direction: TDirection;
-      out NewRefRectPos: TPoint): Boolean;
   end;
 
 implementation
+
+const
+  PhantomWindowClassName = 'TWindowMatchSnap_PHANTOM';
 
 { TWindowMatchSnap }
 
@@ -60,6 +70,85 @@ begin
   FRefRect := RefRect;
   FWorkArea := WorkArea;
   FWindowList := WindowList;
+  FPhantomWindowsHolder := TWindowList.Create(True);
+
+  FPhantomWACLeft := CreatePhantomWindow;
+  FPhantomWACTop := CreatePhantomWindow;
+  FPhantomWACRight := CreatePhantomWindow;
+  FPhantomWACBottom := CreatePhantomWindow;
+end;
+
+destructor TWindowMatchSnap.Destroy;
+begin
+  FPhantomWindowsHolder.Free;
+
+  inherited Destroy;
+end;
+
+function TWindowMatchSnap.CreatePhantomWindow: TWindow;
+begin
+  Result := TWindow.Create;
+  Result.ClassName := PhantomWindowClassName;
+  FPhantomWindowsHolder.Add(Result);
+end;
+
+procedure TWindowMatchSnap.AddPhantomWorkareaCenterWindows;
+
+  procedure PassToWindowList(PhantomWindow: TWindow);
+  begin
+    FWindowList.Add(PhantomWindow);
+    FPhantomWindowsHolder.Extract(PhantomWindow);
+  end;
+
+var
+  RemainX, RemainY, RemainDiv : UInt64;
+  RemainLeft, RemainRight, RemainTop, RemainBottom: Integer;
+  R: PRect;
+begin
+  DivMod(FWorkArea.Width - FRefRect.Width, 2, RemainX, RemainDiv);
+  RemainLeft := RemainX + RemainDiv;
+  RemainRight := RemainX;
+
+  DivMod(FWorkArea.Height - FRefRect.Height, 2, RemainY, RemainDiv);
+  RemainTop := RemainY + RemainDiv;
+  RemainBottom := RemainY;
+
+  // Phantomfenster linke Seite
+  R := @FPhantomWACLeft.Rect;
+  R.Left := FWorkArea.Left;
+  R.Top := FWorkArea.Top + RemainTop;
+  R.Right := R.Left + RemainLeft;
+  R.Bottom := R.Top + FRefRect.Height;
+  PassToWindowList(FPhantomWACLeft);
+
+  // Phantomfenster rechte Seite
+  R := @FPhantomWACRight.Rect;
+  R.Left := FWorkArea.Right - RemainRight;
+  R.Top := FWorkArea.Top + RemainTop;
+  R.Right := FWorkArea.Right;
+  R.Bottom := R.Top + FRefRect.Height;
+  PassToWindowList(FPhantomWACRight);
+
+  // Phantomfenster obere Seite
+  R := @FPhantomWACTop.Rect;
+  R.Left := FWorkArea.Left + RemainLeft;
+  R.Top := FWorkArea.Top;
+  R.Right := FWorkArea.Right - RemainRight;
+  R.Bottom := R.Top + RemainTop;
+  PassToWindowList(FPhantomWACTop);
+
+  // Phantomfenster untere Seite
+  R := @FPhantomWACBottom.Rect;
+  R.Left := FWorkArea.Left + RemainLeft;
+  R.Top := FWorkArea.Bottom - RemainBottom;
+  R.Right := FWorkArea.Right - RemainRight;
+  R.Bottom := FWorkArea.Bottom;
+  PassToWindowList(FPhantomWACBottom);
+end;
+
+function TWindowMatchSnap.IsPhantomWindow(Window: TWindow): Boolean;
+begin
+  Result := Window.ClassName = PhantomWindowClassName;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
@@ -68,12 +157,21 @@ var
   TestWin: TWindow;
   TestRect: TRect;
   TempPos: TPoint;
+
+  function IsWindowEdgeMatchAllowed: Boolean;
+  begin
+    Result := not IsPhantomWindow(TestWin) or (TestWin = FPhantomWACLeft);
+  end;
+
 begin
   MatchEdge := reUnknown;
   TempPos := GetRefRectDefaultPositionLeft;
 
   for TestWin in FWindowList do
   begin
+    if not IsWindowEdgeMatchAllowed then
+      Continue;
+
     TestRect := TestWin.Rect;
     // Rechte Kante
     if (TestRect.Right >= FWorkArea.Left) and (TestRect.Right < FRefRect.Left) and
@@ -95,7 +193,17 @@ begin
 
   Result := MatchEdge > reUnknown;
   if Result then
+  begin
+    // Wir erstellen einen weiteren Klon des Phantomfensters, welches dann eine andere Kante besitzt
+    if MatchWindow = FPhantomWACLeft then
+    begin
+      MatchWindow := CreatePhantomWindow;
+      MatchWindow.Assign(FPhantomWACLeft);
+      Inc(MatchWindow.Rect.Right, FRefRect.Width div 2);
+    end;
+
     NewRefRectPos := TempPos;
+  end;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowRight(out MatchWindow: TWindow;
@@ -104,12 +212,21 @@ var
   TestWin: TWindow;
   TestRect: TRect;
   TempPos: TPoint;
+
+  function IsWindowEdgeMatchAllowed: Boolean;
+  begin
+    Result := not IsPhantomWindow(TestWin) or (TestWin = FPhantomWACRight);
+  end;
+
 begin
   MatchEdge := reUnknown;
   TempPos := GetRefRectDefaultPositionRight;
 
   for TestWin in FWindowList do
   begin
+    if not IsWindowEdgeMatchAllowed then
+      Continue;
+
     TestRect := TestWin.Rect;
     // Linke Kante
     if (TestRect.Left <= FWorkArea.Right) and (TestRect.Left > FRefRect.Right) and
@@ -133,7 +250,17 @@ begin
 
   Result := MatchEdge > reUnknown;
   if Result then
+  begin
+    // Wir erstellen einen weiteren Klon des Phantomfensters, welches dann eine andere Kante besitzt
+    if MatchWindow = FPhantomWACRight then
+    begin
+      MatchWindow := CreatePhantomWindow;
+      MatchWindow.Assign(FPhantomWACRight);
+      Dec(MatchWindow.Rect.Left, FRefRect.Width div 2);
+    end;
+
     NewRefRectPos := TempPos;
+  end
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
@@ -142,12 +269,21 @@ var
   TestWin: TWindow;
   TestRect: TRect;
   TempPos: TPoint;
+
+  function IsWindowEdgeMatchAllowed: Boolean;
+  begin
+    Result := not IsPhantomWindow(TestWin) or (TestWin = FPhantomWACTop);
+  end;
+
 begin
   MatchEdge := reUnknown;
   TempPos := GetRefRectDefaultPositionTop;
 
   for TestWin in FWindowList do
   begin
+    if not IsWindowEdgeMatchAllowed then
+      Continue;
+
     TestRect := TestWin.Rect;
     // Untere Kante
     if (TestRect.Bottom >= FWorkArea.Top) and (TestRect.Bottom < FRefRect.Top) and
@@ -169,7 +305,17 @@ begin
 
   Result := MatchEdge > reUnknown;
   if Result then
+  begin
+    // Wir erstellen einen weiteren Klon des Phantomfensters, welches dann eine andere Kante besitzt
+    if MatchWindow = FPhantomWACTop then
+    begin
+      MatchWindow := CreatePhantomWindow;
+      MatchWindow.Assign(FPhantomWACTop);
+      Inc(MatchWindow.Rect.Bottom, FRefRect.Height div 2);
+    end;
+
     NewRefRectPos := TempPos;
+  end;
 end;
 
 function TWindowMatchSnap.HasMatchSnapWindowBottom(out MatchWindow: TWindow;
@@ -178,12 +324,21 @@ var
   TestWin: TWindow;
   TestRect: TRect;
   TempPos: TPoint;
+
+  function IsWindowEdgeMatchAllowed: Boolean;
+  begin
+    Result := not IsPhantomWindow(TestWin) or (TestWin = FPhantomWACBottom);
+  end;
+
 begin
   MatchEdge := reUnknown;
   TempPos := GetRefRectDefaultPositionBottom;
 
   for TestWin in FWindowList do
   begin
+    if not IsWindowEdgeMatchAllowed then
+      Continue;
+
     TestRect := TestWin.Rect;
     // Obere Kante
     if (TestRect.Top <= FWorkArea.Bottom) and (FRefRect.Bottom < TestRect.Top) and
@@ -207,7 +362,17 @@ begin
 
   Result := MatchEdge > reUnknown;
   if Result then
+  begin
+    // Wir erstellen einen weiteren Klon des Phantomfensters, welches dann eine andere Kante besitzt
+    if MatchWindow = FPhantomWACBottom then
+    begin
+      MatchWindow := CreatePhantomWindow;
+      MatchWindow.Assign(FPhantomWACBottom);
+      Dec(MatchWindow.Rect.Top, FRefRect.Height div 2);
+    end;
+
     NewRefRectPos := TempPos;
+  end;
 end;
 
 function TWindowMatchSnap.HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge;
@@ -263,43 +428,6 @@ begin
   begin
     MatchEdge := reBottom;
     NewRefRectPos := TempPos;
-  end;
-end;
-
-function TWindowMatchSnap.HasWorkAreaCenterMatchHorizontal(Direction: TDirection;
-  out NewRefRectPos: TPoint): Boolean;
-var
-  Center: Integer;
-begin
-  Center := FWorkArea.Left + ((FWorkArea.Width - FRefRect.Width) div 2);
-  Result := NoSnap(FRefRect.Left, Center) and
-    (
-      ((Direction = dirLeft) and (FRefRect.Left > Center)) or
-      ((Direction = dirRight) and (FRefRect.Left < Center))
-    );
-
-  if Result then
-  begin
-    NewRefRectPos := FRefRect.Location;
-    NewRefRectPos.X := Center;
-  end;
-end;
-
-function TWindowMatchSnap.HasWorkAreaCenterMatchVertical(Direction: TDirection;
-  out NewRefRectPos: TPoint): Boolean;
-var
-  Center: Integer;
-begin
-  Center := FWorkArea.Top + ((FWorkArea.Height - FRefRect.Height) div 2);
-  Result := NoSnap(FRefRect.Top, Center) and
-    (
-      ((Direction = dirUp) and (FRefRect.Top > Center)) or
-      ((Direction = dirDown) and (FRefRect.Top < Center))
-    );
-  if Result then
-  begin
-    NewRefRectPos := FRefRect.Location;
-    NewRefRectPos.Y := Center;
   end;
 end;
 
