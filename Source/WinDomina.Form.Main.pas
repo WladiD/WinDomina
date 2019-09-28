@@ -62,18 +62,17 @@ type
     procedure TrayIconDblClick(Sender: TObject);
   private
     type
-    TDomainWindowEnumeratorList = TObjectDictionary<TWindowListDomain, TWindowEnumerator>;
     TDomainWindowList = TObjectDictionary<TWindowListDomain, TWindowList>;
 
     class var
     UpdateWindowWorkareaDelayID: Integer;
+    TargetWindowListenerIntervalID: Integer;
 
     var
     FVisible: Boolean;
     FLayers: TLayerList;
     FActiveLayers: TLayerList;
     FLastUsedLayer: TBaseLayer;
-    FWindowEnumerators: TDomainWindowEnumeratorList;
     FWindowList: TDomainWindowList;
 
     FDrawContext: IDrawContext;
@@ -110,6 +109,15 @@ type
     procedure RenderWindowContent;
     procedure CreateDeviceResources;
     procedure InvalidateDeviceResources;
+
+  private
+    FPrevTargetWindow: TWindow;
+
+    procedure StartTargetWindowListener;
+    procedure CheckTargetWindow;
+    procedure StopTargetWindowListener;
+    procedure DoTargetWindowChanged;
+    procedure DoTargetWindowMoved;
 
   // ITranslate-Interface
   private
@@ -192,6 +200,7 @@ end;
 class constructor TMainForm.Create;
 begin
   UpdateWindowWorkareaDelayID := TAQ.GetUniqueID;
+  TargetWindowListenerIntervalID := TAQ.GetUniqueID;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -247,10 +256,10 @@ begin
   if (ExStyle and WS_EX_LAYERED) = 0 then
     SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
 
-  FWindowEnumerators := TDomainWindowEnumeratorList.Create([doOwnsValues]);
   FWindowList := TDomainWindowList.Create([doOwnsValues]);
   FLayers := TLayerList.Create(True);
   FActiveLayers := TLayerList.Create(False);
+  FPrevTargetWindow := TWindow.Create;
   RegisterWDMKeyStates(TKeyStates.Create);
   RegisterLayerActivationKeys(TKeyLayerList.Create);
   RegisterWindowPositioner(CreateWindowPositioner);
@@ -289,8 +298,8 @@ procedure TMainForm.FormDestroy(Sender: TObject);
 begin
   FActiveLayers.Free;
   FLayers.Free;
-  FWindowEnumerators.Free;
   FWindowList.Free;
+  FPrevTargetWindow.Free;
 
   UninstallHook;
 end;
@@ -470,14 +479,20 @@ function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
 
 var
   WinEnumerator: TWindowEnumerator;
+  TempHandle: HWND;
 begin
-  if not FWindowEnumerators.TryGetValue(Domain, WinEnumerator) then
-  begin
-    WinEnumerator := CreateWindowEnumerator;
-    FWindowEnumerators.Add(Domain, WinEnumerator);
+  WinEnumerator := CreateWindowEnumerator;
+  try
+    Result := WinEnumerator.Enumerate;
+  finally
+    WinEnumerator.Free;
   end;
 
-  Result := WinEnumerator.Enumerate;
+  if Domain = wldDominaTargets then
+  begin
+    if Logging.HasWindowHandle(TempHandle) then
+      Result.Remove(TempHandle);
+  end;
 
   FWindowList.AddOrSetValue(Domain, Result.Clone);
 end;
@@ -534,23 +549,20 @@ begin
     AdjustWindowWorkarea(Monitor.WorkareaRect);
 end;
 
-// Aktualisiert die Position dieses Forms an das Zielfenster
+// Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das 
+// aktuelle Fenster befindet. Wenn kein Zielfenster vorhanden ist, so wird die Position des
+// Mauscursors verwendet.
 procedure TMainForm.UpdateWindowWorkarea;
 var
   TargetWindow: TWindow;
   ActivateFromPoint: TPoint;
-  ActivateMonitor: TMonitor;
 begin
-  UpdateWindowList(wldDominaTargets);
-
   if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
     ActivateFromPoint := TargetWindow.Rect.Location
   else
     ActivateFromPoint := Mouse.CursorPos;
 
-  ActivateMonitor := Screen.MonitorFromPoint(ActivateFromPoint);
-  if Assigned(Monitor) then
-    AdjustWindowWorkarea(ActivateMonitor.WorkareaRect);
+  AdjustWindowWorkareaFromPoint(ActivateFromPoint);
 end;
 
 procedure TMainForm.UpdateWindowWorkareaDelayed(Delay: Integer);
@@ -560,10 +572,57 @@ begin
     .EachDelay(Delay,
       function(AQ: TAQ; O: TObject): Boolean
       begin
-        if FVisible then
-          UpdateWindowWorkarea;
+        UpdateWindowWorkarea;
         Result := False;
       end, UpdateWindowWorkareaDelayID);
+end;
+
+procedure TMainForm.StartTargetWindowListener;
+begin
+  Take(Self)
+    .CancelIntervals(TargetWindowListenerIntervalID)
+    .EachInterval(100,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        CheckTargetWindow;
+        Result := False;
+      end, TargetWindowListenerIntervalID);
+end;
+
+procedure TMainForm.CheckTargetWindow;
+var
+  TargetWindow: TWindow;
+begin
+  UpdateWindowList(wldDominaTargets);
+  if not GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
+    Exit;
+
+  if TargetWindow.Handle <> FPrevTargetWindow.Handle then
+    DoTargetWindowChanged
+  else if TargetWindow.Rect <> FPrevTargetWindow.Rect then
+    DoTargetWindowMoved;
+
+  FPrevTargetWindow.Assign(TargetWindow);
+end;
+
+procedure TMainForm.StopTargetWindowListener;
+begin
+  Take(Self)
+    .CancelIntervals(TargetWindowListenerIntervalID);
+  FPrevTargetWindow.Handle := 0;
+  FPrevTargetWindow.Rect := TRect.Empty;
+end;
+
+procedure TMainForm.DoTargetWindowChanged;
+begin
+  UpdateWindowWorkareaDelayed(500);
+  GetActiveLayer.TargetWindowChanged;
+end;
+
+procedure TMainForm.DoTargetWindowMoved;
+begin
+  UpdateWindowWorkareaDelayed(500);
+  GetActiveLayer.TargetWindowMoved;
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
@@ -829,10 +888,14 @@ begin
   else
     EnterLayer(FLayers.First);
   DominaModeChanged;
+
+  StartTargetWindowListener;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
+  StopTargetWindowListener;
+
   LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
   FLastUsedLayer := GetActiveLayer;
@@ -890,9 +953,6 @@ begin
   WDMKeyStates.KeyPressed[Key] := True;
 
   Handled := False;
-
-  // Die Liste mit den Zielfenstern soll ziemlich aktuell sein, wenn ein Layer dies verarbeiten wird
-  UpdateWindowList(wldDominaTargets);
 
   CurActiveLayer := GetActiveLayer;
   CurActiveLayer.HandleKeyDown(Key, Handled);

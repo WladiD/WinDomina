@@ -1,6 +1,11 @@
 program WinDomina;
 
 uses
+  madExcept,
+  madLinkDisAsm,
+  madListHardware,
+  madListProcesses,
+  madListModules,
   Vcl.Forms,
   WinDomina.Form.Main in 'WinDomina.Form.Main.pas' {MainForm},
   WinDomina.Types in 'WinDomina.Types.pas',

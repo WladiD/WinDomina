@@ -55,6 +55,9 @@ type
     procedure InvalidateMainContentResources; virtual;
     procedure InvalidateMainContent; virtual;
 
+    procedure TargetWindowChanged; virtual;
+    procedure TargetWindowMoved; virtual;
+
     function GetDisplayName: string; virtual;
 
     property IsLayerActive: Boolean read FIsLayerActive;
@@ -190,6 +193,18 @@ begin
           Result := True;
         end, LayerInvalidateDelayID);
   end;
+end;
+
+// Teilt dem Layer mit, dass sich das Zielfenster verändert hat
+procedure TBaseLayer.TargetWindowChanged;
+begin
+
+end;
+
+// Teilt dem Layer mit, dass das Zielfenster bewegt oder in der Größe verändert wurde
+procedure TBaseLayer.TargetWindowMoved;
+begin
+
 end;
 
 // Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann

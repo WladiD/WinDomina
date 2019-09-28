@@ -86,6 +86,7 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <Icon_MainIcon>..\Media\WinDominaActive.ico</Icon_MainIcon>
         <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
+        <DCC_Define>madExcept;$(DCC_Define)</DCC_Define>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
