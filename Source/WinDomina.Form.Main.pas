@@ -65,7 +65,11 @@ type
     TDomainWindowEnumeratorList = TObjectDictionary<TWindowListDomain, TWindowEnumerator>;
     TDomainWindowList = TObjectDictionary<TWindowListDomain, TWindowList>;
 
+    class var
+    UpdateWindowWorkareaDelayID: Integer;
+
     var
+    FVisible: Boolean;
     FLayers: TLayerList;
     FActiveLayers: TLayerList;
     FLastUsedLayer: TBaseLayer;
@@ -100,6 +104,8 @@ type
     procedure AdjustWindowWorkarea(Workarea: TRect);
     procedure AdjustWindowWorkareaFromPoint(Point: TPoint);
     procedure AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
+    procedure UpdateWindowWorkarea;
+    procedure UpdateWindowWorkareaDelayed(Delay: Integer);
     procedure UpdateWindow(SourceDC: HDC);
     procedure RenderWindowContent;
     procedure CreateDeviceResources;
@@ -128,6 +134,9 @@ type
     function CreateWindowList(Domain: TWindowListDomain): TWindowList;
     procedure UpdateWindowList(Domain: TWindowListDomain);
     function GetWindowList(Domain: TWindowListDomain): TWindowList;
+
+  public
+    class constructor Create;
   end;
 
 var
@@ -179,6 +188,11 @@ begin
 end;
 
 { TMainForm }
+
+class constructor TMainForm.Create;
+begin
+  UpdateWindowWorkareaDelayID := TAQ.GetUniqueID;
+end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 
@@ -500,6 +514,7 @@ begin
   FWindowSize.cx := Workarea.Width;
   FWindowSize.cy := Workarea.Height;
 
+  FVisible := True;
   SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
     SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
   UpdateBoundsRect(Workarea);
@@ -517,6 +532,38 @@ procedure TMainForm.AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
 begin
   if Assigned(Monitor) then
     AdjustWindowWorkarea(Monitor.WorkareaRect);
+end;
+
+// Aktualisiert die Position dieses Forms an das Zielfenster
+procedure TMainForm.UpdateWindowWorkarea;
+var
+  TargetWindow: TWindow;
+  ActivateFromPoint: TPoint;
+  ActivateMonitor: TMonitor;
+begin
+  UpdateWindowList(wldDominaTargets);
+
+  if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
+    ActivateFromPoint := TargetWindow.Rect.Location
+  else
+    ActivateFromPoint := Mouse.CursorPos;
+
+  ActivateMonitor := Screen.MonitorFromPoint(ActivateFromPoint);
+  if Assigned(Monitor) then
+    AdjustWindowWorkarea(ActivateMonitor.WorkareaRect);
+end;
+
+procedure TMainForm.UpdateWindowWorkareaDelayed(Delay: Integer);
+begin
+  Take(Self)
+    .CancelDelays(UpdateWindowWorkareaDelayID)
+    .EachDelay(Delay,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        if FVisible then
+          UpdateWindowWorkarea;
+        Result := False;
+      end, UpdateWindowWorkareaDelayID);
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
@@ -771,20 +818,11 @@ procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
     Result := (ParentWindow > 0) {and (ParentWindow <> Window)};
   end;
 
-var
-  WindowList: TWindowList;
-  ActivateFromPoint: TPoint;
 begin
   LogForm.Caption := 'Domina-Modus aktiv';
   LogForm.LogMemo.Lines.Clear;
 
-  UpdateWindowList(wldDominaTargets);
-  WindowList := GetWindowList(wldDominaTargets);
-  if WindowList.Count > 0 then
-    ActivateFromPoint := WindowList[0].Rect.Location
-  else
-    ActivateFromPoint := Mouse.CursorPos;
-  AdjustWindowWorkareaFromPoint(ActivateFromPoint);
+  UpdateWindowWorkarea;
 
   if Assigned(FLastUsedLayer) then
     EnterLayer(FLastUsedLayer)
@@ -801,6 +839,7 @@ begin
   ExitLayer;
   FActiveLayers.Clear;
   ShowWindow(Handle, SW_HIDE);
+  FVisible := False;
   DominaModeChanged;
 
   WindowPositioner.PushChangedWindowsPositions;
@@ -826,11 +865,34 @@ var
   Key: Integer;
   Layer, CurActiveLayer: TBaseLayer;
   Monitor: TMonitor;
+
+  procedure PopPrevKnownWindowPosition;
+  var
+    CurWindow: TWindow;
+  begin
+    if not GetWindowList(wldDominaTargets).HasFirst(CurWindow) then
+      Exit;
+
+    WindowPositioner.EnterWindow(CurWindow.Handle);
+    try
+      WindowPositioner.PopWindowPosition;
+
+      // Durch die Widerherstellung der Fensterposition kann sich der Zielmonitor verändert haben,
+      // Dies sichern wir durch einen verzögernden Aufruf von UpdateWindowWorkarea
+      UpdateWindowWorkareaDelayed(500);
+    finally
+      WindowPositioner.ExitWindow;
+    end;
+  end;
+
 begin
   Key := Message.WParam;
   WDMKeyStates.KeyPressed[Key] := True;
 
   Handled := False;
+
+  // Die Liste mit den Zielfenstern soll ziemlich aktuell sein, wenn ein Layer dies verarbeiten wird
+  UpdateWindowList(wldDominaTargets);
 
   CurActiveLayer := GetActiveLayer;
   CurActiveLayer.HandleKeyDown(Key, Handled);
@@ -855,6 +917,8 @@ begin
         if LogForm.Visible then
           SetWindowPos(LogForm.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE);
       end;
+      vkBack:
+        PopPrevKnownWindowPosition;
     end;
   end;
 end;

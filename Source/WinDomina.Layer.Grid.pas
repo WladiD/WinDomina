@@ -407,11 +407,11 @@ end;
 procedure TGridLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
 var
   TileNum: Integer;
-  WindowList: TWindowList;
+  TargetWindow: TWindow;
 
   procedure SizeWindowRect(const Rect: TRect);
   begin
-    WindowPositioner.EnterWindow(WindowList[0].Handle);
+    WindowPositioner.EnterWindow(TargetWindow.Handle);
     try
       WindowPositioner.PlaceWindow(Rect);
     finally
@@ -453,30 +453,13 @@ var
     SecondTileNumKey := 0;
   end;
 
-  procedure PopPrevKnownWindowPosition;
-  begin
-    WindowPositioner.EnterWindow(WindowList[0].Handle);
-    try
-      WindowPositioner.PopWindowPosition;
-    finally
-      WindowPositioner.ExitWindow;
-    end;
-  end;
-
 begin
-  WindowsHandler.UpdateWindowList(wldDominaTargets);
-  WindowList := WindowsHandler.GetWindowList(wldDominaTargets);
-  if WindowList.Count <= 0 then
+  if not HasTargetWindow(TargetWindow) then
     Exit;
 
   if IsTileNumKey(Key, TileNum) then
   begin
     HandleTileNumKey;
-    Handled := True;
-  end
-  else if Key = vkBack then
-  begin
-    PopPrevKnownWindowPosition;
     Handled := True;
   end;
 end;

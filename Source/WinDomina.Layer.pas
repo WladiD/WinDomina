@@ -4,11 +4,13 @@ interface
 
 uses
   Winapi.D2D1,
+  Winapi.Windows,
   System.SysUtils,
   System.Classes,
   System.Generics.Collections,
 
   AnyiQuack,
+  WindowEnumerator,
 
   WinDomina.Types,
   WinDomina.Types.Drawing;
@@ -31,6 +33,9 @@ type
     MainContentChanged: Boolean;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
+
+    function HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
+    function HasTargetWindow(out Window: TWindow): Boolean; overload;
 
   public
     class constructor Create;
@@ -113,6 +118,23 @@ begin
   List := LayerActivationKeys;
   for Key in Keys do
     List.Add(Key, Self);
+end;
+
+function TBaseLayer.HasTargetWindow(out WindowHandle: HWND): Boolean;
+var
+  Window: TWindow;
+begin
+  Result := HasTargetWindow(Window);
+  if Result then
+    WindowHandle := Window.Handle;
+end;
+
+// Sagt aus, ob es ein aktuelles Zielfenster gibt
+//
+// Was tatsächlich ein Zielfenster ist, liegt am verwendeten Implementierer des IWindowsHandler
+function TBaseLayer.HasTargetWindow(out Window: TWindow): Boolean;
+begin
+  Result := WindowsHandler.GetWindowList(wldDominaTargets).HasFirst(Window);
 end;
 
 procedure TBaseLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);

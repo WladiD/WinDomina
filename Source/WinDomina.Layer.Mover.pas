@@ -35,11 +35,9 @@ type
     AlignIndicatorAniID: Integer;
   private
     FVisibleWindowList: TWindowList;
-    FDominaTargetsWindowList: TWindowList;
     FAnimations: TAnimationList;
 
     procedure UpdateVisibleWindowList;
-    procedure UpdateDominaTargetsWindowList;
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
     procedure MoveSizeWindow(Direction: TDirection);
 
@@ -105,7 +103,6 @@ end;
 destructor TMoverLayer.Destroy;
 begin
   FVisibleWindowList.Free;
-  FDominaTargetsWindowList.Free;
   FAnimations.Free;
 
   inherited Destroy;
@@ -113,20 +110,15 @@ end;
 
 procedure TMoverLayer.UpdateVisibleWindowList;
 var
-  LogWinHandle: HWND;
+  WinHandle: HWND;
 begin
   FVisibleWindowList.Free;
   FVisibleWindowList := WindowsHandler.CreateWindowList(wldAlignTargets);
   // Aktuell dominiertes Fenster aus der Liste entfernen
-  FVisibleWindowList.Remove(FDominaTargetsWindowList[0].Handle);
-  if Logging.HasWindowHandle(LogWinHandle) then
-    FVisibleWindowList.Remove(LogWinHandle);
-end;
-
-procedure TMoverLayer.UpdateDominaTargetsWindowList;
-begin
-  FDominaTargetsWindowList.Free;
-  FDominaTargetsWindowList := WindowsHandler.CreateWindowList(wldDominaTargets);
+  if HasTargetWindow(WinHandle) then
+    FVisibleWindowList.Remove(WinHandle);
+  if Logging.HasWindowHandle(WinHandle) then
+    FVisibleWindowList.Remove(WinHandle);
 end;
 
 procedure TMoverLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
@@ -153,7 +145,6 @@ end;
 procedure TMoverLayer.EnterLayer;
 begin
   inherited EnterLayer;
-  UpdateDominaTargetsWindowList;
   AddLog('TMoverLayer.EnterLayer');
 end;
 
@@ -185,7 +176,7 @@ end;
 
 procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
 var
-  Window: THandle;
+  Window: HWND;
   WinRect, MatchRect, WorkareaRect: TRect;
   NewPos: TPoint;
   MatchEdge: TRectEdge;
@@ -234,7 +225,9 @@ var
   end;
 
 begin
-  Window := FDominaTargetsWindowList[0].Handle;
+  if not HasTargetWindow(Window) then
+    Exit;
+
   Snapper := nil;
 
   // Sollte die Animation noch laufen, so muss sie abgebrochen werden
@@ -346,22 +339,10 @@ begin
 end;
 
 procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
-
-  procedure PopPrevKnownWindowPosition;
-  begin
-    WindowPositioner.EnterWindow(FDominaTargetsWindowList[0].Handle);
-    try
-      WindowPositioner.PopWindowPosition;
-    finally
-      WindowPositioner.ExitWindow;
-    end;
-  end;
-
 var
   Direction: TDirection;
 begin
-  UpdateDominaTargetsWindowList;
-  if FDominaTargetsWindowList.Count = 0 then
+  if WindowsHandler.GetWindowList(wldDominaTargets).Count = 0 then
     Exit;
 
   Direction := dirUnknown;
@@ -375,11 +356,6 @@ begin
       Direction := dirUp;
     vkDown:
       Direction := dirDown;
-    vkBack:
-    begin
-      PopPrevKnownWindowPosition;
-      Handled := True;
-    end;
   end;
 
   if Direction <> dirUnknown then

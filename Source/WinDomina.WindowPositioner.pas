@@ -140,6 +140,7 @@ begin
       250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
 end;
 
+// Bewegt das aktuelle Fenster, unter Beibehaltung seiner aktuellen Größe, an die neue Stelle
 procedure TWindowPositioner.MoveWindow(NewPos: TPoint);
 var
   TargetRect: TRect;
@@ -153,6 +154,8 @@ begin
   SetWindowPosInternal(Window, TargetRect, SWP_NOZORDER or SWP_NOSIZE);
 end;
 
+// Platziert das aktuelle Fenster an eine neue Position, hierbei wird (wenn möglich) auch die Größe
+// des Fensters verändert.
 procedure TWindowPositioner.PlaceWindow(NewPlace: TRect);
 var
   Window: TWindow;
@@ -163,6 +166,8 @@ begin
   SetWindowPosInternal(Window, NewPlace, SWP_NOZORDER);
 end;
 
+// Stellt die zuletzt auf dem Stapel abgelegte Fensterposition für das aktuelle
+// (mittels EnterWindow mitgeteilte) Fenser wieder her
 procedure TWindowPositioner.PopWindowPosition;
 var
   Window: TWindow;
