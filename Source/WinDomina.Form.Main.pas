@@ -203,6 +203,7 @@ class constructor TMainForm.Create;
 begin
   UpdateWindowWorkareaDelayID := TAQ.GetUniqueID;
   TargetWindowListenerIntervalID := TAQ.GetUniqueID;
+  PushChangedWindowsPositionsDelayID := TAQ.GetUniqueID;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -530,6 +531,9 @@ end;
 // Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
 procedure TMainForm.AdjustWindowWorkarea(Workarea: TRect);
 begin
+//  if not (not FVisible or (BoundsRect <> Workarea)) then
+//    Exit;
+
   FWindowPosition := Workarea.Location;
   FWindowSize.cx := Workarea.Width;
   FWindowSize.cy := Workarea.Height;
@@ -554,7 +558,7 @@ begin
     AdjustWindowWorkarea(Monitor.WorkareaRect);
 end;
 
-// Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das 
+// Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das
 // aktuelle Fenster befindet. Wenn kein Zielfenster vorhanden ist, so wird die Position des
 // Mauscursors verwendet.
 procedure TMainForm.UpdateWindowWorkarea;
@@ -618,6 +622,7 @@ begin
   FPrevTargetWindow.Rect := TRect.Empty;
 end;
 
+// Sollte aufgerufen werden, wenn sich das Zielfenster verändert
 procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
 begin
   UpdateWindowWorkareaDelayed(500);
@@ -628,6 +633,7 @@ begin
   WindowPositioner.ExitWindow;
 end;
 
+// Sollte aufgerufen werden, wenn sich die Position des Zielfenster ändert
 procedure TMainForm.DoTargetWindowMoved;
 begin
   UpdateWindowWorkareaDelayed(500);
