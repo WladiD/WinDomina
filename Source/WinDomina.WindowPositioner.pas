@@ -125,7 +125,18 @@ end;
 
 procedure TWindowPositioner.SetWindowPosInternal(Window: TWindow; TargetRect: TRect;
   Flags: Cardinal);
+var
+  Placement: TWindowPlacement;
 begin
+  // Ist ein Fenster aktuell maximiert, so wird es zuvor in den normalen Fenstermodus
+  // wiederhergestellt
+  Placement.length := SizeOf(Placement);
+  if GetWindowPlacement(Window.Handle, Placement) and (Placement.showCmd = SW_SHOWMAXIMIZED) then
+  begin
+    Placement.showCmd := SW_RESTORE;
+    SetWindowPlacement(Window.Handle, Placement);
+  end;
+
   Take(Window)
     .Plugin<TAQPSystemTypesAnimations>
     .RectAnimation(TargetRect,
