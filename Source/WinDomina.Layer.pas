@@ -16,6 +16,14 @@ uses
   WinDomina.Types.Drawing;
 
 type
+  TBaseLayer = class;
+  TBaseLayerClass = class of TBaseLayer;
+  TKeyLayerList = TDictionary<Integer, TBaseLayer>;
+  TLayerList = TObjectList<TBaseLayer>;
+  TLayerStack = TStack<TBaseLayer>;
+  TAnimationBase = class;
+  TAnimationList = TObjectList<TAnimationBase>;
+
   TBaseLayer = class
   private
     class var
@@ -23,6 +31,7 @@ type
     LayerInvalidateDelayID: Integer;
   private
     FOnMainContentChanged: TNotifyEvent;
+    FAnimations: TAnimationList;
 
     procedure DoMainContentChanged;
 
@@ -36,6 +45,8 @@ type
 
     function HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
     function HasTargetWindow(out Window: TWindow): Boolean; overload;
+
+    procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 
   public
     class constructor Create;
@@ -69,11 +80,18 @@ type
       write FOnMainContentChanged;
   end;
 
-  TBaseLayerClass = class of TBaseLayer;
+  TAnimationBase = class
+  protected
+    FProgress: Real;
+    FLayer: TBaseLayer;
 
-  TKeyLayerList = TDictionary<Integer, TBaseLayer>;
-  TLayerList = TObjectList<TBaseLayer>;
-  TLayerStack = TStack<TBaseLayer>;
+  public
+    constructor Create(Layer: TBaseLayer);
+
+    procedure Render(const RenderTarget: ID2D1RenderTarget); virtual; abstract;
+    property Progress: Real read FProgress write FProgress;
+    property Layer: TBaseLayer read FLayer;
+  end;
 
 implementation
 
@@ -90,11 +108,12 @@ end;
 
 constructor TBaseLayer.Create;
 begin
-
+  FAnimations := TAnimationList.Create(True);
 end;
 
 destructor TBaseLayer.Destroy;
 begin
+  FAnimations.Free;
 
   inherited Destroy;
 end;
@@ -140,6 +159,27 @@ begin
   Result := WindowsHandler.GetWindowList(wldDominaTargets).HasFirst(Window);
 end;
 
+procedure TBaseLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
+begin
+  FAnimations.Add(Animation);
+
+  Take(Animation)
+    .EachAnimation(Duration,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        TAnimationBase(O).Progress := AQ.CurrentInterval.Progress;
+        InvalidateMainContent;
+        Result := True;
+      end,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        AQ.Remove(O);
+        FAnimations.Remove(TAnimationBase(O));
+        InvalidateMainContent;
+        Result := True;
+      end, AnimationID);
+end;
+
 procedure TBaseLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 begin
   Handled := False;
@@ -164,8 +204,16 @@ end;
 // Zeichnet den Hauptinhalt
 procedure TBaseLayer.RenderMainContent(const DrawContext: IDrawContext;
   const LayerParams: TD2D1LayerParameters);
+var
+  Animation: TAnimationBase;
+  RT: ID2D1RenderTarget;
 begin
-
+  if FAnimations.Count > 0 then
+  begin
+    RT := DrawContext.RenderTarget;
+    for Animation in FAnimations do
+      Animation.Render(RT);
+  end;
 end;
 
 procedure TBaseLayer.DoMainContentChanged;
@@ -216,6 +264,13 @@ end;
 procedure TBaseLayer.InvalidateMainContentResources;
 begin
 
+end;
+
+{ TAnimationBase }
+
+constructor TAnimationBase.Create(Layer: TBaseLayer);
+begin
+  FLayer := Layer;
 end;
 
 end.

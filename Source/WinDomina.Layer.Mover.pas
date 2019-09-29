@@ -26,8 +26,7 @@ uses
   WinDomina.WindowMatchSnap;
 
 type
-  TAnimationBase = class;
-  TAnimationList = TObjectList<TAnimationBase>;
+
 
   TMoverLayer = class(TBaseLayer)
   private
@@ -35,10 +34,9 @@ type
     AlignIndicatorAniID: Integer;
   private
     FVisibleWindowList: TWindowList;
-    FAnimations: TAnimationList;
 
     procedure UpdateVisibleWindowList;
-    procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
+
     procedure MoveSizeWindow(Direction: TDirection);
 
   public
@@ -56,19 +54,6 @@ type
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
-  end;
-
-  TAnimationBase = class
-  protected
-    FProgress: Real;
-    FLayer: TBaseLayer;
-
-  public
-    constructor Create(Layer: TBaseLayer);
-
-    procedure Render(const RenderTarget: ID2D1RenderTarget); virtual; abstract;
-    property Progress: Real read FProgress write FProgress;
-    property Layer: TBaseLayer read FLayer;
   end;
 
   TAlignIndicatorAnimation = class(TAnimationBase)
@@ -97,13 +82,11 @@ begin
   inherited Create;
 
   RegisterLayerActivationKeys([vkM]);
-  FAnimations := TAnimationList.Create(True);
 end;
 
 destructor TMoverLayer.Destroy;
 begin
   FVisibleWindowList.Free;
-  FAnimations.Free;
 
   inherited Destroy;
 end;
@@ -119,27 +102,6 @@ begin
     FVisibleWindowList.Remove(WinHandle);
   if Logging.HasWindowHandle(WinHandle) then
     FVisibleWindowList.Remove(WinHandle);
-end;
-
-procedure TMoverLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
-begin
-  FAnimations.Add(Animation);
-
-  Take(Animation)
-    .EachAnimation(Duration,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        TAnimationBase(O).Progress := AQ.CurrentInterval.Progress;
-        InvalidateMainContent;
-        Result := True;
-      end,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        AQ.Remove(O);
-        FAnimations.Remove(TAnimationBase(O));
-        InvalidateMainContent;
-        Result := True;
-      end, AnimationID);
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -162,16 +124,8 @@ end;
 
 procedure TMoverLayer.RenderMainContent(const DrawContext: IDrawContext;
   const LayerParams: TD2D1LayerParameters);
-var
-  Animation: TAnimationBase;
-  RT: ID2D1RenderTarget;
 begin
-  if FAnimations.Count > 0 then
-  begin
-    RT := DrawContext.RenderTarget;
-    for Animation in FAnimations do
-      Animation.Render(RT);
-  end;
+  inherited RenderMainContent(DrawContext, LayerParams);
 end;
 
 procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
@@ -368,13 +322,6 @@ end;
 procedure TMoverLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
 begin
 
-end;
-
-{ TAnimationBase }
-
-constructor TAnimationBase.Create(Layer: TBaseLayer);
-begin
-  FLayer := Layer;
 end;
 
 { TAlignIndicatorAnimation }

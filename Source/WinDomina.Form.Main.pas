@@ -636,7 +636,7 @@ begin
   // Die geänderte Position des Fensters soll verzögert auch im Positionierungsstack erfasst werden
   Take(Self)
     .CancelDelays(PushChangedWindowsPositionsDelayID)
-    .EachDelay(333,
+    .EachDelay(750,
       function(AQ: TAQ; O: TObject): Boolean
       begin
         WindowPositioner.PushChangedWindowsPositions;
