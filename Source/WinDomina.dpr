@@ -23,7 +23,8 @@ uses
   SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas',
   WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas',
   WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas',
-  WinDomina.WindowPositioner in 'WinDomina.WindowPositioner.pas';
+  WinDomina.WindowPositioner in 'WinDomina.WindowPositioner.pas',
+  WinDomina.Types.Messages in 'WinDomina.Types.Messages.pas';
 
 {$R *.res}
 

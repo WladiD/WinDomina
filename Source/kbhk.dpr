@@ -1,11 +1,9 @@
 library kbhk;
 
 uses
-  System.SysUtils,
-  System.Classes,
   Winapi.Messages,
   Winapi.Windows,
-  WinDomina.Types;
+  WinDomina.Types.Messages;
 
 {$R *.res}
 
@@ -96,7 +94,10 @@ begin
     // Wenn die standardm‰ﬂige [CapsLock]-Taste als Hotkey verwendet wird, dann leiten wir den
     // Hook nicht weiter und deaktivieren somit die Taste. Die CapsLock-Statusanzeige wird auf
     // diese Weise auch umgangen.
-    if NextHook and (DominaHotkey = VK_CAPITAL) and (PKH.vkCode = VK_CAPITAL) then
+    if NextHook and (DominaHotkey = VK_CAPITAL) and (PKH.vkCode = VK_CAPITAL) and
+      // Der Hook wird aber einmalig weitergeleitet, wenn die [CapsLock]-Taste aktuell
+      // festgestellt ist, damit es deaktiviert wird.
+      ((GetKeyState(VK_CAPITAL) and $1) = 0) then
       NextHook := False;
   finally
     if NextHook then

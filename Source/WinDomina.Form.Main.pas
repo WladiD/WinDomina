@@ -37,6 +37,7 @@ uses
   WindowEnumerator,
 
   WinDomina.Types,
+  WinDomina.Types.Messages,
   WinDomina.WindowTools,
   WinDomina.WindowPositioner,
   WinDomina.Registry,
