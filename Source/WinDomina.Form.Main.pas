@@ -67,6 +67,7 @@ type
 
     class var
     UpdateWindowWorkareaDelayID: Integer;
+    PushChangedWindowsPositionsDelayID: Integer;
     TargetWindowListenerIntervalID: Integer;
 
     var
@@ -117,7 +118,7 @@ type
     procedure StartTargetWindowListener;
     procedure CheckTargetWindow;
     procedure StopTargetWindowListener;
-    procedure DoTargetWindowChanged;
+    procedure DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
     procedure DoTargetWindowMoved;
 
   // ITranslate-Interface
@@ -602,7 +603,7 @@ begin
     Exit;
 
   if TargetWindow.Handle <> FPrevTargetWindow.Handle then
-    DoTargetWindowChanged
+    DoTargetWindowChanged(FPrevTargetWindow.Handle, TargetWindow.Handle)
   else if TargetWindow.Rect <> FPrevTargetWindow.Rect then
     DoTargetWindowMoved;
 
@@ -617,16 +618,30 @@ begin
   FPrevTargetWindow.Rect := TRect.Empty;
 end;
 
-procedure TMainForm.DoTargetWindowChanged;
+procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
 begin
   UpdateWindowWorkareaDelayed(500);
   GetActiveLayer.TargetWindowChanged;
+
+  // Damit die Position des Zielfensters im Positioner erfasst wird
+  WindowPositioner.EnterWindow(NewTargetWindowHandle);
+  WindowPositioner.ExitWindow;
 end;
 
 procedure TMainForm.DoTargetWindowMoved;
 begin
   UpdateWindowWorkareaDelayed(500);
   GetActiveLayer.TargetWindowMoved;
+
+  // Die geänderte Position des Fensters soll verzögert auch im Positionierungsstack erfasst werden
+  Take(Self)
+    .CancelDelays(PushChangedWindowsPositionsDelayID)
+    .EachDelay(333,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        WindowPositioner.PushChangedWindowsPositions;
+        Result := False;
+      end, PushChangedWindowsPositionsDelayID);
 end;
 
 procedure TMainForm.UpdateWindow(SourceDC: HDC);
