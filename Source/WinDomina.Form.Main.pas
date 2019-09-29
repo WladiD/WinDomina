@@ -463,7 +463,10 @@ function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
     case Domain of
       wldDominaTargets:
       begin
-        // Hierfür brauchen wir vorerst keine weiteren Filter
+        // Ohne diesen Filter wird jedes Vordergrundfenster, unabhängig davon ob es aktiv ist oder
+        // nicht, zum Zielfenster. Daher müssen alle Vordergrundfenster, die nicht aktiv sind
+        // ausgefiltert werden.
+        Result.InactiveTopMostWindowsFilter := True;
       end;
       wldAlignTargets:
       begin
