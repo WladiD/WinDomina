@@ -148,7 +148,7 @@ begin
       begin
         SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, Flags);
       end,
-      250, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+      350, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
 end;
 
 // Bewegt das aktuelle Fenster, unter Beibehaltung seiner aktuellen Größe, an die neue Stelle

@@ -136,12 +136,15 @@ begin
   inherited EnterLayer;
   AddLog('TMoverLayer.EnterLayer');
   FArrowIndicator.RefRect := TRect.Empty;
-  TargetWindowChangedOrMoved;
+
+  // Wahrscheinlich überflüssig, wenn es bereits in InvalidateMainContentResources aufgerufen wird
+//  TargetWindowChangedOrMoved;
 end;
 
 procedure TMoverLayer.ExitLayer;
 begin
   AddLog('TMoverLayer.ExitLayer');
+
   inherited ExitLayer;
 end;
 
@@ -157,6 +160,12 @@ begin
   inherited RenderMainContent(DrawContext, LayerParams);
 
   FArrowIndicator.Draw(DrawContext);
+end;
+
+procedure TMoverLayer.InvalidateMainContentResources;
+begin
+  FArrowIndicator.InvalidateResources;
+  TargetWindowChangedOrMoved;
 end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
@@ -192,11 +201,6 @@ end;
 procedure TMoverLayer.TargetWindowMoved;
 begin
   TargetWindowChangedOrMoved;
-end;
-
-procedure TMoverLayer.InvalidateMainContentResources;
-begin
-  FArrowIndicator.InvalidateResources;
 end;
 
 procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);

@@ -109,6 +109,7 @@ type
     procedure UpdateWindowWorkareaDelayed(Delay: Integer);
     procedure UpdateWindow(SourceDC: HDC);
     procedure RenderWindowContent;
+    procedure ClearWindowContent;
     procedure CreateDeviceResources;
     procedure InvalidateDeviceResources;
 
@@ -531,14 +532,13 @@ end;
 // Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
 procedure TMainForm.AdjustWindowWorkarea(Workarea: TRect);
 begin
-//  if not (not FVisible or (BoundsRect <> Workarea)) then
-//    Exit;
+  if not (FVisible or (BoundsRect <> Workarea)) then
+    Exit;
 
   FWindowPosition := Workarea.Location;
   FWindowSize.cx := Workarea.Width;
   FWindowSize.cy := Workarea.Height;
 
-  FVisible := True;
   SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
     SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
   UpdateBoundsRect(Workarea);
@@ -564,14 +564,11 @@ end;
 procedure TMainForm.UpdateWindowWorkarea;
 var
   TargetWindow: TWindow;
-  ActivateFromPoint: TPoint;
 begin
   if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
-    ActivateFromPoint := TargetWindow.Rect.Location
+    AdjustWindowWorkareaFromMonitor(Screen.MonitorFromRect(TargetWindow.Rect))
   else
-    ActivateFromPoint := Mouse.CursorPos;
-
-  AdjustWindowWorkareaFromPoint(ActivateFromPoint);
+    AdjustWindowWorkareaFromPoint(Mouse.CursorPos);
 end;
 
 procedure TMainForm.UpdateWindowWorkareaDelayed(Delay: Integer);
@@ -746,6 +743,35 @@ begin
 {$ENDIF}
 end;
 
+// Leert das Bitmap für das Layer-Window
+//
+// Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nächsten Start des Domina-Modus
+// für einen kurzen Moment (solange die Ressourcen von der Grafikkarte initialisiert werden) der
+// vorherige Inhalt sichtbar ist.
+procedure TMainForm.ClearWindowContent;
+var
+  RT: ID2D1RenderTarget;
+  DC: HDC;
+begin
+  CreateDeviceResources;
+
+  RT := FDrawContext.RenderTarget;
+
+  RT.BeginDraw;
+  try
+    RT.Clear(D2D1ColorF(clBlack, 0));
+
+    FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
+    try
+      UpdateWindow(DC);
+    finally
+      FInteropRenderTarget.ReleaseDC(TRect.Empty);
+    end;
+  finally
+    RT.EndDraw;
+  end;
+end;
+
 procedure TMainForm.CloseActionExecute(Sender: TObject);
 begin
   Close;
@@ -906,6 +932,7 @@ begin
   LogForm.Caption := 'Domina-Modus aktiv';
   LogForm.LogMemo.Lines.Clear;
 
+  FVisible := True;
   UpdateWindowWorkarea;
 
   if Assigned(FLastUsedLayer) then
@@ -926,6 +953,7 @@ begin
   FLastUsedLayer := GetActiveLayer;
   ExitLayer;
   FActiveLayers.Clear;
+  ClearWindowContent;
   ShowWindow(Handle, SW_HIDE);
   FVisible := False;
   DominaModeChanged;
