@@ -11,16 +11,16 @@ uses
   System.Contnrs,
   System.Math,
   Winapi.Windows,
-  Winapi.D2D1,
-  Vcl.Direct2D,
   Vcl.Forms,
 
+  GR32,
+  GR32_Polygons,
+  GR32_VectorUtils,
   WindowEnumerator,
   AnyiQuack,
   AQPSystemTypesAnimations,
 
   WinDomina.Types,
-  WinDomina.Types.Drawing,
   WinDomina.Layer,
   WinDomina.Registry,
   WinDomina.WindowTools,
@@ -54,11 +54,8 @@ type
     procedure TargetWindowChanged; override;
     procedure TargetWindowMoved; override;
 
-    function HasMainContent(const DrawContext: IDrawContext;
-      var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean; override;
-    procedure RenderMainContent(const DrawContext: IDrawContext;
-      const LayerParams: TD2D1LayerParameters); override;
-    procedure InvalidateMainContentResources; override;
+    function HasMainContent: Boolean; override;
+    procedure RenderMainContent(Target: TBitmap32); override;
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
@@ -68,12 +65,9 @@ type
   private
     FParentLayer: TMoverLayer;
     FRefRect: TRect;
-    FWhiteBrush: ID2D1SolidColorBrush;
-    FBlackBrush: ID2D1SolidColorBrush;
 
   public
-    procedure Draw(const DrawContext: IDrawContext);
-    procedure InvalidateResources;
+    procedure Draw(Target: TBitmap32);
 
     property RefRect: TRect read FRefRect write FRefRect;
 
@@ -83,12 +77,10 @@ type
   private
     FFrom: TRect;
     FTo: TRect;
-    FWhiteBrush: ID2D1SolidColorBrush;
-    FBlackBrush: ID2D1SolidColorBrush;
 
   public
     constructor Create(Layer: TBaseLayer; const AlignTarget, Workarea: TRect; Edge: TRectEdge);
-    procedure Render(const RenderTarget: ID2D1RenderTarget); override;
+    procedure Render(Target: TBitmap32); override;
   end;
 
 implementation
@@ -137,8 +129,7 @@ begin
   AddLog('TMoverLayer.EnterLayer');
   FArrowIndicator.RefRect := TRect.Empty;
 
-  // Wahrscheinlich überflüssig, wenn es bereits in InvalidateMainContentResources aufgerufen wird
-//  TargetWindowChangedOrMoved;
+  TargetWindowChangedOrMoved;
 end;
 
 procedure TMoverLayer.ExitLayer;
@@ -148,24 +139,16 @@ begin
   inherited ExitLayer;
 end;
 
-function TMoverLayer.HasMainContent(const DrawContext: IDrawContext;
-  var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean;
+function TMoverLayer.HasMainContent: Boolean;
 begin
   Result := IsLayerActive;
 end;
 
-procedure TMoverLayer.RenderMainContent(const DrawContext: IDrawContext;
-  const LayerParams: TD2D1LayerParameters);
+procedure TMoverLayer.RenderMainContent(Target: TBitmap32);
 begin
-  inherited RenderMainContent(DrawContext, LayerParams);
+  inherited RenderMainContent(Target);
 
-  FArrowIndicator.Draw(DrawContext);
-end;
-
-procedure TMoverLayer.InvalidateMainContentResources;
-begin
-  FArrowIndicator.InvalidateResources;
-  TargetWindowChangedOrMoved;
+  FArrowIndicator.Draw(Target);
 end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
@@ -445,48 +428,47 @@ begin
   end;
 end;
 
-procedure TAlignIndicatorAnimation.Render(const RenderTarget: ID2D1RenderTarget);
+procedure TAlignIndicatorAnimation.Render(Target: TBitmap32);
 var
   CurRect: TRect;
 begin
-  if not Assigned(FWhiteBrush) then
-    RenderTarget.CreateSolidColorBrush(D2D1ColorF(TColors.White), nil, FWhiteBrush);
-  if not Assigned(FBlackBrush) then
-    RenderTarget.CreateSolidColorBrush(D2D1ColorF(TColors.Black), nil, FBlackBrush);
-
   CurRect := Layer.MonitorHandler.ScreenToClient(
     TAQ.EaseRect(FFrom, FTo, FProgress, etSinus));
-  RenderTarget.FillRectangle(CurRect, FWhiteBrush);
+  Target.FillRectTS(CurRect, clWhite32);
   CurRect.Inflate(-2, -2);
-  RenderTarget.FillRectangle(CurRect, FBlackBrush);
+  Target.FillRectTS(CurRect, clBlack32);
 end;
 
 { TArrowIndicator }
 
-procedure TArrowIndicator.Draw(const DrawContext: IDrawContext);
+procedure TArrowIndicator.Draw(Target: TBitmap32);
 var
   Square, ArrowSquare, ArrowIndent, RemainWidth, RemainHeight: Integer;
   ArrowSquare2, ArrowSquare3, ArrowRemainSquare: Integer;
   ArrowRemainHalfSquare: Single;
   PaintRect, ArrowRect: TRect;
-  RT: ID2D1RenderTarget;
-  Path: ID2D1PathGeometry;
-  PathSink: ID2D1GeometrySink;
 
   procedure DrawArrowRect;
   begin
-    RT.FillRectangle(ArrowRect, FWhiteBrush);
-    RT.DrawRectangle(ArrowRect, FBlackBrush, 2);
+    Target.FillRectTS(ArrowRect, SetAlpha(clWhite32, 250));
+    Target.FrameRectTS(ArrowRect, clBlack32);
+    ArrowRect.Inflate(1, 1);
+    Target.FrameRectTS(ArrowRect, clBlack32);
+  end;
+
+  procedure DrawArrow(const P1, P2, P3: TFloatPoint);
+  var
+    Points: TArrayOfFloatPoint;
+  begin
+    SetLength(Points, 3);
+    Points[0] := P1;
+    Points[1] := P2;
+    Points[2] := P3;
+
+    PolygonFS(Target, Points, clBlack32);
   end;
 
 begin
-  RT := DrawContext.RenderTarget;
-
-  if not Assigned(FWhiteBrush) then
-    RT.CreateSolidColorBrush(D2D1ColorF(TColors.White), nil, FWhiteBrush);
-  if not Assigned(FBlackBrush) then
-    RT.CreateSolidColorBrush(D2D1ColorF(TColors.Black), nil, FBlackBrush);
-
   Square := Min(RefRect.Width, RefRect.Height);
   Square := Max(150, Round(Square * 0.3));
   ArrowSquare := Square div 3;
@@ -506,75 +488,37 @@ begin
   ArrowRect := Rect(PaintRect.Left + ArrowSquare, PaintRect.Top,
     PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare);
   DrawArrowRect;
-  if Succeeded(DrawContext.D2DFactory.CreatePathGeometry(Path)) and
-    Succeeded(Path.Open(PathSink)) then
-  begin
-    PathSink.BeginFigure(
-      D2D1PointF(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Top + ArrowIndent),
-      D2D1_FIGURE_BEGIN_FILLED);
-    PathSink.AddLine(D2D1PointF(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent));
-    PathSink.AddLine(D2D1PointF(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
-    PathSink.EndFigure(D2D1_FIGURE_END_CLOSED);
-    PathSink.Close;
-    RT.FillGeometry(Path, FBlackBrush);
-  end;
+  DrawArrow(
+    FloatPoint(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Top + ArrowIndent),
+    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent),
+    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
 
   // Pfeil nach Rechts
   ArrowRect := Rect(PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare,
     PaintRect.Left + ArrowSquare3, PaintRect.Top + ArrowSquare2);
   DrawArrowRect;
-  if Succeeded(DrawContext.D2DFactory.CreatePathGeometry(Path)) and
-    Succeeded(Path.Open(PathSink)) then
-  begin
-    PathSink.BeginFigure(
-      D2D1PointF(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
-      D2D1_FIGURE_BEGIN_FILLED);
-    PathSink.AddLine(D2D1PointF(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare));
-    PathSink.AddLine(D2D1PointF(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
-    PathSink.EndFigure(D2D1_FIGURE_END_CLOSED);
-    PathSink.Close;
-    RT.FillGeometry(Path, FBlackBrush);
-  end;
+  DrawArrow(
+    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
+    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
 
   // Pfeil nach Unten
   ArrowRect := Rect(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare2,
     PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare3);
   DrawArrowRect;
-  if Succeeded(DrawContext.D2DFactory.CreatePathGeometry(Path)) and
-    Succeeded(Path.Open(PathSink)) then
-  begin
-    PathSink.BeginFigure(
-      D2D1PointF(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
-      D2D1_FIGURE_BEGIN_FILLED);
-    PathSink.AddLine(D2D1PointF(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent));
-    PathSink.AddLine(D2D1PointF(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Bottom - ArrowIndent));
-    PathSink.EndFigure(D2D1_FIGURE_END_CLOSED);
-    PathSink.Close;
-    RT.FillGeometry(Path, FBlackBrush);
-  end;
+  DrawArrow(
+    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
+    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent),
+    FloatPoint(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Bottom - ArrowIndent));
 
   // Pfeil nach Links
   ArrowRect := Rect(PaintRect.Left, PaintRect.Top + ArrowSquare,
     PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare2);
   DrawArrowRect;
-  if Succeeded(DrawContext.D2DFactory.CreatePathGeometry(Path)) and
-    Succeeded(Path.Open(PathSink)) then
-  begin
-    PathSink.BeginFigure(
-      D2D1PointF(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare),
-      D2D1_FIGURE_BEGIN_FILLED);
-    PathSink.AddLine(D2D1PointF(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent));
-    PathSink.AddLine(D2D1PointF(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent));
-    PathSink.EndFigure(D2D1_FIGURE_END_CLOSED);
-    PathSink.Close;
-    RT.FillGeometry(Path, FBlackBrush);
-  end;
-end;
-
-procedure TArrowIndicator.InvalidateResources;
-begin
-  FWhiteBrush := nil;
-  FBlackBrush := nil;
+  DrawArrow(
+    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent),
+    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent));
 end;
 
 end.

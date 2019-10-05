@@ -3,17 +3,16 @@ unit WinDomina.Layer;
 interface
 
 uses
-  Winapi.D2D1,
   Winapi.Windows,
   System.SysUtils,
   System.Classes,
   System.Generics.Collections,
 
+  GR32,
   AnyiQuack,
   WindowEnumerator,
 
-  WinDomina.Types,
-  WinDomina.Types.Drawing;
+  WinDomina.Types;
 
 type
   TBaseLayer = class;
@@ -59,11 +58,8 @@ type
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
 
-    function HasMainContent(const DrawContext: IDrawContext;
-      var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean; virtual;
-    procedure RenderMainContent(const DrawContext: IDrawContext;
-      const LayerParams: TD2D1LayerParameters); virtual;
-    procedure InvalidateMainContentResources; virtual;
+    function HasMainContent: Boolean; virtual;
+    procedure RenderMainContent(Target: TBitmap32); virtual;
     procedure InvalidateMainContent; virtual;
 
     procedure TargetWindowChanged; virtual;
@@ -88,7 +84,7 @@ type
   public
     constructor Create(Layer: TBaseLayer);
 
-    procedure Render(const RenderTarget: ID2D1RenderTarget); virtual; abstract;
+    procedure Render(Target: TBitmap32); virtual; abstract;
     property Progress: Real read FProgress write FProgress;
     property Layer: TBaseLayer read FLayer;
   end;
@@ -195,24 +191,20 @@ end;
 // Wenn True zurückgeliefert wird, so kann (muss aber nicht) im Ausgabeparameter Layer eine
 // Layer-Instanz zurückgegeben werden. Folglich wird in dem Fall die Methode RenderMainContent
 // aufgerufen.
-function TBaseLayer.HasMainContent(const DrawContext: IDrawContext;
-  var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean;
+function TBaseLayer.HasMainContent: Boolean;
 begin
   Result := False;
 end;
 
 // Zeichnet den Hauptinhalt
-procedure TBaseLayer.RenderMainContent(const DrawContext: IDrawContext;
-  const LayerParams: TD2D1LayerParameters);
+procedure TBaseLayer.RenderMainContent(Target: TBitmap32);
 var
   Animation: TAnimationBase;
-  RT: ID2D1RenderTarget;
 begin
   if FAnimations.Count > 0 then
   begin
-    RT := DrawContext.RenderTarget;
     for Animation in FAnimations do
-      Animation.Render(RT);
+      Animation.Render(Target);
   end;
 end;
 
@@ -259,11 +251,6 @@ end;
 function TBaseLayer.GetDisplayName: string;
 begin
   Result := Copy(ClassName, 2, Pos('Layer', ClassName) - 2);
-end;
-
-procedure TBaseLayer.InvalidateMainContentResources;
-begin
-
 end;
 
 { TAnimationBase }

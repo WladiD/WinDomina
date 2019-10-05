@@ -15,22 +15,21 @@ uses
   System.Math,
   System.StrUtils,
   System.Diagnostics,
+  System.SyncObjs,
   Winapi.Windows,
   Winapi.Messages,
-  Winapi.D2D1,
-  Winapi.Wincodec,
-  Winapi.DxgiFormat,
   Vcl.Graphics,
   Vcl.Controls,
   Vcl.Forms,
   Vcl.Dialogs,
   Vcl.StdCtrls,
-  Vcl.Direct2D,
   Vcl.ExtCtrls,
   Vcl.ImgList,
   Vcl.Menus,
   Vcl.ActnList,
 
+  GR32,
+  GR32_Backends,
   AnyiQuack,
   Localization,
   SendInputHelper,
@@ -43,10 +42,11 @@ uses
   WinDomina.Registry,
   WinDomina.Layer,
   WinDomina.KBHKLib,
-  WinDomina.Form.Log,
-  WinDomina.Types.Drawing;
+  WinDomina.Form.Log;
 
 type
+  TUpdateWindowThread = class;
+
   TMainForm = class(TForm, ITranslate, IMonitorHandler, IWindowsHandler)
     TrayIcon: TTrayIcon;
     TrayImageList: TImageList;
@@ -76,16 +76,8 @@ type
     FActiveLayers: TLayerList;
     FLastUsedLayer: TBaseLayer;
     FWindowList: TDomainWindowList;
-
-    FDrawContext: IDrawContext;
-    FWICBitmap: IWICBitmap;
-    FInteropRenderTarget: ID2D1GdiInteropRenderTarget;
-
-    FBlend: TBlendFunction;
-    FSourcePosition: TPoint;
-    FWindowPosition: TPoint;
-    FWindowSize: TSize;
-    FDeviceResourcesValid: Boolean;
+    FMainBitmap: TBitmap32;
+    FUpdateWindowThread: TUpdateWindowThread;
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
@@ -107,11 +99,10 @@ type
     procedure AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
     procedure UpdateWindowWorkarea;
     procedure UpdateWindowWorkareaDelayed(Delay: Integer);
-    procedure UpdateWindow(SourceDC: HDC);
     procedure RenderWindowContent;
     procedure ClearWindowContent;
-    procedure CreateDeviceResources;
-    procedure InvalidateDeviceResources;
+
+    property MainBitmap: TBitmap32 read FMainBitmap;
 
   private
     FPrevTargetWindow: TWindow;
@@ -150,6 +141,21 @@ type
     class constructor Create;
   end;
 
+  TUpdateWindowThread = class(TThread)
+  protected
+    UpdateWindowEvent: TEvent;
+    Bitmap: TBitmap32;
+    WindowHandle: HWND;
+    ContentValid: Boolean;
+
+    procedure TerminatedSet; override;
+    procedure Execute; override;
+  public
+    constructor Create;
+
+    procedure RequestUpdateWindow;
+  end;
+
 var
   MainForm: TMainForm;
 
@@ -160,43 +166,6 @@ uses
   WinDomina.Layer.Mover;
 
 {$R *.dfm}
-
-type
-  TDrawContext = class(TInterfacedObject, IDrawContext)
-  private
-    FD2DFactory: ID2D1Factory;
-    FWICFactory: IWICImagingFactory;
-    FDirectWriteFactory: IDWriteFactory;
-    FRenderTarget: ID2D1RenderTarget;
-
-  protected
-    function D2DFactory: ID2D1Factory;
-    function WICFactory: IWICImagingFactory;
-    function DirectWriteFactory: IDWriteFactory;
-    function RenderTarget: ID2D1RenderTarget;
-  end;
-
-{ TDrawContext }
-
-function TDrawContext.D2DFactory: ID2D1Factory;
-begin
-  Result := FD2DFactory;
-end;
-
-function TDrawContext.WICFactory: IWICImagingFactory;
-begin
-  Result := FWICFactory;
-end;
-
-function TDrawContext.DirectWriteFactory: IDWriteFactory;
-begin
-  Result := FDirectWriteFactory;
-end;
-
-function TDrawContext.RenderTarget: ID2D1RenderTarget;
-begin
-  Result := FRenderTarget;
-end;
 
 { TMainForm }
 
@@ -223,18 +192,6 @@ procedure TMainForm.FormCreate(Sender: TObject);
     AddLayer(CreateLayer(TGridLayer));
   end;
 
-  function CreateDrawContext: IDrawContext;
-  var
-    DC: TDrawContext;
-  begin
-    DC := TDrawContext.Create;
-    DC.FD2DFactory := Vcl.Direct2D.D2DFactory;
-    DC.FWICFactory := CreateComObject(CLSID_WICImagingFactory) as IWICImagingFactory;
-    DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, IDWriteFactory, IInterface(DC.FDirectWriteFactory));
-
-    Result := DC;
-  end;
-
   function CreateWindowPositioner: TWindowPositioner;
   begin
     Result := TWindowPositioner.Create;
@@ -245,12 +202,6 @@ var
   ExStyle: DWORD;
   Logger: TStringsLogging;
 begin
-  // Diese Prüfung ist eigentlich nicht notwendig und ist mehr ein Workaround, damit der
-  // Klassenkonstruktor von TDirect2DCanvas ausgeführt wird. Sonst gibt es eine AV, zumindest in
-  // Delphi 10.3.
-  if not TDirect2DCanvas.Supported then
-    raise Exception.Create('TDirect2DCanvas not supported');
-
   LogForm := TLogForm.Create(Self);
   Logger := TStringsLogging.Create(LogForm.LogMemo.Lines);
   Logger.WindowHandle := LogForm.Handle;
@@ -276,16 +227,10 @@ begin
 
   InstallHook(Handle);
 
-  FDrawContext := CreateDrawContext;
-  FBlend.BlendOp := AC_SRC_OVER;
-  FBlend.BlendFlags := 0;
-  FBlend.SourceConstantAlpha := 255;
-  FBlend.AlphaFormat := AC_SRC_ALPHA;
-
-  FSourcePosition := Point(0, 0);
-  FWindowPosition := Point(0, 0);
-  FWindowSize.cx := Width;
-  FWindowSize.cy := Height;
+  FMainBitmap := TBitmap32.Create;
+  FUpdateWindowThread := TUpdateWindowThread.Create;
+  FUpdateWindowThread.WindowHandle := Handle;
+  FUpdateWindowThread.Bitmap := FMainBitmap;
 
   InitializeLang(RuntimeInfo.CommonPath);
 
@@ -304,6 +249,8 @@ begin
   FLayers.Free;
   FWindowList.Free;
   FPrevTargetWindow.Free;
+  FMainBitmap.Free;
+  FUpdateWindowThread.Free;
 
   UninstallHook;
 end;
@@ -535,15 +482,16 @@ begin
   if not (FVisible or (BoundsRect <> Workarea)) then
     Exit;
 
-  FWindowPosition := Workarea.Location;
-  FWindowSize.cx := Workarea.Width;
-  FWindowSize.cy := Workarea.Height;
+  MainBitmap.Lock;
+  try
+    SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
+      SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
+    UpdateBoundsRect(Workarea);
+    MainBitmap.SetSize(Workarea.Width, Workarea.Height);
+  finally
+    MainBitmap.Unlock;
+  end;
 
-  SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
-    SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
-  UpdateBoundsRect(Workarea);
-
-  InvalidateDeviceResources;
   RenderWindowContent;
 end;
 
@@ -647,95 +595,39 @@ begin
       end, PushChangedWindowsPositionsDelayID);
 end;
 
-procedure TMainForm.UpdateWindow(SourceDC: HDC);
-var
-  Info: TUpdateLayeredWindowInfo;
-begin
-  ZeroMemory(@Info, SizeOf(Info));
-  Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
-  Info.pptSrc := @FSourcePosition;
-  Info.pptDst := @FWindowPosition;
-  Info.psize  := @FWindowSize;
-  Info.pblend := @FBlend;
-  Info.dwFlags := ULW_ALPHA;
-  Info.hdcSrc := SourceDC;
-
-  if not UpdateLayeredWindowIndirect(Handle, @Info) then
-    RaiseLastOSError();
-end;
-
 procedure TMainForm.RenderWindowContent;
 {.$DEFINE BOTTLENECK_LOG}
 var
-  RT: ID2D1RenderTarget;
-  DC: HDC;
   Layer: TBaseLayer;
-  LayerParams: TD2D1LayerParameters;
-  D2DLayer: ID2D1Layer;
-  D2DLayerDrawing: Boolean;
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper, BottleneckStopper: TStopwatch;
 {$ENDIF}
-  EndDrawResult: HRESULT;
 begin
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper := TStopwatch.StartNew;
-  BottleneckStopper := TStopwatch.StartNew;
-{$ENDIF}
-  CreateDeviceResources;
-{$IFDEF BOTTLENECK_LOG}
-  BottleneckStopper.Stop;
-  Logging.AddLog('Dauer CreateDeviceResources ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
 {$ENDIF}
 
-  RT := FDrawContext.RenderTarget;
-
-  RT.BeginDraw;
+  MainBitmap.Lock;
   try
-    RT.Clear(D2D1ColorF(clBlack, 0));
-
-    if HasActiveLayer(Layer) and
-      Layer.HasMainContent(FDrawContext, LayerParams, D2DLayer) then
+    if HasActiveLayer(Layer) and Layer.HasMainContent then
     begin
 {$IFDEF BOTTLENECK_LOG}
       BottleneckStopper := TStopwatch.StartNew;
 {$ENDIF}
-      D2DLayerDrawing := Assigned(D2DLayer);
 
-      if D2DLayerDrawing then
-        RT.PushLayer(LayerParams, D2DLayer);
-      try
-        Layer.RenderMainContent(FDrawContext, LayerParams);
-      finally
-        if D2DLayerDrawing then
-          RT.PopLayer;
-      end;
+      Layer.RenderMainContent(MainBitmap);
 
 {$IFDEF BOTTLENECK_LOG}
       BottleneckStopper.Stop;
       Logging.AddLog('Dauer RenderMainContent ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
 {$ENDIF}
     end;
-{$IFDEF BOTTLENECK_LOG}
-    BottleneckStopper := TStopwatch.StartNew;
-{$ENDIF}
 
-    FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
-    try
-      UpdateWindow(DC);
-    finally
-      FInteropRenderTarget.ReleaseDC(TRect.Empty);
-    end;
-{$IFDEF BOTTLENECK_LOG}
-    BottleneckStopper.Stop;
-    Logging.AddLog('Dauer UpdateWindow ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
-{$ENDIF}
+    FUpdateWindowThread.RequestUpdateWindow;
   finally
-    EndDrawResult := RT.EndDraw;
+    MainBitmap.Unlock;
   end;
 
-  if EndDrawResult = D2DERR_RECREATE_TARGET then
-    InvalidateDeviceResources;
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper.Stop;
   Logging.AddLog('Dauer kompletter RenderWindowContent ' + WholeStopper.ElapsedMilliseconds.ToString + ' msec.');
@@ -746,77 +638,21 @@ end;
 // Leert das Bitmap für das Layer-Window
 //
 // Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nächsten Start des Domina-Modus
-// für einen kurzen Moment (solange die Ressourcen von der Grafikkarte initialisiert werden) der
-// vorherige Inhalt sichtbar ist.
+// für einen kurzen Moment der vorherige Inhalt sichtbar ist sein kann.
 procedure TMainForm.ClearWindowContent;
-var
-  RT: ID2D1RenderTarget;
-  DC: HDC;
 begin
-  CreateDeviceResources;
-
-  RT := FDrawContext.RenderTarget;
-
-  RT.BeginDraw;
+  MainBitmap.Lock;
   try
-    RT.Clear(D2D1ColorF(clBlack, 0));
-
-    FInteropRenderTarget.GetDC(D2D1_DC_INITIALIZE_MODE_COPY, DC);
-    try
-      UpdateWindow(DC);
-    finally
-      FInteropRenderTarget.ReleaseDC(TRect.Empty);
-    end;
+    MainBitmap.Clear(Color32(0, 0, 0, 0));
+    FUpdateWindowThread.RequestUpdateWindow;
   finally
-    RT.EndDraw;
+    MainBitmap.Unlock;
   end;
 end;
 
 procedure TMainForm.CloseActionExecute(Sender: TObject);
 begin
   Close;
-end;
-
-procedure TMainForm.CreateDeviceResources;
-var
-  PF: TD2D1PixelFormat;
-  RTP: TD2D1RenderTargetProperties;
-  RenderTarget: ID2D1RenderTarget;
-  DrawContextObject: TDrawContext;
-begin
-  if FDeviceResourcesValid then
-    Exit;
-
-  FDrawContext.WICFactory.CreateBitmap(Width, Height, @GUID_WICPixelFormat32bppPBGRA,
-    WICBitmapCacheOnLoad, FWICBitmap);
-
-  PF.format := DXGI_FORMAT_B8G8R8A8_UNORM;
-  PF.alphaMode := D2D1_ALPHA_MODE_PREMULTIPLIED;
-
-  RTP := D2D1RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, PF, 0, 0,
-    D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE);
-
-  D2DFactory.CreateWicBitmapRenderTarget(FWICBitmap, RTP, RenderTarget);
-  FInteropRenderTarget := RenderTarget as ID2D1GdiInteropRenderTarget;
-
-  DrawContextObject := TDrawContext(FDrawContext);
-  if DrawContextObject is TDrawContext then
-    DrawContextObject.FRenderTarget := RenderTarget;
-
-  FDeviceResourcesValid := True;
-end;
-
-procedure TMainForm.InvalidateDeviceResources;
-var
-  Layer: TBaseLayer;
-begin
-  if not FDeviceResourcesValid then
-    Exit;
-
-  FDeviceResourcesValid := False;
-
-  for Layer in FLayers do
-    Layer.InvalidateMainContentResources;
 end;
 
 procedure TMainForm.AddLayer(Layer: TBaseLayer);
@@ -859,7 +695,6 @@ begin
   begin
     Caption := Lang[0] + ': ' + Layer.GetDisplayName;
     Layer.EnterLayer;
-    InvalidateDeviceResources;
     RenderWindowContent;
   end;
 end;
@@ -1045,6 +880,79 @@ begin
   WDMKeyStates.KeyPressed[Key] := False;
 
   GetActiveLayer.HandleKeyUp(Key, Handled);
+end;
+
+{ TUpdateWindowThread }
+
+constructor TUpdateWindowThread.Create;
+begin
+  UpdateWindowEvent := TEvent.Create(nil, False, False, '');
+
+  inherited Create(False);
+end;
+
+procedure TUpdateWindowThread.Execute;
+
+  procedure UpdateWindow;
+  var
+    Info: TUpdateLayeredWindowInfo;
+    SourcePosition: TPoint;
+    WindowPosition: TPoint;
+    Blend: TBlendFunction;
+    Size: TSize;
+  begin
+    SourcePosition := GR32.Point(0, 0);
+    WindowPosition := GR32.Point(0, 0);
+    Blend.BlendOp := AC_SRC_OVER;
+    Blend.BlendFlags := 0;
+    Blend.SourceConstantAlpha := 255;
+    Blend.AlphaFormat := AC_SRC_ALPHA;
+
+    Bitmap.Lock;
+    try
+      Size.cx := Bitmap.Width;
+      Size.cy := Bitmap.Height;
+      if Bitmap.Empty then
+        Exit;
+
+      ZeroMemory(@Info, SizeOf(Info));
+      Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
+      Info.pptSrc := @SourcePosition;
+      Info.pptDst := @WindowPosition;
+      Info.psize  := @Size;
+      Info.pblend := @Blend;
+      Info.dwFlags := ULW_ALPHA;
+      Info.hdcSrc := Bitmap.Handle;
+
+      if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
+        RaiseLastOSError();
+
+      Bitmap.Clear(Color32(0, 0, 0, 0));
+      ContentValid := False;
+    finally
+      Bitmap.Unlock;
+    end;
+  end;
+
+begin
+  while not Terminated do
+    if (UpdateWindowEvent.WaitFor = wrSignaled) and ContentValid and not Terminated then
+      UpdateWindow;
+end;
+
+// Sagt dem Thread, dass er das Fenster aktualisieren soll
+//
+// Da an dieser Stelle keine eigenen Locks implementiert sind, darf diese Methode nur
+// aufgerufen werden, während die Bitmap gelockt ist.
+procedure TUpdateWindowThread.RequestUpdateWindow;
+begin
+  ContentValid := True;
+  UpdateWindowEvent.SetEvent;
+end;
+
+procedure TUpdateWindowThread.TerminatedSet;
+begin
+  UpdateWindowEvent.SetEvent;
 end;
 
 end.

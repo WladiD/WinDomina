@@ -9,12 +9,11 @@ uses
   System.UITypes,
   System.Math,
   Winapi.Windows,
-  Winapi.D2D1,
   Vcl.Graphics,
-  Vcl.Direct2D,
   Vcl.Forms,
   Vcl.Controls,
 
+  GR32,
   AnyiQuack,
   AQPSystemTypesAnimations,
   WindowEnumerator,
@@ -22,8 +21,7 @@ uses
   WinDomina.Types,
   WinDomina.Layer,
   WinDomina.WindowTools,
-  WinDomina.Registry,
-  WinDomina.Types.Drawing;
+  WinDomina.Registry;
 
 type
   TTile = class
@@ -78,11 +76,8 @@ type
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
 
-    function HasMainContent(const DrawContext: IDrawContext;
-      var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean; override;
-    procedure RenderMainContent(const DrawContext: IDrawContext;
-      const LayerParams: TD2D1LayerParameters); override;
-    procedure InvalidateMainContentResources; override;
+    function HasMainContent: Boolean; override;
+    procedure RenderMainContent(Target: TBitmap32); override;
 
     property TileGrid: TTileGrid read FTileGrid;
   end;
@@ -464,68 +459,62 @@ begin
   end;
 end;
 
-function TGridLayer.HasMainContent(const DrawContext: IDrawContext;
-  var LayerParams: TD2D1LayerParameters; out Layer: ID2D1Layer): Boolean;
+function TGridLayer.HasMainContent: Boolean;
 begin
   Result := IsLayerActive;
-  if not Result then
-    Exit;
 end;
 
-procedure TGridLayer.RenderMainContent(const DrawContext: IDrawContext;
-  const LayerParams: TD2D1LayerParameters);
+procedure TGridLayer.RenderMainContent(Target: TBitmap32);
 var
-  UnselectedBrush: ID2D1SolidColorBrush;
-  SelectedBrush: ID2D1SolidColorBrush;
-  GrayBrush, BlackBrush: ID2D1SolidColorBrush;
-  RT: ID2D1RenderTarget;
   TileNum, TileX, TileY: Integer;
-  TextFormat, TextFormatHollow: IDWriteTextFormat;
 
   procedure DrawTile(Rect: TRect);
   var
     TileText: string;
   begin
-    RT.DrawRectangle(Rect, BlackBrush, 4);
+    Target.FrameRectTS(Rect, clBlack32);
     Rect.Inflate(-4, -4);
-    RT.DrawRectangle(Rect, SelectedBrush, 2);
-
-//    Rect.Inflate(-5, -5);
-//    RT.FillRectangle(Rect, UnselectedBrush);
+    Target.FrameRectTS(Rect, clWhite32);
 
     TileText := IntToStr(TileNum);
 
-    RT.DrawText(PChar(TileText), Length(TileText), TextFormatHollow, Rect, SelectedBrush);
-    RT.DrawText(PChar(TileText), Length(TileText), TextFormat, Rect, BlackBrush);
+    Target.Font.Color := clWhite;
+    Target.Font.Size := 24;
+    Target.TextoutW(Rect, DT_CENTER or DT_VCENTER, TileText);
+
+    Target.Font.Color := clBlack;
+    Target.Font.Size := 20;
+    Target.TextoutW(Rect, DT_CENTER or DT_VCENTER, TileText);
+
+//    RT.DrawText(PChar(TileText), Length(TileText), TextFormatHollow, Rect, SelectedBrush);
+//    RT.DrawText(PChar(TileText), Length(TileText), TextFormat, Rect, BlackBrush);
   end;
 
 begin
-  inherited RenderMainContent(DrawContext, LayerParams);
+  inherited RenderMainContent(Target);
 
-  RT := DrawContext.RenderTarget;
+//  RT := DrawContext.RenderTarget;
 
-  RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
-  RT.CreateSolidColorBrush(D2D1ColorF(clBlack), nil, BlackBrush);
-  RT.CreateSolidColorBrush(D2D1ColorF(clWhite), nil, SelectedBrush);
-  RT.CreateSolidColorBrush(D2D1ColorF(clWhite, 0.8), nil, UnselectedBrush);
-  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_THIN,
-    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 96, 'de-de', TextFormat);
-  TextFormat.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-  TextFormat.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+//  RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
+//  RT.CreateSolidColorBrush(D2D1ColorF(clBlack), nil, BlackBrush);
+//  RT.CreateSolidColorBrush(D2D1ColorF(clWhite), nil, SelectedBrush);
+//  RT.CreateSolidColorBrush(D2D1ColorF(clWhite, 0.8), nil, UnselectedBrush);
+  Target.Font.Name := 'Arial';
 
-  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_BOLD,
-    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 106, 'de-de', TextFormatHollow);
-  TextFormatHollow.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-  TextFormatHollow.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+//  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_THIN,
+//    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 96, 'de-de', TextFormat);
+//  TextFormat.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+//  TextFormat.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+//
+//  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_BOLD,
+//    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 106, 'de-de', TextFormatHollow);
+//  TextFormatHollow.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+//  TextFormatHollow.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
       DrawTile(TileGrid[TileX][TileY].Rect);
-end;
-
-procedure TGridLayer.InvalidateMainContentResources;
-begin
-  UpdateTileGrid;
 end;
 
 end.

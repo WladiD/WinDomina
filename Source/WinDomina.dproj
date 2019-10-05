@@ -114,7 +114,6 @@
         <DCCReference Include="WinDomina.Layer.Mover.pas"/>
         <DCCReference Include="WinDomina.Registry.pas"/>
         <DCCReference Include="WinDomina.KBHKLib.pas"/>
-        <DCCReference Include="WinDomina.Types.Drawing.pas"/>
         <DCCReference Include="WinDomina.Form.Log.pas">
             <Form>LogForm</Form>
             <FormType>dfm</FormType>
