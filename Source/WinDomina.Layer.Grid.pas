@@ -14,6 +14,8 @@ uses
   Vcl.Controls,
 
   GR32,
+  GR32_Polygons,
+  GR32_VectorUtils,
   AnyiQuack,
   AQPSystemTypesAnimations,
   WindowEnumerator,
@@ -34,6 +36,10 @@ type
 
     // Das Ziel-Rechteck, welches effektiv benutzt werden soll
     TargetRect: TRect;
+
+    NumBitmap: TBitmap32;
+
+    destructor Destroy; override;
   end;
 
   TTileGrid = array [0..2] of array [0..2] of TTile;
@@ -56,7 +62,9 @@ type
     QuotientGridStyle: TQuotientGridStyle;
     FirstTileNumKey: Integer;
     SecondTileNumKey: Integer;
+    FSmallestNumSize: TSize;
 
+    procedure UpdateNumBitmaps(NewSmallestNumSize: TSize);
     procedure CalcCurrentTileGrid(var TileGrid: TTileGrid);
     procedure UpdateTileGrid;
 
@@ -215,6 +223,81 @@ begin
   Result := 400;
 end;
 
+procedure TGridLayer.UpdateNumBitmaps(NewSmallestNumSize: TSize);
+var
+  TileNum, TileX, TileY, FontSize: Integer;
+  TileText: string;
+
+  function CalcFontSize(Bitmap: TBitmap32): Integer;
+  var
+    PrevSize: Integer;
+    Extent: TSize;
+  begin
+    PrevSize := 0;
+    Result := 12;
+    while True do
+    begin
+      Bitmap.Font.Size := -Result;
+      Extent := Bitmap.TextExtent(TileText);
+      if (Extent.cx < Bitmap.Width) and (Extent.cy < Bitmap.Height) then
+        Inc(Result)
+      else
+        Exit(PrevSize);
+      PrevSize := Result
+    end;
+  end;
+
+  procedure RenderNumBitmap(Tile: TTile);
+  var
+    NB: TBitmap32;
+    NumSize: TSize;
+    Color: TColor32;
+    BGRect: TRect;
+  begin
+    Tile.NumBitmap.Free;
+    if NewSmallestNumSize.cx < NewSmallestNumSize.cy then
+      BGRect := Rect(0, 0, NewSmallestNumSize.cx, NewSmallestNumSize.cx)
+    else
+      BGRect := Rect(0, 0, NewSmallestNumSize.cy, NewSmallestNumSize.cy);
+
+    NB := TBitmap32.Create(BGRect.Width, BGRect.Height);
+    Tile.NumBitmap := NB;
+    NB.Font.Name := 'Arial';
+    TileText := IntToStr(TileNum);
+
+    if FontSize = 0 then
+      FontSize := CalcFontSize(NB);
+
+    NB.FrameRectS(BGRect, clBlack32);
+    BGRect.Inflate(-1, -1);
+    NB.FrameRectS(BGRect, clBlack32);
+    BGRect.Inflate(-1, -1);
+    NB.FillRectTS(BGRect, SetAlpha(clWhite32, 180));
+
+    NB.Font.Size := FontSize;
+    NB.Font.Style := [];
+    Color := clBlack32;
+
+    NumSize := NB.TextExtent(TileText);
+    NB.RenderText((NB.Width - NumSize.cx) div 2,
+      (NB.Height - NumSize.cy) div 2, TileText, 3, Color);
+  end;
+
+begin
+  if (NewSmallestNumSize.cx = FSmallestNumSize.cx) and
+    (NewSmallestNumSize.cy = FSmallestNumSize.cy) then
+    Exit;
+
+  Logging.AddLog('Neue NumBitmaps generiert');
+  FSmallestNumSize := NewSmallestNumSize;
+
+  FontSize := 0;
+
+  for TileNum := 1 to 9 do
+    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
+      RenderNumBitmap(TileGrid[TileX][TileY]);
+end;
+
 procedure TGridLayer.CalcCurrentTileGrid(var TileGrid: TTileGrid);
 var
   XRemainCount, YRemainCount: Integer;
@@ -224,10 +307,16 @@ var
   WorkareaRect: TRect;
   XQuotient, YQuotient: Single;
   CurRect: System.Types.PRect;
+  SmallestNumSize: TSize;
 begin
   WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WAWidth := WorkareaRect.Width;
   WAHeight := WorkareaRect.Height;
+
+  SmallestNumSize.cx := Max(50, Round(WAWidth * 0.05));
+  SmallestNumSize.cy := Max(50, Round(WAHeight * 0.05));
+  UpdateNumBitmaps(SmallestNumSize);
+
   RemainWidth := WAWidth;
   RemainHeight := WAHeight;
 
@@ -477,58 +566,61 @@ procedure TGridLayer.RenderMainContent(Target: TBitmap32);
 var
   TileNum, TileX, TileY: Integer;
 
-  procedure DrawTile(Rect: TRect);
+  procedure DrawTile(Tile: TTile);
   var
-    TileText: string;
+    cc: Integer;
+    Rect: TRect;
+    NumX, NumY: Integer;
   begin
-    Target.FrameRectTS(Rect, clBlack32);
-    Rect.Inflate(-4, -4);
-    Target.FrameRectTS(Rect, clWhite32);
+    Rect := Tile.Rect;
+    for cc := 1 to 3 do
+    begin
+      Target.FrameRectS(Rect, clBlack32);
+      Rect.Inflate(-1, -1);
+    end;
 
-    TileText := IntToStr(TileNum);
+    for cc := 1 to 3 do
+    begin
+      Target.FrameRectS(Rect, clWhite32);
+      Rect.Inflate(-1, -1);
+    end;
 
-    Target.Font.Color := clWhite;
-    Target.Font.Size := 24;
-    Target.TextoutW(Rect, DT_CENTER or DT_VCENTER, TileText);
+    NumX := Rect.Left + ((Rect.Width - Tile.NumBitmap.Width) div 2);
+    NumY := Rect.Top + ((Rect.Height - Tile.NumBitmap.Height) div 2);
+    Target.Draw(NumX, NumY, Tile.NumBitmap);
 
-    Target.Font.Color := clBlack;
-    Target.Font.Size := 20;
-    Target.TextoutW(Rect, DT_CENTER or DT_VCENTER, TileText);
+    // Diese Variante ist um den Faktor 5-7 langsamer
+//    Target.FillRectS(Rect, clBlack32);
+//    Rect.Inflate(-3, -3);
+//    Target.FillRectS(Rect, clWhite32);
+//    Rect.Inflate(-3, -3);
+//    Target.FillRectS(Rect, SetAlpha(clBlack32, 0));
 
-//    RT.DrawText(PChar(TileText), Length(TileText), TextFormatHollow, Rect, SelectedBrush);
-//    RT.DrawText(PChar(TileText), Length(TileText), TextFormat, Rect, BlackBrush);
+    // Diese Variante ist noch langsamer, ca. 50 mal langsamer
+//    PolylineFS(Target, Rectangle(FloatRect(Rect)), clBlack32, True, 3);
+//    Rect.Inflate(-4, -4);
+//    PolylineFS(Target, Rectangle(FloatRect(Rect)), clWhite32, True, 3);
   end;
 
 begin
   inherited RenderMainContent(Target);
 
-//  RT := DrawContext.RenderTarget;
-
-//  RT.CreateSolidColorBrush(D2D1ColorF(clGray), nil, GrayBrush);
-//  RT.CreateSolidColorBrush(D2D1ColorF(clBlack), nil, BlackBrush);
-//  RT.CreateSolidColorBrush(D2D1ColorF(clWhite), nil, SelectedBrush);
-//  RT.CreateSolidColorBrush(D2D1ColorF(clWhite, 0.8), nil, UnselectedBrush);
-  Target.Font.Name := 'Arial';
-
-
-//  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_THIN,
-//    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 96, 'de-de', TextFormat);
-//  TextFormat.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-//  TextFormat.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-//
-//  DrawContext.DirectWriteFactory.CreateTextFormat('Arial', nil, DWRITE_FONT_WEIGHT_BOLD,
-//    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 106, 'de-de', TextFormatHollow);
-//  TextFormatHollow.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-//  TextFormatHollow.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
-      DrawTile(TileGrid[TileX][TileY].Rect);
+      DrawTile(TileGrid[TileX][TileY]);
 end;
 
 procedure TGridLayer.Invalidate;
 begin
   UpdateTileGrid;
+end;
+
+{ TTile }
+
+destructor TTile.Destroy;
+begin
+  NumBitmap.Free;
+  inherited Destroy;
 end;
 
 end.

@@ -492,8 +492,8 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
     if not ((FVisible and (BoundsRect <> Workarea)) or ForceMode) then
       Exit;
 
-    Logging.AddLog(Format('AdjustWindowWorkarea called with Workarea: TRect (Left: %d; Top: %d; Right: %d; Bottom: %d;)',
-      [Workarea.Left, Workarea.Top, Workarea.Right, Workarea.Bottom]));
+//    Logging.AddLog(Format('AdjustWindowWorkarea called with Workarea: TRect (Left: %d; Top: %d; Right: %d; Bottom: %d;)',
+//      [Workarea.Left, Workarea.Top, Workarea.Right, Workarea.Bottom]));
 
     MainBitmap.Lock;
     try
@@ -534,7 +534,6 @@ end;
 
 procedure TMainForm.UpdateWindowWorkareaDelayed(Delay: Integer);
 begin
-  Logging.AddLog('UpdateWindowWorkareaDelayed called');
   Take(Self)
     .CancelDelays(UpdateWindowWorkareaDelayID)
     .EachDelay(Delay,
