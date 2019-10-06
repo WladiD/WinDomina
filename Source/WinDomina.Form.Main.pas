@@ -69,6 +69,8 @@ type
     UpdateWindowWorkareaDelayID: Integer;
     PushChangedWindowsPositionsDelayID: Integer;
     TargetWindowListenerIntervalID: Integer;
+    TargetWindowChangedDelayID: Integer;
+    TargetWindowMovedDelayID: Integer;
 
     var
     FVisible: Boolean;
@@ -94,10 +96,7 @@ type
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
     procedure DominaModeChanged;
 
-    procedure AdjustWindowWorkarea(Workarea: TRect);
-    procedure AdjustWindowWorkareaFromPoint(Point: TPoint);
-    procedure AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
-    procedure UpdateWindowWorkarea;
+    procedure UpdateWindowWorkarea(ForceMode: Boolean = False; NewWorkarea: PRect = nil);
     procedure UpdateWindowWorkareaDelayed(Delay: Integer);
     procedure RenderWindowContent;
     procedure ClearWindowContent;
@@ -147,6 +146,7 @@ type
     Bitmap: TBitmap32;
     WindowHandle: HWND;
     ContentValid: Boolean;
+    WindowPosition: TPoint;
 
     procedure TerminatedSet; override;
     procedure Execute; override;
@@ -174,6 +174,8 @@ begin
   UpdateWindowWorkareaDelayID := TAQ.GetUniqueID;
   TargetWindowListenerIntervalID := TAQ.GetUniqueID;
   PushChangedWindowsPositionsDelayID := TAQ.GetUniqueID;
+  TargetWindowChangedDelayID := TAQ.GetUniqueID;
+  TargetWindowMovedDelayID := TAQ.GetUniqueID;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -383,8 +385,11 @@ begin
 end;
 
 procedure TMainForm.SetCurrentMonitor(Monitor: TMonitor);
+var
+  Rect: TRect;
 begin
-  AdjustWindowWorkareaFromMonitor(Monitor);
+  Rect := Monitor.WorkareaRect;
+  UpdateWindowWorkarea(False, @Rect);
 end;
 
 function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
@@ -476,44 +481,52 @@ begin
   ToggleDominaModeAction.Execute;
 end;
 
-// Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
-procedure TMainForm.AdjustWindowWorkarea(Workarea: TRect);
-begin
-  if not (FVisible or (BoundsRect <> Workarea)) then
-    Exit;
-
-  MainBitmap.Lock;
-  try
-    SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
-      SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
-    UpdateBoundsRect(Workarea);
-    MainBitmap.SetSize(Workarea.Width, Workarea.Height);
-  finally
-    MainBitmap.Unlock;
-  end;
-
-  RenderWindowContent;
-end;
-
-procedure TMainForm.AdjustWindowWorkareaFromPoint(Point: TPoint);
-begin
-  AdjustWindowWorkareaFromMonitor(Screen.MonitorFromPoint(Point));
-end;
-
-procedure TMainForm.AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
-begin
-  if Assigned(Monitor) then
-    AdjustWindowWorkarea(Monitor.WorkareaRect);
-end;
-
 // Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das
 // aktuelle Fenster befindet. Wenn kein Zielfenster vorhanden ist, so wird die Position des
 // Mauscursors verwendet.
-procedure TMainForm.UpdateWindowWorkarea;
+procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect);
+
+  // Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
+  procedure AdjustWindowWorkarea(Workarea: TRect);
+  begin
+    if not ((FVisible and (BoundsRect <> Workarea)) or ForceMode) then
+      Exit;
+
+    Logging.AddLog(Format('AdjustWindowWorkarea called with Workarea: TRect (Left: %d; Top: %d; Right: %d; Bottom: %d;)',
+      [Workarea.Left, Workarea.Top, Workarea.Right, Workarea.Bottom]));
+
+    MainBitmap.Lock;
+    try
+      FUpdateWindowThread.WindowPosition := Workarea.Location;
+      SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
+        SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
+      UpdateBoundsRect(Workarea);
+      MainBitmap.SetSize(Workarea.Width, Workarea.Height);
+    finally
+      MainBitmap.Unlock;
+    end;
+
+    GetActiveLayer.Invalidate;
+    RenderWindowContent;
+  end;
+
+  procedure AdjustWindowWorkareaFromMonitor(Monitor: TMonitor);
+  begin
+    if Assigned(Monitor) then
+      AdjustWindowWorkarea(Monitor.WorkareaRect);
+  end;
+
+  procedure AdjustWindowWorkareaFromPoint(Point: TPoint);
+  begin
+    AdjustWindowWorkareaFromMonitor(Screen.MonitorFromPoint(Point));
+  end;
+
 var
   TargetWindow: TWindow;
 begin
-  if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
+  if Assigned(NewWorkarea) then
+    AdjustWindowWorkarea(NewWorkarea^)
+  else if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
     AdjustWindowWorkareaFromMonitor(Screen.MonitorFromRect(TargetWindow.Rect))
   else
     AdjustWindowWorkareaFromPoint(Mouse.CursorPos);
@@ -521,6 +534,7 @@ end;
 
 procedure TMainForm.UpdateWindowWorkareaDelayed(Delay: Integer);
 begin
+  Logging.AddLog('UpdateWindowWorkareaDelayed called');
   Take(Self)
     .CancelDelays(UpdateWindowWorkareaDelayID)
     .EachDelay(Delay,
@@ -569,9 +583,29 @@ end;
 
 // Sollte aufgerufen werden, wenn sich das Zielfenster verändert
 procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
+var
+  Delay: Integer;
 begin
-  UpdateWindowWorkareaDelayed(500);
-  GetActiveLayer.TargetWindowChanged;
+  Delay := GetActiveLayer.GetTargetWindowChangedDelay;
+
+  if Delay = 0 then
+  begin
+    UpdateWindowWorkarea;
+    GetActiveLayer.TargetWindowChanged;
+  end
+  else if Delay > 0 then
+  begin
+    UpdateWindowWorkareaDelayed(Delay);
+    Take(GetActiveLayer)
+      .CancelDelays(TargetWindowChangedDelayID)
+      .EachDelay(Delay,
+        function(AQ: TAQ; O: TObject): Boolean
+        begin
+          if GetActiveLayer = O then
+            GetActiveLayer.TargetWindowChanged;
+          Result := True;
+        end, TargetWindowChangedDelayID);
+  end;
 
   // Damit die Position des Zielfensters im Positioner erfasst wird
   WindowPositioner.EnterWindow(NewTargetWindowHandle);
@@ -580,9 +614,29 @@ end;
 
 // Sollte aufgerufen werden, wenn sich die Position des Zielfenster ändert
 procedure TMainForm.DoTargetWindowMoved;
+var
+  Delay: Integer;
 begin
-  UpdateWindowWorkareaDelayed(500);
-  GetActiveLayer.TargetWindowMoved;
+  Delay := GetActiveLayer.GetTargetWindowMovedDelay;
+
+  if Delay = 0 then
+  begin
+    UpdateWindowWorkarea;
+    GetActiveLayer.TargetWindowMoved;
+  end
+  else if Delay > 0 then
+  begin
+    UpdateWindowWorkareaDelayed(Delay);
+    Take(GetActiveLayer)
+      .CancelDelays(TargetWindowMovedDelayID)
+      .EachDelay(Delay,
+        function(AQ: TAQ; O: TObject): Boolean
+        begin
+          if GetActiveLayer = O then
+            GetActiveLayer.TargetWindowMoved;
+          Result := True;
+        end, TargetWindowMovedDelayID);
+  end;
 
   // Die geänderte Position des Fensters soll verzögert auch im Positionierungsstack erfasst werden
   Take(Self)
@@ -768,12 +822,13 @@ begin
   LogForm.LogMemo.Lines.Clear;
 
   FVisible := True;
-  UpdateWindowWorkarea;
 
   if Assigned(FLastUsedLayer) then
     EnterLayer(FLastUsedLayer)
   else
     EnterLayer(FLayers.First);
+
+  UpdateWindowWorkarea(True);
   DominaModeChanged;
 
   StartTargetWindowListener;
@@ -887,6 +942,7 @@ end;
 constructor TUpdateWindowThread.Create;
 begin
   UpdateWindowEvent := TEvent.Create(nil, False, False, '');
+  WindowPosition := GR32.Point(0, 0);
 
   inherited Create(False);
 end;
@@ -897,12 +953,10 @@ procedure TUpdateWindowThread.Execute;
   var
     Info: TUpdateLayeredWindowInfo;
     SourcePosition: TPoint;
-    WindowPosition: TPoint;
     Blend: TBlendFunction;
     Size: TSize;
   begin
     SourcePosition := GR32.Point(0, 0);
-    WindowPosition := GR32.Point(0, 0);
     Blend.BlendOp := AC_SRC_OVER;
     Blend.BlendFlags := 0;
     Blend.SourceConstantAlpha := 255;

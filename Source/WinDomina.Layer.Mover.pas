@@ -53,6 +53,7 @@ type
 
     procedure TargetWindowChanged; override;
     procedure TargetWindowMoved; override;
+    procedure Invalidate; override;
 
     function HasMainContent: Boolean; override;
     procedure RenderMainContent(Target: TBitmap32); override;
@@ -182,6 +183,11 @@ begin
 end;
 
 procedure TMoverLayer.TargetWindowMoved;
+begin
+  TargetWindowChangedOrMoved;
+end;
+
+procedure TMoverLayer.Invalidate;
 begin
   TargetWindowChangedOrMoved;
 end;

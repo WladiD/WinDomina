@@ -44,6 +44,7 @@ type
 
     function HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
     function HasTargetWindow(out Window: TWindow): Boolean; overload;
+    procedure InvalidateMainContent; virtual;
 
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 
@@ -60,10 +61,13 @@ type
 
     function HasMainContent: Boolean; virtual;
     procedure RenderMainContent(Target: TBitmap32); virtual;
-    procedure InvalidateMainContent; virtual;
 
     procedure TargetWindowChanged; virtual;
     procedure TargetWindowMoved; virtual;
+    procedure Invalidate; virtual;
+
+    function GetTargetWindowChangedDelay: Integer; virtual;
+    function GetTargetWindowMovedDelay: Integer; virtual;
 
     function GetDisplayName: string; virtual;
 
@@ -215,8 +219,12 @@ begin
   MainContentChanged := False;
 end;
 
-// Hier sollten die verwendeten Direct2D-Ressourcen verworfen werden, die evtl. beim zeichnen
-// zwischengespeichert wurden.
+// Erklärt das Layer für ungültig und erzwingt es sich zu aktualisieren
+procedure TBaseLayer.Invalidate;
+begin
+
+end;
+
 // In den abgeleiteten Klassen sollte der inherited-Aufruf dieser Methode am Ende der abgeleiteten
 // Prozedur erfolgen.
 procedure TBaseLayer.InvalidateMainContent;
@@ -245,6 +253,20 @@ end;
 procedure TBaseLayer.TargetWindowMoved;
 begin
 
+end;
+
+// Liefert die Anzahl der Millisekunden nach denen das Event TargetWindowChanged getriggert werden
+// soll. Bei 0 wird sofort getriggert.
+function TBaseLayer.GetTargetWindowChangedDelay: Integer;
+begin
+  Result := 0;
+end;
+
+// Liefert die Anzahl der Millisekunden nach denen das Event TargetWindowMoved getriggert werden
+// soll. Bei 0 wird sofort getriggert.
+function TBaseLayer.GetTargetWindowMovedDelay: Integer;
+begin
+  Result := 0;
 end;
 
 // Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann

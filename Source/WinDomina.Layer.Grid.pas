@@ -78,6 +78,8 @@ type
 
     function HasMainContent: Boolean; override;
     procedure RenderMainContent(Target: TBitmap32); override;
+    procedure Invalidate; override;
+    function GetTargetWindowMovedDelay: Integer; override;
 
     property TileGrid: TTileGrid read FTileGrid;
   end;
@@ -204,6 +206,13 @@ procedure TGridLayer.ExitLayer;
 begin
   AddLog('TGridLayer.ExitLayer');
   inherited ExitLayer;
+end;
+
+function TGridLayer.GetTargetWindowMovedDelay: Integer;
+begin
+  // Da das Grid auf einem anderen Monitor als das Zielfenster sein könnte, kommt es ohne
+  // diese Verzögerung zu einem Sprungwechsel des Monitors während das Fenster bewegt wird.
+  Result := 400;
 end;
 
 procedure TGridLayer.CalcCurrentTileGrid(var TileGrid: TTileGrid);
@@ -515,6 +524,11 @@ begin
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
       DrawTile(TileGrid[TileX][TileY].Rect);
+end;
+
+procedure TGridLayer.Invalidate;
+begin
+  UpdateTileGrid;
 end;
 
 end.
