@@ -660,26 +660,25 @@ begin
   WholeStopper := TStopwatch.StartNew;
 {$ENDIF}
 
+{$IFDEF BOTTLENECK_LOG}
+  BottleneckStopper := TStopwatch.StartNew;
+{$ENDIF}
+
   MainBitmap.Lock;
   try
     if HasActiveLayer(Layer) and Layer.HasMainContent then
     begin
-{$IFDEF BOTTLENECK_LOG}
-      BottleneckStopper := TStopwatch.StartNew;
-{$ENDIF}
-
       Layer.RenderMainContent(MainBitmap);
-
-{$IFDEF BOTTLENECK_LOG}
-      BottleneckStopper.Stop;
-      Logging.AddLog('Dauer RenderMainContent ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
-{$ENDIF}
     end;
 
     FUpdateWindowThread.RequestUpdateWindow;
   finally
     MainBitmap.Unlock;
   end;
+{$IFDEF BOTTLENECK_LOG}
+  BottleneckStopper.Stop;
+  Logging.AddLog('Dauer Init/RenderMainContent/RequestUpdateWindow ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
+{$ENDIF}
 
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper.Stop;

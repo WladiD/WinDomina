@@ -25,12 +25,9 @@ type
 
   TBaseLayer = class
   private
-    class var
-    MainContentLoopTimerID: Integer;
-    LayerInvalidateDelayID: Integer;
-  private
     FOnMainContentChanged: TNotifyEvent;
     FAnimations: TAnimationList;
+    FInvalidateMainContentLock: Boolean;
 
     procedure DoMainContentChanged;
 
@@ -38,7 +35,6 @@ type
     FIsLayerActive: Boolean;
     FMonitorHandler: IMonitorHandler;
     FWindowsHandler: IWindowsHandler;
-    MainContentChanged: Boolean;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
 
@@ -102,8 +98,7 @@ uses
 
 class constructor TBaseLayer.Create;
 begin
-  MainContentLoopTimerID := TAQ.GetUniqueID;
-  LayerInvalidateDelayID := TAQ.GetUniqueID;
+
 end;
 
 constructor TBaseLayer.Create;
@@ -216,7 +211,6 @@ procedure TBaseLayer.DoMainContentChanged;
 begin
   if Assigned(FOnMainContentChanged) then
     FOnMainContentChanged(Self);
-  MainContentChanged := False;
 end;
 
 // Erklärt das Layer für ungültig und erzwingt es sich zu aktualisieren
@@ -229,18 +223,22 @@ end;
 // Prozedur erfolgen.
 procedure TBaseLayer.InvalidateMainContent;
 begin
-  if not MainContentChanged then
-  begin
-    MainContentChanged := True;
-    Take(Self)
-      .CancelDelays(LayerInvalidateDelayID)
-      .EachDelay(5,
-        function(AQ: TAQ; O: TObject): Boolean
-        begin
-          DoMainContentChanged;
-          Result := True;
-        end, LayerInvalidateDelayID);
-  end;
+  // Diese Vorbedingung spart sehr viel Energie ein!
+  // Denn sie sorgt dafür, dass man sie aus den abgeleiteten Layern so oft aufrufen kann wie man
+  // will und sie triggert dennoch nur im vordefinierten Intervall.
+  if FInvalidateMainContentLock then
+    Exit;
+
+  FInvalidateMainContentLock := True;
+
+  Take(Self)
+    .EachDelay(5,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        FInvalidateMainContentLock := False;
+        DoMainContentChanged;
+        Result := True;
+      end);
 end;
 
 // Teilt dem Layer mit, dass sich das Zielfenster verändert hat

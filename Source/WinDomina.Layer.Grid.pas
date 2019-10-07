@@ -280,7 +280,7 @@ var
 
     NumSize := NB.TextExtent(TileText);
     NB.RenderText((NB.Width - NumSize.cx) div 2,
-      (NB.Height - NumSize.cy) div 2, TileText, 3, Color);
+      (NB.Height - NumSize.cy) div 2, TileText, 4, Color);
   end;
 
 begin
