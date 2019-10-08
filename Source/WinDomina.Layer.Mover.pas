@@ -171,7 +171,6 @@ procedure TMoverLayer.CreateSwitchTargetNumberForms;
   begin
     WinRect := AssocWindow.Rect;
     Result := TNumberForm.Create(nil);
-    Result.PopupParent := Screen.ActiveForm;
     Result.AssignedToWindow := AssocWindow.Handle;
     KeySquareSize := GetRefRectKeySquareSize(WinRect);
     Result.Show;
@@ -188,7 +187,7 @@ begin
 
   SwitchTargetsCount := Min(9, FSwitchTargets.Count - 1);
 
-  for cc := 0 to SwitchTargetsCount do
+  for cc := SwitchTargetsCount downto 0 do
   begin
     NumberForm := CreateSwitchTargetNumberForm(FSwitchTargets[cc]);
     NumberForm.MainLabel.Caption := IntToStr(cc);

@@ -13,6 +13,7 @@ object NumberForm: TNumberForm
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  PopupMode = pmAuto
   PixelsPerInch = 96
   TextHeight = 13
   object Shape1: TShape
