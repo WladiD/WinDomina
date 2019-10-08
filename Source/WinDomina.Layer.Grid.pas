@@ -470,6 +470,7 @@ end;
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 var
   TileNum: Integer;
+  Monitor: TMonitor;
 begin
   if IsTileNumKey(Key, TileNum) then
   begin
@@ -492,6 +493,12 @@ begin
 
       QuotientGrid := GetQuotientGridArray(QuotientGridStyle);
       UpdateTileGrid;
+      Handled := True;
+    end;
+    vkTab:
+    begin
+      if MonitorHandler.HasNextMonitor(Monitor) then
+        MonitorHandler.SetCurrentMonitor(Monitor);
       Handled := True;
     end;
   end;

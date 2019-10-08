@@ -889,7 +889,6 @@ var
   Handled: Boolean;
   Key: Integer;
   Layer, CurActiveLayer: TBaseLayer;
-  Monitor: TMonitor;
 
   procedure PopPrevKnownWindowPosition;
   var
@@ -928,9 +927,6 @@ begin
   if not Handled then
   begin
     case Key of
-      vkTab:
-        if HasNextMonitor(Monitor) then
-          SetCurrentMonitor(Monitor);
       vkEscape:
         ExitDominaMode;
       vkF12:
