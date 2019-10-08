@@ -20,6 +20,7 @@ function WindowStyleToString(Style: Long): string;
 function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
 function GetWindowNonClientOversize(Window: THandle): TRect;
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
+procedure BringWindowToTop(Window: THandle);
 
 procedure SwitchToPreviouslyFocusedAppWindow;
 function GetTaskbarHandle: THandle;
@@ -195,6 +196,28 @@ begin
 
   Result := Winapi.Windows.SetWindowPos(hWnd, hWndInsertAfter, Rect.Left, Rect.Top,
     Rect.Width, Rect.Height, Flags);
+end;
+
+procedure BringWindowToTop(Window: THandle);
+begin
+  SetWindowPos(Window, HWND_TOPMOST, 0, 0, 0, 0,
+    SWP_NOACTIVATE or SWP_NOMOVE or SWP_NOSIZE);
+  SetWindowPos(Window, HWND_NOTOPMOST, 0, 0, 0, 0,
+    SWP_NOACTIVATE or SWP_NOMOVE or SWP_NOSIZE);
+
+  // Die folgende Variante hat auch funktioniert, ist aber ineffizient und fasst mehr
+  // (eigentlich unbeteiligte) Fenster an. Aber vielleicht braucht man das einmal...
+//    DominaTargets := DominaTargets.Clone;
+//    try
+//      SwitchTargetNewIndex := DominaTargets.IndexOf(SwitchTargetWindow.Handle);
+//
+//      for cc := 0 to SwitchTargetNewIndex - 1 do
+//        if (cc < DominaTargets.Count) and Assigned(DominaTargets[cc]) then
+//          SetWindowPos(DominaTargets[cc].Handle, SwitchTargetWindow.Handle, 0, 0, 0, 0,
+//            SWP_NOACTIVATE or SWP_NOMOVE or SWP_NOSIZE);
+//    finally
+//      DominaTargets.Free;
+//    end;
 end;
 
 procedure SwitchToPreviouslyFocusedAppWindow;

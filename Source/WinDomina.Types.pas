@@ -100,7 +100,26 @@ type
     CommonPath: string;
   end;
 
+function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
+
 implementation
+
+function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
+begin
+  Result := True;
+  case VirtualKey of
+    vkLeft:
+      Direction := dirLeft;
+    vkRight:
+      Direction := dirRight;
+    vkUp:
+      Direction := dirUp;
+    vkDown:
+      Direction := dirDown;
+  else
+    Result := False;
+  end;
+end;
 
 { TKeyStates }
 

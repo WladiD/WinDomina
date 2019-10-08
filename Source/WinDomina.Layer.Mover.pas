@@ -19,12 +19,14 @@ uses
   WindowEnumerator,
   AnyiQuack,
   AQPSystemTypesAnimations,
+  AQPControlAnimations,
 
   WinDomina.Types,
   WinDomina.Layer,
   WinDomina.Registry,
   WinDomina.WindowTools,
-  WinDomina.WindowMatchSnap;
+  WinDomina.WindowMatchSnap,
+  WinDomina.Form.Number;
 
 type
   TArrowIndicator = class;
@@ -35,10 +37,22 @@ type
     AlignIndicatorAniID: Integer;
     ArrowIndicatorAniID: Integer;
   private
+    type
+    TNumberFormList = TObjectList<TNumberForm>;
+
+    var
     FVisibleWindowList: TWindowList;
+    FSwitchTargets: TWindowList;
+    FNumberFormList: TNumberFormList;
     FArrowIndicator: TArrowIndicator;
 
     procedure UpdateVisibleWindowList;
+    procedure UpdateSwitchTargetsWindowList;
+    procedure CreateSwitchTargetNumberForms;
+
+    function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
+    function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
+    function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
 
     procedure MoveSizeWindow(Direction: TDirection);
     procedure TargetWindowChangedOrMoved;
@@ -71,7 +85,6 @@ type
     procedure Draw(Target: TBitmap32);
 
     property RefRect: TRect read FRefRect write FRefRect;
-
   end;
 
   TAlignIndicatorAnimation = class(TAnimationBase)
@@ -85,6 +98,12 @@ type
   end;
 
 implementation
+
+function GetRefRectKeySquareSize(RefRect: TRect): Integer;
+begin
+  Result := Min(RefRect.Width, RefRect.Height);
+  Result := Max(50, Round(Result * 0.1));
+end;
 
 { TMoverLayer }
 
@@ -101,12 +120,15 @@ begin
   RegisterLayerActivationKeys([vkM]);
   FArrowIndicator := TArrowIndicator.Create;
   FArrowIndicator.FParentLayer := Self;
+  FNumberFormList := TNumberFormList.Create(True);
 end;
 
 destructor TMoverLayer.Destroy;
 begin
   FArrowIndicator.Free;
   FVisibleWindowList.Free;
+  FSwitchTargets.Free;
+  FNumberFormList.Free;
 
   inherited Destroy;
 end;
@@ -124,6 +146,48 @@ begin
     FVisibleWindowList.Remove(WinHandle);
 end;
 
+procedure TMoverLayer.UpdateSwitchTargetsWindowList;
+var
+  WinHandle: HWND;
+begin
+  FSwitchTargets.Free;
+  FSwitchTargets := WindowsHandler.CreateWindowList(wldSwitchTargets);
+  if Logging.HasWindowHandle(WinHandle) then
+    FSwitchTargets.Remove(WinHandle);
+  CreateSwitchTargetNumberForms;
+end;
+
+procedure TMoverLayer.CreateSwitchTargetNumberForms;
+
+  function CreateSwitchTargetNumberForm(AssocWindow: TWindow): TNumberForm;
+  var
+    KeySquareSize: Integer;
+    WinRect: TRect;
+  begin
+    WinRect := AssocWindow.Rect;
+    Result := TNumberForm.Create(nil);
+    Result.PopupParent := Screen.ActiveForm;
+    Result.AssignedToWindow := AssocWindow.Handle;
+    KeySquareSize := GetRefRectKeySquareSize(WinRect);
+    Result.Show;
+    Result.SetBounds(WinRect.Left + ((WinRect.Width - KeySquareSize) div 2),
+      WinRect.Top + ((WinRect.Height - KeySquareSize) div 2), KeySquareSize, KeySquareSize);
+  end;
+
+var
+  cc, SwitchTargetsCount: Integer;
+  NumberForm: TNumberForm;
+begin
+  SwitchTargetsCount := Min(9, FSwitchTargets.Count - 1);
+
+  for cc := 0 to SwitchTargetsCount do
+  begin
+    NumberForm := CreateSwitchTargetNumberForm(FSwitchTargets[cc]);
+    NumberForm.MainLabel.Caption := IntToStr(cc);
+    FNumberFormList.Add(NumberForm);
+  end;
+end;
+
 procedure TMoverLayer.EnterLayer;
 begin
   inherited EnterLayer;
@@ -131,11 +195,21 @@ begin
   FArrowIndicator.RefRect := TRect.Empty;
 
   TargetWindowChangedOrMoved;
+  UpdateSwitchTargetsWindowList;
 end;
 
 procedure TMoverLayer.ExitLayer;
+//var
+//  FirstSwitchTargetWindow, TargetWindow: TWindow;
 begin
   AddLog('TMoverLayer.ExitLayer');
+
+  // Die Rangfolge wiederherstellen. Damit das aktivierte Fenster nicht in den Hintergrund wandert.
+//  if HasSwitchTarget(0, FirstSwitchTargetWindow) and HasTargetWindow(TargetWindow) and
+//    (TargetWindow.Handle <> FirstSwitchTargetWindow.Handle) then
+//    BringWindowToTop(FirstSwitchTargetWindow.Handle);
+
+  FNumberFormList.Clear;
 
   inherited ExitLayer;
 end;
@@ -152,10 +226,27 @@ begin
   FArrowIndicator.Draw(Target);
 end;
 
+function TMoverLayer.HasSwitchTargetNumberForm(AssocWindowHandle: HWND;
+  out Form: TNumberForm): Boolean;
+var
+  TestForm: TNumberForm;
+begin
+  for TestForm in FNumberFormList do
+    if TestForm.AssignedToWindow = AssocWindowHandle then
+    begin
+      Form := TestForm;
+      Exit(True);
+    end;
+
+  Result := False;
+end;
+
 procedure TMoverLayer.TargetWindowChangedOrMoved;
 var
   TargetWindow: TWindow;
   RectLocal: TRect;
+  NumberForm: TNumberForm;
+  KeySquareSize: Integer;
 begin
   if not HasTargetWindow(TargetWindow) then
     Exit;
@@ -175,6 +266,20 @@ begin
           TArrowIndicator(RefObject).RefRect := NewRect;
           InvalidateMainContent;
         end, 500, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic));
+
+  if HasSwitchTargetNumberForm(TargetWindow.Handle, NumberForm) then
+  begin
+    RectLocal := TargetWindow.Rect;
+    KeySquareSize := GetRefRectKeySquareSize(RectLocal);
+
+    Take(NumberForm)
+      .CancelAnimations(ArrowIndicatorAniID)
+      .Plugin<TAQPControlAnimations>
+      .BoundsAnimation(
+        RectLocal.Left + ((RectLocal.Width - KeySquareSize) div 2),
+        RectLocal.Top + ((RectLocal.Height - KeySquareSize) div 2),
+        KeySquareSize, KeySquareSize, 250, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic));
+  end;
 end;
 
 procedure TMoverLayer.TargetWindowChanged;
@@ -190,6 +295,26 @@ end;
 procedure TMoverLayer.Invalidate;
 begin
   TargetWindowChangedOrMoved;
+end;
+
+function TMoverLayer.IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
+begin
+  Result := True;
+
+  if Key in [vkNumpad0..vkNumpad9] then
+    TargetIndex := (Key - vkNumpad0)
+  else if Key in [vk0..vk9] then
+    TargetIndex := (Key - vk0)
+  else
+    Result := False;
+end;
+
+function TMoverLayer.HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
+begin
+  Result := Assigned(FSwitchTargets) and (TargetIndex >= 0) and
+    (TargetIndex < FSwitchTargets.Count);
+  if Result then
+    Window := FSwitchTargets[TargetIndex];
 end;
 
 procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
@@ -357,30 +482,33 @@ begin
 end;
 
 procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
-var
-  Direction: TDirection;
+
+  function IsDirectionKey: Boolean;
+  var
+    Direction: TDirection;
+  begin
+    Result := WinDomina.Types.IsDirectionKey(Key, Direction);
+    if Result then
+      MoveSizeWindow(Direction);
+  end;
+
+  function IsSwitchTargetNumKey: Boolean;
+  var
+    SwitchTargetIndex: Integer;
+    SwitchTargetWindow, TargetWindow: TWindow;
+  begin
+    Result := Self.IsSwitchTargetNumKey(Key, SwitchTargetIndex) and
+      HasSwitchTarget(SwitchTargetIndex, SwitchTargetWindow) and
+      HasTargetWindow(TargetWindow) and (TargetWindow.Handle <> SwitchTargetWindow.Handle);
+    if Result then
+      BringWindowToTop(SwitchTargetWindow.Handle);
+  end;
+
 begin
   if WindowsHandler.GetWindowList(wldDominaTargets).Count = 0 then
     Exit;
 
-  Direction := dirUnknown;
-
-  case Key of
-    vkLeft:
-      Direction := dirLeft;
-    vkRight:
-      Direction := dirRight;
-    vkUp:
-      Direction := dirUp;
-    vkDown:
-      Direction := dirDown;
-  end;
-
-  if Direction <> dirUnknown then
-  begin
-    MoveSizeWindow(Direction);
-    Handled := True;
-  end;
+  Handled := IsDirectionKey or IsSwitchTargetNumKey;
 end;
 
 procedure TMoverLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
@@ -449,7 +577,7 @@ end;
 
 procedure TArrowIndicator.Draw(Target: TBitmap32);
 var
-  Square, ArrowSquare, ArrowIndent, RemainWidth, RemainHeight: Integer;
+  ContainSquare, ArrowSquare, ArrowIndent, RemainWidth, RemainHeight: Integer;
   ArrowSquare2, ArrowSquare3, ArrowRemainSquare: Integer;
   ArrowRemainHalfSquare: Single;
   PaintRect, ArrowRect: TRect;
@@ -475,17 +603,16 @@ var
   end;
 
 begin
-  Square := Min(RefRect.Width, RefRect.Height);
-  Square := Max(150, Round(Square * 0.3));
-  ArrowSquare := Square div 3;
+  ArrowSquare := GetRefRectKeySquareSize(RefRect);
   ArrowSquare2 := ArrowSquare * 2;
   ArrowSquare3 := ArrowSquare * 3;
+  ContainSquare := ArrowSquare3;
   ArrowIndent := Round(ArrowSquare * 0.25);
   ArrowRemainSquare := ArrowSquare - (ArrowIndent * 2);
   ArrowRemainHalfSquare := ArrowRemainSquare / 2;
 
-  RemainWidth := (RefRect.Width - Square) div 2;
-  RemainHeight := (RefRect.Height - Square) div 2;
+  RemainWidth := (RefRect.Width - ContainSquare) div 2;
+  RemainHeight := (RefRect.Height - ContainSquare) div 2;
 
   PaintRect := Rect(RefRect.Left + RemainWidth, RefRect.Top + RemainHeight,
     RefRect.Right - RemainWidth, RefRect.Bottom - RemainHeight);

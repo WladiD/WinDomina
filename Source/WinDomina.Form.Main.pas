@@ -68,7 +68,7 @@ type
     class var
     UpdateWindowWorkareaDelayID: Integer;
     PushChangedWindowsPositionsDelayID: Integer;
-    TargetWindowListenerIntervalID: Integer;
+    WindowsTrackingIntervalID: Integer;
     TargetWindowChangedDelayID: Integer;
     TargetWindowMovedDelayID: Integer;
 
@@ -106,9 +106,9 @@ type
   private
     FPrevTargetWindow: TWindow;
 
-    procedure StartTargetWindowListener;
-    procedure CheckTargetWindow;
-    procedure StopTargetWindowListener;
+    procedure StartWindowsTracking;
+    procedure CheckWindowsTracking;
+    procedure StopWindowsTracking;
     procedure DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
     procedure DoTargetWindowMoved;
 
@@ -172,7 +172,7 @@ uses
 class constructor TMainForm.Create;
 begin
   UpdateWindowWorkareaDelayID := TAQ.GetUniqueID;
-  TargetWindowListenerIntervalID := TAQ.GetUniqueID;
+  WindowsTrackingIntervalID := TAQ.GetUniqueID;
   PushChangedWindowsPositionsDelayID := TAQ.GetUniqueID;
   TargetWindowChangedDelayID := TAQ.GetUniqueID;
   TargetWindowMovedDelayID := TAQ.GetUniqueID;
@@ -431,7 +431,8 @@ function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
       end;
       wldSwitchTargets:
       begin
-        Result.MonitorFilter := True;
+        Result.OverlappedWindowsFilter := False;
+        Result.InactiveTopMostWindowsFilter := True;
       end;
     end;
   end;
@@ -499,7 +500,7 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
     try
       FUpdateWindowThread.WindowPosition := Workarea.Location;
       SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
-        SWP_SHOWWINDOW or SWP_NOACTIVATE {or SWP_NOSIZE or SWP_NOMOVE});
+        SWP_SHOWWINDOW or SWP_NOACTIVATE);
       UpdateBoundsRect(Workarea);
       MainBitmap.SetSize(Workarea.Width, Workarea.Height);
     finally
@@ -544,22 +545,28 @@ begin
       end, UpdateWindowWorkareaDelayID);
 end;
 
-procedure TMainForm.StartTargetWindowListener;
+procedure TMainForm.StartWindowsTracking;
 begin
   Take(Self)
-    .CancelIntervals(TargetWindowListenerIntervalID)
+    .CancelIntervals(WindowsTrackingIntervalID)
     .EachInterval(100,
       function(AQ: TAQ; O: TObject): Boolean
       begin
-        CheckTargetWindow;
+        CheckWindowsTracking;
         Result := False;
-      end, TargetWindowListenerIntervalID);
+      end, WindowsTrackingIntervalID);
 end;
 
-procedure TMainForm.CheckTargetWindow;
+procedure TMainForm.CheckWindowsTracking;
 var
   TargetWindow: TWindow;
 begin
+  // Diese Methode wird überwiegend aus einer verzögernden Methode aufgerufen. In bestimmten Fällen
+  // kann sie auch noch aufgerufen werden, wenn der Domina-Modus nicht mehr aktiv ist. Dann kann es
+  // hier zu Zugriffsverletzungen kommen. Dies soll diese Weiche verhindern.
+  if not IsDominaModeActivated then
+    Exit;
+
   UpdateWindowList(wldDominaTargets);
   if not GetWindowList(wldDominaTargets).HasFirst(TargetWindow) then
     Exit;
@@ -572,70 +579,84 @@ begin
   FPrevTargetWindow.Assign(TargetWindow);
 end;
 
-procedure TMainForm.StopTargetWindowListener;
+procedure TMainForm.StopWindowsTracking;
 begin
   Take(Self)
-    .CancelIntervals(TargetWindowListenerIntervalID);
+    .CancelIntervals(WindowsTrackingIntervalID);
   FPrevTargetWindow.Handle := 0;
   FPrevTargetWindow.Rect := TRect.Empty;
 end;
 
 // Sollte aufgerufen werden, wenn sich das Zielfenster verändert
 procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
-var
-  Delay: Integer;
-begin
-  Delay := GetActiveLayer.GetTargetWindowChangedDelay;
 
-  if Delay = 0 then
+  procedure NotifyTargetWindowChanged(Layer: TBaseLayer);
+  var
+    Delay: Integer;
   begin
-    UpdateWindowWorkarea;
-    GetActiveLayer.TargetWindowChanged;
-  end
-  else if Delay > 0 then
-  begin
-    UpdateWindowWorkareaDelayed(Delay);
-    Take(GetActiveLayer)
-      .CancelDelays(TargetWindowChangedDelayID)
-      .EachDelay(Delay,
-        function(AQ: TAQ; O: TObject): Boolean
-        begin
-          if GetActiveLayer = O then
-            GetActiveLayer.TargetWindowChanged;
-          Result := True;
-        end, TargetWindowChangedDelayID);
+    Delay := Layer.GetTargetWindowChangedDelay;
+
+    if Delay = 0 then
+    begin
+      UpdateWindowWorkarea;
+      Layer.TargetWindowChanged;
+    end
+    else if Delay > 0 then
+    begin
+      UpdateWindowWorkareaDelayed(Delay);
+      Take(Layer)
+        .CancelDelays(TargetWindowChangedDelayID)
+        .EachDelay(Delay,
+          function(AQ: TAQ; O: TObject): Boolean
+          begin
+            if GetActiveLayer = Layer then
+              Layer.TargetWindowChanged;
+            Result := True;
+          end, TargetWindowChangedDelayID);
+    end;
   end;
+
+begin
+  if wtTargetChanged in GetActiveLayer.GetRequiredWindowTrackings then
+    NotifyTargetWindowChanged(GetActiveLayer);
 
   // Damit die Position des Zielfensters im Positioner erfasst wird
   WindowPositioner.EnterWindow(NewTargetWindowHandle);
   WindowPositioner.ExitWindow;
 end;
 
-// Sollte aufgerufen werden, wenn sich die Position des Zielfenster ändert
+// Sollte aufgerufen werden, wenn sich die Position des Zielfensters ändert
 procedure TMainForm.DoTargetWindowMoved;
-var
-  Delay: Integer;
-begin
-  Delay := GetActiveLayer.GetTargetWindowMovedDelay;
 
-  if Delay = 0 then
+  procedure NotifyTargetWindowMoved(Layer: TBaseLayer);
+  var
+    Delay: Integer;
   begin
-    UpdateWindowWorkarea;
-    GetActiveLayer.TargetWindowMoved;
-  end
-  else if Delay > 0 then
-  begin
-    UpdateWindowWorkareaDelayed(Delay);
-    Take(GetActiveLayer)
-      .CancelDelays(TargetWindowMovedDelayID)
-      .EachDelay(Delay,
-        function(AQ: TAQ; O: TObject): Boolean
-        begin
-          if GetActiveLayer = O then
-            GetActiveLayer.TargetWindowMoved;
-          Result := True;
-        end, TargetWindowMovedDelayID);
+    Delay := Layer.GetTargetWindowMovedDelay;
+
+    if Delay = 0 then
+    begin
+      UpdateWindowWorkarea;
+      Layer.TargetWindowMoved;
+    end
+    else if Delay > 0 then
+    begin
+      UpdateWindowWorkareaDelayed(Delay);
+      Take(Layer)
+        .CancelDelays(TargetWindowMovedDelayID)
+        .EachDelay(Delay,
+          function(AQ: TAQ; O: TObject): Boolean
+          begin
+            if GetActiveLayer = Layer then
+              Layer.TargetWindowMoved;
+            Result := True;
+          end, TargetWindowMovedDelayID);
+    end;
   end;
+
+begin
+  if wtTargetMoved in GetActiveLayer.GetRequiredWindowTrackings then
+    NotifyTargetWindowMoved(GetActiveLayer);
 
   // Die geänderte Position des Fensters soll verzögert auch im Positionierungsstack erfasst werden
   Take(Self)
@@ -690,7 +711,7 @@ end;
 // Leert das Bitmap für das Layer-Window
 //
 // Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nächsten Start des Domina-Modus
-// für einen kurzen Moment der vorherige Inhalt sichtbar ist sein kann.
+// für einen kurzen Moment der vorherige Inhalt sichtbar sein kann.
 procedure TMainForm.ClearWindowContent;
 begin
   MainBitmap.Lock;
@@ -829,12 +850,12 @@ begin
   UpdateWindowWorkarea(True);
   DominaModeChanged;
 
-  StartTargetWindowListener;
+  StartWindowsTracking;
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 begin
-  StopTargetWindowListener;
+  StopWindowsTracking;
 
   LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;

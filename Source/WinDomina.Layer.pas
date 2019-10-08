@@ -23,6 +23,20 @@ type
   TAnimationBase = class;
   TAnimationList = TObjectList<TAnimationBase>;
 
+  // Verfügbar Fenster-Tracking-Features
+  TWindowTracking = (
+    // Änderung des Zielfensters
+    // Entsprechende Methode des Layers: TBaseLayer.TargetWindowChanged
+    wtTargetChanged,
+    // Bewegung oder Größenänderung des Zielfensters
+    // Entsprechende Methode des Layers: TBaseLayer.TargetWindowMoved
+    wtTargetMoved,
+    // Bewegung irgendeines Wechselzielfensters
+    // Das Zielfenster ist hiervon ausgenommen.
+    // Entsprechende Methode des Layers: TBaseLayer.SwitchTargetWindowMoved
+    wtAnySwitchTargetMoved);
+  TWindowTrackings = set of TWindowTracking;
+
   TBaseLayer = class
   private
     FOnMainContentChanged: TNotifyEvent;
@@ -60,10 +74,12 @@ type
 
     procedure TargetWindowChanged; virtual;
     procedure TargetWindowMoved; virtual;
+    procedure SwitchTargetWindowMoved(WindowHandle: HWND); virtual;
     procedure Invalidate; virtual;
 
     function GetTargetWindowChangedDelay: Integer; virtual;
     function GetTargetWindowMovedDelay: Integer; virtual;
+    function GetRequiredWindowTrackings: TWindowTrackings; virtual;
 
     function GetDisplayName: string; virtual;
 
@@ -242,13 +258,25 @@ begin
 end;
 
 // Teilt dem Layer mit, dass sich das Zielfenster verändert hat
+//
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetChanged enthält.
 procedure TBaseLayer.TargetWindowChanged;
 begin
 
 end;
 
 // Teilt dem Layer mit, dass das Zielfenster bewegt oder in der Größe verändert wurde
+//
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetMoved enthält.
 procedure TBaseLayer.TargetWindowMoved;
+begin
+
+end;
+
+// Teilt dem Layer mit, dass ein Wechselzielfenster bewegt oder in der Größe verändert wurde
+//
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtAnySwitchTargetMoved enthält.
+procedure TBaseLayer.SwitchTargetWindowMoved(WindowHandle: HWND);
 begin
 
 end;
@@ -266,6 +294,13 @@ function TBaseLayer.GetTargetWindowMovedDelay: Integer;
 begin
   Result := 0;
 end;
+
+// Teilt mit, welche Tracking-Features von dem Layer erwünscht sind
+function TBaseLayer.GetRequiredWindowTrackings: TWindowTrackings;
+begin
+  Result := [wtTargetChanged, wtTargetMoved];
+end;
+
 
 // Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann
 function TBaseLayer.GetDisplayName: string;

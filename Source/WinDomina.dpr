@@ -23,7 +23,8 @@ uses
   WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas',
   WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas',
   WinDomina.WindowPositioner in 'WinDomina.WindowPositioner.pas',
-  WinDomina.Types.Messages in 'WinDomina.Types.Messages.pas';
+  WinDomina.Types.Messages in 'WinDomina.Types.Messages.pas',
+  WinDomina.Form.Number in 'WinDomina.Form.Number.pas' {NumberForm};
 
 {$R *.res}
 
