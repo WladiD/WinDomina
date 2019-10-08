@@ -275,10 +275,14 @@ end;
 
 // Teilt dem Layer mit, dass ein Wechselzielfenster bewegt oder in der Größe verändert wurde
 //
+// HINWEIS: Nicht implementiert!
+// Theoretisch sah es danach aus, also ob es benötigt wird. Noch gab es aber keinen praktischen
+// Bedarf. Diese Methode wird noch nirgends aufgerufen.
+//
 // Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtAnySwitchTargetMoved enthält.
 procedure TBaseLayer.SwitchTargetWindowMoved(WindowHandle: HWND);
 begin
-
+  raise ENotImplemented.Create('Diese Methode ist noch ein rein theoretisches Konstrukt');
 end;
 
 // Liefert die Anzahl der Millisekunden nach denen das Event TargetWindowChanged getriggert werden
