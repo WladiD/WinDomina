@@ -45,6 +45,7 @@ type
     FSwitchTargets: TWindowList;
     FNumberFormList: TNumberFormList;
     FArrowIndicator: TArrowIndicator;
+    FShowNumberForms: Boolean;
 
     procedure UpdateVisibleWindowList;
     procedure UpdateSwitchTargetsWindowList;
@@ -53,6 +54,7 @@ type
     function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
     function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
     function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
+    procedure SetShowNumberForms(NewValue: Boolean);
 
     procedure MoveSizeWindow(Direction: TDirection);
     procedure TargetWindowChangedOrMoved;
@@ -74,6 +76,8 @@ type
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
+
+    property ShowNumberForms: Boolean read FShowNumberForms write SetShowNumberForms;
   end;
 
   TArrowIndicator = class
@@ -121,6 +125,7 @@ begin
   FArrowIndicator := TArrowIndicator.Create;
   FArrowIndicator.FParentLayer := Self;
   FNumberFormList := TNumberFormList.Create(True);
+  FShowNumberForms := True;
 end;
 
 destructor TMoverLayer.Destroy;
@@ -178,6 +183,9 @@ var
   cc, SwitchTargetsCount: Integer;
   NumberForm: TNumberForm;
 begin
+  if not ShowNumberForms then
+    Exit;
+
   SwitchTargetsCount := Min(9, FSwitchTargets.Count - 1);
 
   for cc := 0 to SwitchTargetsCount do
@@ -239,6 +247,19 @@ begin
     end;
 
   Result := False;
+end;
+
+procedure TMoverLayer.SetShowNumberForms(NewValue: Boolean);
+begin
+  if NewValue = FShowNumberForms then
+    Exit;
+
+  FShowNumberForms := NewValue;
+
+  if NewValue then
+    UpdateSwitchTargetsWindowList
+  else
+    FNumberFormList.Clear;
 end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
@@ -504,11 +525,18 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       BringWindowToTop(SwitchTargetWindow.Handle);
   end;
 
+  function IsSpaceKey: Boolean;
+  begin
+    Result := Key = vkSpace;
+    if Result then
+      ShowNumberForms := not ShowNumberForms;
+  end;
+
 begin
   if WindowsHandler.GetWindowList(wldDominaTargets).Count = 0 then
     Exit;
 
-  Handled := IsDirectionKey or IsSwitchTargetNumKey;
+  Handled := IsDirectionKey or IsSwitchTargetNumKey or IsSpaceKey;
 end;
 
 procedure TMoverLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
