@@ -12,6 +12,7 @@ uses
   System.Math,
   Winapi.Windows,
   Vcl.Forms,
+  Vcl.Controls,
 
   GR32,
   GR32_Polygons,
@@ -20,6 +21,7 @@ uses
   AnyiQuack,
   AQPSystemTypesAnimations,
   AQPControlAnimations,
+  SendInputHelper,
 
   WinDomina.Types,
   WinDomina.Layer,
@@ -54,6 +56,7 @@ type
     function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
     function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
     function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
+    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND);
     procedure SetShowNumberForms(NewValue: Boolean);
 
     procedure MoveSizeWindow(Direction: TDirection);
@@ -246,6 +249,30 @@ begin
     end;
 
   Result := False;
+end;
+
+// Führt einen virtuellen Mausklick auf das Zielfensterkürzel aus
+//
+// Auf diese Weise wird das Hauptfenster aktiviert, dies ist unverzichtbar für ein korrektes Setzen
+// des ForegroundWindow
+procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND);
+var
+  NumberForm: TNumberForm;
+  SIH: TSendInputHelper;
+  Center: TPoint;
+begin
+  if not HasSwitchTargetNumberForm(AssocWindowHandle, NumberForm) then
+    Exit;
+
+  SIH := TSendInputHelper.Create;
+  try
+    Center := NumberForm.BoundsRect.CenterPoint;
+    SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
+    SIH.AddMouseClick(mbLeft);
+    SIH.Flush;
+  finally
+    SIH.Free;
+  end;
 end;
 
 procedure TMoverLayer.SetShowNumberForms(NewValue: Boolean);
@@ -519,9 +546,14 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   begin
     Result := Self.IsSwitchTargetNumKey(Key, SwitchTargetIndex) and
       HasSwitchTarget(SwitchTargetIndex, SwitchTargetWindow) and
-      HasTargetWindow(TargetWindow) and (TargetWindow.Handle <> SwitchTargetWindow.Handle);
+      HasTargetWindow(TargetWindow);
     if Result then
-      BringWindowToTop(SwitchTargetWindow.Handle);
+    begin
+      if TargetWindow.Handle <> SwitchTargetWindow.Handle then
+        BringWindowToTop(SwitchTargetWindow.Handle);
+
+      VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle);
+    end;
   end;
 
   function IsSpaceKey: Boolean;

@@ -162,7 +162,7 @@ begin
   TargetRect := Window.Rect;
   TargetRect.Location := NewPos;
 
-  SetWindowPosInternal(Window, TargetRect, SWP_NOZORDER or SWP_NOSIZE);
+  SetWindowPosInternal(Window, TargetRect, SWP_NOZORDER or SWP_NOSIZE or SWP_NOACTIVATE);
 end;
 
 // Platziert das aktuelle Fenster an eine neue Position, hierbei wird (wenn möglich) auch die Größe
@@ -174,7 +174,7 @@ begin
   Window := CurrentWindow;
   UpdateWindowRect(Window);
 
-  SetWindowPosInternal(Window, NewPlace, SWP_NOZORDER);
+  SetWindowPosInternal(Window, NewPlace, SWP_NOZORDER or SWP_NOACTIVATE);
 end;
 
 // Stellt die zuletzt auf dem Stapel abgelegte Fensterposition für das aktuelle

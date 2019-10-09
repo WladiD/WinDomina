@@ -500,7 +500,7 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
     try
       FUpdateWindowThread.WindowPosition := Workarea.Location;
       SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
-        SWP_SHOWWINDOW or SWP_NOACTIVATE);
+        SWP_SHOWWINDOW{ or SWP_NOACTIVATE});
       UpdateBoundsRect(Workarea);
       MainBitmap.SetSize(Workarea.Width, Workarea.Height);
     finally
