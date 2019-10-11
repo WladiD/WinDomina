@@ -98,13 +98,13 @@ begin
     procedure(Source: TBitmap32; Rect: TRect)
     begin
       Info.hdcSrc := Source.Handle;
+
+      if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
+        RaiseLastOSError();
     end,
     Number + vk0,
     Rect(WindowPosition.X, WindowPosition.Y, WindowPosition.X + Size.cx, WindowPosition.Y + Size.cy),
     ksFlat);
-
-  if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
-    RaiseLastOSError();
 end;
 
 end.

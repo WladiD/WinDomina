@@ -308,7 +308,7 @@ procedure TMoverLayer.BringSwitchTargetNumberFormsToTop;
 var
   NumberForm: TNumberForm;
 begin
-  Logging.AddLog('BringSwitchTargetNumberFormsToTop called');
+//  Logging.AddLog('BringSwitchTargetNumberFormsToTop called');
 
   for NumberForm in FNumberFormList do
     SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
@@ -699,39 +699,14 @@ end;
 
 procedure TArrowIndicator.Draw(Target: TBitmap32);
 var
-  ContainSquare, ArrowSquare, ArrowIndent, RemainWidth, RemainHeight: Integer;
-  ArrowSquare2, ArrowSquare3, ArrowRemainSquare: Integer;
-  ArrowRemainHalfSquare: Single;
+  ContainSquare, ArrowSquare, RemainWidth, RemainHeight: Integer;
+  ArrowSquare2, ArrowSquare3: Integer;
   PaintRect, ArrowRect: TRect;
-
-  procedure DrawArrowRect;
-  begin
-    Target.FillRectTS(ArrowRect, SetAlpha(clWhite32, 250));
-    Target.FrameRectTS(ArrowRect, clBlack32);
-    ArrowRect.Inflate(1, 1);
-    Target.FrameRectTS(ArrowRect, clBlack32);
-  end;
-
-  procedure DrawArrow(const P1, P2, P3: TFloatPoint);
-  var
-    Points: TArrayOfFloatPoint;
-  begin
-    SetLength(Points, 3);
-    Points[0] := P1;
-    Points[1] := P2;
-    Points[2] := P3;
-
-    PolygonFS(Target, Points, clBlack32);
-  end;
-
 begin
   ArrowSquare := GetRefRectKeySquareSize(RefRect);
   ArrowSquare2 := ArrowSquare * 2;
   ArrowSquare3 := ArrowSquare * 3;
   ContainSquare := ArrowSquare3;
-  ArrowIndent := Round(ArrowSquare * 0.25);
-  ArrowRemainSquare := ArrowSquare - (ArrowIndent * 2);
-  ArrowRemainHalfSquare := ArrowRemainSquare / 2;
 
   RemainWidth := (RefRect.Width - ContainSquare) div 2;
   RemainHeight := (RefRect.Height - ContainSquare) div 2;
@@ -739,47 +714,30 @@ begin
   PaintRect := Rect(RefRect.Left + RemainWidth, RefRect.Top + RemainHeight,
     RefRect.Right - RemainWidth, RefRect.Bottom - RemainHeight);
 
-
   if TargetIndex >= 0 then
     KeyRenderManager.Render(Target, TargetIndex + vk0,
       Rect(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare,
       PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare2), ksFlat);
 
   // Pfeil nach Oben
-  ArrowRect := Rect(PaintRect.Left + ArrowSquare, PaintRect.Top,
-    PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare);
-  DrawArrowRect;
-  DrawArrow(
-    FloatPoint(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Top + ArrowIndent),
-    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent),
-    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
+  ArrowRect := Rect(PaintRect.Left + ArrowSquare - 1, PaintRect.Top - 1,
+    PaintRect.Left + ArrowSquare2 + 1, PaintRect.Top + ArrowSquare + 1);
+  KeyRenderManager.Render(Target, vkUp, ArrowRect, ksFlat);
 
   // Pfeil nach Rechts
-  ArrowRect := Rect(PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare,
-    PaintRect.Left + ArrowSquare3, PaintRect.Top + ArrowSquare2);
-  DrawArrowRect;
-  DrawArrow(
-    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
-    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare),
-    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Bottom - ArrowIndent));
+  ArrowRect := Rect(PaintRect.Left + ArrowSquare2 - 1, PaintRect.Top + ArrowSquare - 1,
+    PaintRect.Left + ArrowSquare3 + 1, PaintRect.Top + ArrowSquare2 + 1);
+  KeyRenderManager.Render(Target, vkRight, ArrowRect, ksFlat);
 
   // Pfeil nach Unten
-  ArrowRect := Rect(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare2,
-    PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare3);
-  DrawArrowRect;
-  DrawArrow(
-    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent),
-    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent),
-    FloatPoint(ArrowRect.Left + ArrowIndent + ArrowRemainHalfSquare, ArrowRect.Bottom - ArrowIndent));
+  ArrowRect := Rect(PaintRect.Left + ArrowSquare - 1, PaintRect.Top + ArrowSquare2 - 1,
+    PaintRect.Left + ArrowSquare2 + 1, PaintRect.Top + ArrowSquare3 + 1);
+  KeyRenderManager.Render(Target, vkDown, ArrowRect, ksFlat);
 
   // Pfeil nach Links
-  ArrowRect := Rect(PaintRect.Left, PaintRect.Top + ArrowSquare,
-    PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare2);
-  DrawArrowRect;
-  DrawArrow(
-    FloatPoint(ArrowRect.Left + ArrowIndent, ArrowRect.Top + ArrowIndent + ArrowRemainHalfSquare),
-    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Top + ArrowIndent),
-    FloatPoint(ArrowRect.Right - ArrowIndent, ArrowRect.Bottom - ArrowIndent));
+  ArrowRect := Rect(PaintRect.Left - 1, PaintRect.Top + ArrowSquare - 1,
+    PaintRect.Left + ArrowSquare + 1, PaintRect.Top + ArrowSquare2 + 1);
+  KeyRenderManager.Render(Target, vkLeft, ArrowRect, ksFlat);
 end;
 
 end.

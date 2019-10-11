@@ -228,7 +228,6 @@ var
   WorkareaRect: TRect;
   XQuotient, YQuotient: Single;
   CurRect: System.Types.PRect;
-  SmallestNumSize: TSize;
 begin
   WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WAWidth := WorkareaRect.Width;

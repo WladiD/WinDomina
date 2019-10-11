@@ -10,9 +10,11 @@ uses
   System.Generics.Collections,
   System.UITypes,
   System.Diagnostics,
+  System.Types,
   Vcl.Graphics,
 
   GR32,
+  GR32_Polygons,
   AnyiQuack;
 
 type
@@ -27,7 +29,7 @@ type
 
   TKeyRenderer = class
   public
-    procedure Render(const Key: TRenderKey; Target: TBitmap32); virtual;
+    procedure Render(const Key: TRenderKey; Target: TBitmap32; KeyRect: TRect); virtual;
   end;
 
   TKeyRendererClass = class of TKeyRenderer;
@@ -49,9 +51,11 @@ type
     end;
 
     TCachedKeys = TObjectDictionary<TRenderKey, TCachedKey>;
+    TRenderKeys = TList<TRenderKey>;
 
     var
     FCachedKeys: TCachedKeys;
+    FKnownFastRenderKeys: TRenderKeys;
     FKeyRenderer: TKeyRenderer;
     FKeyRendererClass: TKeyRendererClass;
     // Wird der Wert überschritten, wird der Bereinigungsvorgang ausgelöst
@@ -63,6 +67,9 @@ type
     procedure Cleanup;
     procedure SetKeyRendererClass(Value: TKeyRendererClass);
 
+    procedure AddKnownFastRenderKey(const RenderKey: TRenderKey);
+    function IsKnownFastRenderKey(const RenderKey: TRenderKey): Boolean;
+
   public
     class constructor Create;
     constructor Create;
@@ -71,8 +78,6 @@ type
     procedure Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect; State: TKeyState;
       Enabled: Boolean = True); overload;
     procedure Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect; State: TKeyState;
-      Enabled: Boolean = True); overload;
-    procedure Render(Target: TCanvas; VirtualKey: Integer; Rect: TRect; State: TKeyState;
       Enabled: Boolean = True); overload;
 
     property KeyRendererClass: TKeyRendererClass read FKeyRendererClass write SetKeyRendererClass;
@@ -102,6 +107,18 @@ constructor TKeyRenderManager.Create;
 begin
   FCachedKeys := TCachedKeys.Create([doOwnsValues]);
   KeyRendererClass := TKeyRenderer;
+  FKnownFastRenderKeys := TRenderKeys.Create(
+    TDelegatedComparer<TRenderKey>.Create(
+      function(const Left, Right: TRenderKey): Integer
+      begin
+        // Für das Wissen "Das Rendering ist bei dem Key schnell" braucht man nur wenige Kriterien.
+        // Die Größe des Keys ist z.B. nicht relevant.
+        if (Left.VirtualKey = Right.VirtualKey) and
+          (Left.State = Right.State) and (Left.Enabled = Right.Enabled) then
+          Result := 0
+        else
+          Result := 1;
+      end));
   FCleanupCountThreshold := 128;
   FCleanupFactor := 0.5; // Standardmäßig soll die Hälfte der Einträge entfernt werden
 end;
@@ -110,8 +127,19 @@ destructor TKeyRenderManager.Destroy;
 begin
   FCachedKeys.Free;
   FKeyRenderer.Free;
+  FKnownFastRenderKeys.Free;
 
   inherited Destroy;
+end;
+
+procedure TKeyRenderManager.AddKnownFastRenderKey(const RenderKey: TRenderKey);
+begin
+  FKnownFastRenderKeys.Add(RenderKey);
+end;
+
+function TKeyRenderManager.IsKnownFastRenderKey(const RenderKey: TRenderKey): Boolean;
+begin
+  Result := FKnownFastRenderKeys.IndexOf(RenderKey) >= 0;
 end;
 
 procedure TKeyRenderManager.Cleanup;
@@ -156,10 +184,11 @@ var
   begin
     Result := TCachedKey.Create;
     Result.FBitmap := TBitmap32.Create(RK.Width, RK.Height);
-    FKeyRenderer.Render(RK, Result.FBitmap);
+    FKeyRenderer.Render(RK, Result.FBitmap, System.Types.Rect(0, 0, RK.Width, RK.Height));
   end;
 
 var
+  CacheKey: Boolean;
   CachedKey: TCachedKey;
   Stopper: TStopwatch;
 begin
@@ -175,14 +204,27 @@ begin
     Stopper := TStopwatch.StartNew;
     CachedKey := CreateCachedKey;
     Stopper.Stop;
-    FCachedKeys.Add(RK, CachedKey);
-    Logging.AddLog(Format('Duration for render: %d msec. FCachedKeys.Count = %d',
-      [Stopper.ElapsedMilliseconds, FCachedKeys.Count]));
-  end;
 
-  CachedKey.FLastUsed := GetTickCount;
+    // Gecacht soll nur, wenn das Rendering zu lange dauert
+    CacheKey := Stopper.ElapsedMilliseconds > 0;
+    if CacheKey then
+      FCachedKeys.Add(RK, CachedKey)
+    else if not IsKnownFastRenderKey(RK) then
+      AddKnownFastRenderKey(RK);
+
+//    Logging.AddLog(Format('Duration for render: %d msec. FCachedKeys.Count = %d',
+//      [Stopper.ElapsedMilliseconds, FCachedKeys.Count]));
+  end
+  else
+    CacheKey := True;
 
   DrawSource(CachedKey.FBitmap, Rect);
+
+  if CacheKey then
+    CachedKey.FLastUsed := GetTickCount
+  // Wenn das Rendering schnell war und es nicht gecacht wird, dann freigeben.
+  else
+    CachedKey.Free;
 
   if FCachedKeys.Count > FCleanupCountThreshold then
     Take(Self)
@@ -197,22 +239,28 @@ end;
 
 procedure TKeyRenderManager.Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect;
   State: TKeyState; Enabled: Boolean);
+var
+  RK: TRenderKey;
 begin
+  RK := Default(TRenderKey);
+  RK.VirtualKey := VirtualKey;
+  RK.State := State;
+  RK.Enabled := Enabled;
+  RK.Width := Rect.Width;
+  RK.Height := Rect.Height;
+
+  // Die schnellste Methode, wenn zuvor bereits bekannt geworden ist,
+  // dass das Rendering für diesen Key ganz schnell ist.
+  if IsKnownFastRenderKey(RK) then
+  begin
+    FKeyRenderer.Render(RK, Target, Rect);
+    Exit;
+  end;
+
   Render(
     procedure(Source: TBitmap32; Rect: TRect)
     begin
       Target.Draw(Rect.Left, Rect.Top, Source);
-    end,
-    VirtualKey, Rect, State, Enabled);
-end;
-
-procedure TKeyRenderManager.Render(Target: TCanvas; VirtualKey: Integer; Rect: TRect;
-  State: TKeyState; Enabled: Boolean);
-begin
-  Render(
-    procedure(Source: TBitmap32; Rect: TRect)
-    begin
-      Source.DrawTo(Target.Handle);
     end,
     VirtualKey, Rect, State, Enabled);
 end;
@@ -230,9 +278,9 @@ end;
 
 { TKeyRenderer }
 
-procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32);
+procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect: TRect);
 
-  function CalcFontSize(Bitmap: TBitmap32; Text: string): Integer;
+  function CalcFontSize(Text: string): Integer;
   var
     PrevSize: Integer;
     Extent: TSize;
@@ -241,9 +289,9 @@ procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32);
     Result := 12;
     while True do
     begin
-      Bitmap.Font.Size := -Result;
-      Extent := Bitmap.TextExtent(Text);
-      if (Extent.cx < Bitmap.Width) and (Extent.cy < Bitmap.Height) then
+      Target.Font.Size := -Result;
+      Extent := Target.TextExtent(Text);
+      if (Extent.cx < KeyRect.Width) and (Extent.cy < KeyRect.Height) then
         Inc(Result)
       else
         Exit(PrevSize);
@@ -269,33 +317,96 @@ procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32);
       Result := IntToStr(NumKey);
   end;
 
+  procedure DrawArrow(const P1, P2, P3: TFloatPoint);
+  var
+    Points: TArrayOfFloatPoint;
+  begin
+    SetLength(Points, 3);
+    Points[0] := P1;
+    Points[1] := P2;
+    Points[2] := P3;
+
+    PolygonFS(Target, Points, clBlack32);
+  end;
+
+var
+  ArrowIndent: Integer;
+  ArrowRemainHalfSquare: Single;
+
+  procedure DrawArrowLeft;
+  begin
+    DrawArrow(
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent));
+  end;
+
+  procedure DrawArrowRight;
+  begin
+    DrawArrow(
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
+  end;
+
+  procedure DrawArrowUp;
+  begin
+    DrawArrow(
+      FloatPoint(KeyRect.Left + ArrowIndent + ArrowRemainHalfSquare, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent),
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
+  end;
+
+  procedure DrawArrowDown;
+  begin
+    DrawArrow(
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Left + ArrowIndent + ArrowRemainHalfSquare, KeyRect.Bottom - ArrowIndent));
+  end;
+
 var
   KeyText: string;
   FontSize: Integer;
-  BGRect: TRect;
   TextSize: TSize;
 begin
   Target.Font.Name := 'Arial';
   Target.Font.Style := [];
   KeyText := GetKeyText;
-  BGRect := Rect(0, 0, Target.Width, Target.Height);
 
-  Target.FrameRectS(BGRect, clBlack32);
-  BGRect.Inflate(-1, -1);
-  Target.FrameRectS(BGRect, clBlack32);
-  BGRect.Inflate(-1, -1);
-  Target.FillRectTS(BGRect, SetAlpha(clWhite32, 180));
+  Target.FrameRectS(KeyRect, clBlack32);
+  KeyRect.Inflate(-1, -1);
+  Target.FrameRectS(KeyRect, clBlack32);
+  KeyRect.Inflate(-1, -1);
+  Target.FillRectTS(KeyRect, SetAlpha(clWhite32, 180));
 
   if KeyText <> '' then
   begin
-    FontSize := CalcFontSize(Target, KeyText);
+    FontSize := CalcFontSize(KeyText);
     Target.Font.Size := FontSize;
 
     TextSize := Target.TextExtent(KeyText);
     Target.RenderText(
-      BGRect.Left + ((BGRect.Width - TextSize.cx) div 2),
-      BGRect.Top + ((BGRect.Height - TextSize.cy) div 2),
+      KeyRect.Left + ((KeyRect.Width - TextSize.cx) div 2),
+      KeyRect.Top + ((KeyRect.Height - TextSize.cy) div 2),
       KeyText, 2, clBlack32);
+  end
+  else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown] then
+  begin
+    ArrowIndent := Round(Key.Width * 0.25);
+    ArrowRemainHalfSquare := (Key.Width - (ArrowIndent * 2)) / 2;
+
+    case Key.VirtualKey of
+      vkLeft:
+        DrawArrowLeft;
+      vkRight:
+        DrawArrowRight;
+      vkUp:
+        DrawArrowUp;
+      vkDown:
+        DrawArrowDown;
+    end;
+
   end;
 end;
 
