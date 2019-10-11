@@ -23,6 +23,7 @@ uses
   WinDomina.Types,
   WinDomina.Layer,
   WinDomina.WindowTools,
+  WinDomina.KeyTools,
   WinDomina.Registry;
 
 type
@@ -36,10 +37,6 @@ type
 
     // Das Ziel-Rechteck, welches effektiv benutzt werden soll
     TargetRect: TRect;
-
-    NumBitmap: TBitmap32;
-
-    destructor Destroy; override;
   end;
 
   TTileGrid = array [0..2] of array [0..2] of TTile;
@@ -62,9 +59,8 @@ type
     QuotientGridStyle: TQuotientGridStyle;
     FirstTileNumKey: Integer;
     SecondTileNumKey: Integer;
-    FSmallestNumSize: TSize;
+    FSmallestNumSquare: Integer;
 
-    procedure UpdateNumBitmaps(NewSmallestNumSize: TSize);
     procedure CalcCurrentTileGrid(var TileGrid: TTileGrid);
     procedure UpdateTileGrid;
 
@@ -223,81 +219,6 @@ begin
   Result := 400;
 end;
 
-procedure TGridLayer.UpdateNumBitmaps(NewSmallestNumSize: TSize);
-var
-  TileNum, TileX, TileY, FontSize: Integer;
-  TileText: string;
-
-  function CalcFontSize(Bitmap: TBitmap32): Integer;
-  var
-    PrevSize: Integer;
-    Extent: TSize;
-  begin
-    PrevSize := 0;
-    Result := 12;
-    while True do
-    begin
-      Bitmap.Font.Size := -Result;
-      Extent := Bitmap.TextExtent(TileText);
-      if (Extent.cx < Bitmap.Width) and (Extent.cy < Bitmap.Height) then
-        Inc(Result)
-      else
-        Exit(PrevSize);
-      PrevSize := Result
-    end;
-  end;
-
-  procedure RenderNumBitmap(Tile: TTile);
-  var
-    NB: TBitmap32;
-    NumSize: TSize;
-    Color: TColor32;
-    BGRect: TRect;
-  begin
-    Tile.NumBitmap.Free;
-    if NewSmallestNumSize.cx < NewSmallestNumSize.cy then
-      BGRect := Rect(0, 0, NewSmallestNumSize.cx, NewSmallestNumSize.cx)
-    else
-      BGRect := Rect(0, 0, NewSmallestNumSize.cy, NewSmallestNumSize.cy);
-
-    NB := TBitmap32.Create(BGRect.Width, BGRect.Height);
-    Tile.NumBitmap := NB;
-    NB.Font.Name := 'Arial';
-    TileText := IntToStr(TileNum);
-
-    if FontSize = 0 then
-      FontSize := CalcFontSize(NB);
-
-    NB.FrameRectS(BGRect, clBlack32);
-    BGRect.Inflate(-1, -1);
-    NB.FrameRectS(BGRect, clBlack32);
-    BGRect.Inflate(-1, -1);
-    NB.FillRectTS(BGRect, SetAlpha(clWhite32, 180));
-
-    NB.Font.Size := FontSize;
-    NB.Font.Style := [];
-    Color := clBlack32;
-
-    NumSize := NB.TextExtent(TileText);
-    NB.RenderText((NB.Width - NumSize.cx) div 2,
-      (NB.Height - NumSize.cy) div 2, TileText, 4, Color);
-  end;
-
-begin
-  if (NewSmallestNumSize.cx = FSmallestNumSize.cx) and
-    (NewSmallestNumSize.cy = FSmallestNumSize.cy) then
-    Exit;
-
-  Logging.AddLog('Neue NumBitmaps generiert');
-  FSmallestNumSize := NewSmallestNumSize;
-
-  FontSize := 0;
-
-  for TileNum := 1 to 9 do
-    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
-      RenderNumBitmap(TileGrid[TileX][TileY]);
-end;
-
 procedure TGridLayer.CalcCurrentTileGrid(var TileGrid: TTileGrid);
 var
   XRemainCount, YRemainCount: Integer;
@@ -312,10 +233,7 @@ begin
   WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WAWidth := WorkareaRect.Width;
   WAHeight := WorkareaRect.Height;
-
-  SmallestNumSize.cx := Max(50, Round(WAWidth * 0.05));
-  SmallestNumSize.cy := Max(50, Round(WAHeight * 0.05));
-  UpdateNumBitmaps(SmallestNumSize);
+  FSmallestNumSquare := Min(Max(50, Round(WAWidth * 0.05)), Max(50, Round(WAHeight * 0.05)));
 
   RemainWidth := WAWidth;
   RemainHeight := WAHeight;
@@ -592,9 +510,11 @@ var
       Rect.Inflate(-1, -1);
     end;
 
-    NumX := Rect.Left + ((Rect.Width - Tile.NumBitmap.Width) div 2);
-    NumY := Rect.Top + ((Rect.Height - Tile.NumBitmap.Height) div 2);
-    Target.Draw(NumX, NumY, Tile.NumBitmap);
+    NumX := Rect.Left + ((Rect.Width - FSmallestNumSquare) div 2);
+    NumY := Rect.Top + ((Rect.Height - FSmallestNumSquare) div 2);
+
+    KeyRenderManager.Render(Target, TileNum + vk0,
+      System.Types.Rect(NumX, NumY, NumX + FSmallestNumSquare, NumY + FSmallestNumSquare), ksFlat);
 
     // Diese Variante ist um den Faktor 5-7 langsamer
 //    Target.FillRectS(Rect, clBlack32);
@@ -620,14 +540,6 @@ end;
 procedure TGridLayer.Invalidate;
 begin
   UpdateTileGrid;
-end;
-
-{ TTile }
-
-destructor TTile.Destroy;
-begin
-  NumBitmap.Free;
-  inherited Destroy;
 end;
 
 end.

@@ -42,7 +42,8 @@ uses
   WinDomina.Registry,
   WinDomina.Layer,
   WinDomina.KBHKLib,
-  WinDomina.Form.Log;
+  WinDomina.Form.Log,
+  WinDomina.KeyTools;
 
 type
   TUpdateWindowThread = class;
@@ -200,6 +201,11 @@ procedure TMainForm.FormCreate(Sender: TObject);
     Result.WindowsHandler := Self;
   end;
 
+  function CreateKeyRenderManager: TKeyRenderManager;
+  begin
+    Result := TKeyRenderManager.Create;
+  end;
+
 var
   ExStyle: DWORD;
   Logger: TStringsLogging;
@@ -220,6 +226,7 @@ begin
   RegisterWDMKeyStates(TKeyStates.Create);
   RegisterLayerActivationKeys(TKeyLayerList.Create);
   RegisterWindowPositioner(CreateWindowPositioner);
+  RegisterKeyRenderManager(CreateKeyRenderManager);
 
   AddLayers;
 
@@ -927,7 +934,8 @@ begin
   if not Handled then
   begin
     case Key of
-      vkEscape:
+      vkEscape,
+      vkReturn:
         ExitDominaMode;
       vkF12:
       begin

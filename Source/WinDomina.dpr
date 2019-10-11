@@ -24,7 +24,8 @@ uses
   WinDomina.WindowMatchSnap in 'WinDomina.WindowMatchSnap.pas',
   WinDomina.WindowPositioner in 'WinDomina.WindowPositioner.pas',
   WinDomina.Types.Messages in 'WinDomina.Types.Messages.pas',
-  WinDomina.Form.Number in 'WinDomina.Form.Number.pas' {NumberForm};
+  WinDomina.Form.Number in 'WinDomina.Form.Number.pas' {NumberForm},
+  WinDomina.KeyTools in 'WinDomina.KeyTools.pas';
 
 {$R *.res}
 

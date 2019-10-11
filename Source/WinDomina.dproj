@@ -130,6 +130,7 @@
             <Form>NumberForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="WinDomina.KeyTools.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
