@@ -74,6 +74,9 @@ var
   Size: TSize;
   WindowPosition: TPoint;
 begin
+  if not Visible then
+    Exit;
+
   SourcePosition := GR32.Point(0, 0);
   Blend.BlendOp := AC_SRC_OVER;
   Blend.BlendFlags := 0;

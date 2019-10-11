@@ -40,6 +40,7 @@ type
     AlignIndicatorAniID: Integer;
     ArrowIndicatorAniID: Integer;
     NumberFormBoundsAniID: Integer;
+    VirtualClick1DelayID: Integer;
   private
     type
     TNumberFormList = TObjectList<TNumberForm>;
@@ -59,13 +60,17 @@ type
     function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
     function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
     function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
+    function HasSwitchTargetNumberFormByIndex(TargetIndex: Integer; out Form: TNumberForm): Boolean;
     function HasSwitchTargetIndex(AssocWindowHandle: HWND; out TargetIndex: Integer): Boolean;
     procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND);
     procedure BringSwitchTargetNumberFormsToTop;
+    procedure SetActiveSwitchTargetIndex(Value: Integer);
     procedure SetShowNumberForms(NewValue: Boolean);
 
     procedure MoveSizeWindow(Direction: TDirection);
     procedure TargetWindowChangedOrMoved;
+
+    property ActiveSwitchTargetIndex: Integer read FActiveSwitchTargetIndex write SetActiveSwitchTargetIndex;
 
   public
     class constructor Create;
@@ -93,12 +98,14 @@ type
     FParentLayer: TMoverLayer;
     FRefRect: TRect;
     FTargetIndex: Integer;
+    FShowTargetIndex: Boolean;
 
   public
     procedure Draw(Target: TBitmap32);
 
     property RefRect: TRect read FRefRect write FRefRect;
     property TargetIndex: Integer read FTargetIndex write FTargetIndex;
+    property ShowTargetIndex: Boolean read FShowTargetIndex write FShowTargetIndex;
   end;
 
   TAlignIndicatorAnimation = class(TAnimationBase)
@@ -126,6 +133,7 @@ begin
   AlignIndicatorAniID := TAQ.GetUniqueID;
   ArrowIndicatorAniID := TAQ.GetUniqueID;
   NumberFormBoundsAniID := TAQ.GetUniqueID;
+  VirtualClick1DelayID := TAQ.GetUniqueID;
 end;
 
 constructor TMoverLayer.Create;
@@ -135,6 +143,7 @@ begin
   RegisterLayerActivationKeys([vkM]);
   FArrowIndicator := TArrowIndicator.Create;
   FArrowIndicator.FParentLayer := Self;
+  FArrowIndicator.ShowTargetIndex := False;
   FNumberFormList := TNumberFormList.Create(True);
   FShowNumberForms := True;
 end;
@@ -202,6 +211,8 @@ begin
   begin
     NumberForm := CreateSwitchTargetNumberForm(FSwitchTargets[cc]);
     NumberForm.Number := cc;
+    if cc = ActiveSwitchTargetIndex then
+      NumberForm.Hide;
     FNumberFormList.Add(NumberForm);
   end;
 
@@ -214,23 +225,17 @@ begin
   AddLog('TMoverLayer.EnterLayer');
   FArrowIndicator.RefRect := TRect.Empty;
 
-  FActiveSwitchTargetIndex := 0;
+  ActiveSwitchTargetIndex := 0;
   TargetWindowChangedOrMoved;
   UpdateSwitchTargetsWindowList;
 end;
 
 procedure TMoverLayer.ExitLayer;
-//var
-//  FirstSwitchTargetWindow, TargetWindow: TWindow;
 begin
   AddLog('TMoverLayer.ExitLayer');
 
-  // Die Rangfolge wiederherstellen. Damit das aktivierte Fenster nicht in den Hintergrund wandert.
-//  if HasSwitchTarget(0, FirstSwitchTargetWindow) and HasTargetWindow(TargetWindow) and
-//    (TargetWindow.Handle <> FirstSwitchTargetWindow.Handle) then
-//    BringWindowToTop(FirstSwitchTargetWindow.Handle);
-
   FNumberFormList.Clear;
+  ActiveSwitchTargetIndex := -1;
 
   inherited ExitLayer;
 end;
@@ -241,10 +246,19 @@ begin
 end;
 
 procedure TMoverLayer.RenderMainContent(Target: TBitmap32);
+var
+  NumberForm: TNumberForm;
+  Rect: TRect;
 begin
   inherited RenderMainContent(Target);
 
   FArrowIndicator.Draw(Target);
+
+  if HasSwitchTargetNumberFormByIndex(ActiveSwitchTargetIndex, NumberForm) then
+  begin
+    Rect := MonitorHandler.ScreenToClient(NumberForm.BoundsRect);
+    KeyRenderManager.Render(Target, ActiveSwitchTargetIndex + vk0, Rect, ksFlat);
+  end;
 end;
 
 function TMoverLayer.HasSwitchTargetNumberForm(AssocWindowHandle: HWND;
@@ -254,6 +268,21 @@ var
 begin
   for TestForm in FNumberFormList do
     if TestForm.AssignedToWindow = AssocWindowHandle then
+    begin
+      Form := TestForm;
+      Exit(True);
+    end;
+
+  Result := False;
+end;
+
+function TMoverLayer.HasSwitchTargetNumberFormByIndex(TargetIndex: Integer;
+  out Form: TNumberForm): Boolean;
+var
+  TestForm: TNumberForm;
+begin
+  for TestForm in FNumberFormList do
+    if TestForm.Number = TargetIndex then
     begin
       Form := TestForm;
       Exit(True);
@@ -293,15 +322,22 @@ begin
   if not HasSwitchTargetNumberForm(AssocWindowHandle, NumberForm) then
     Exit;
 
-  SIH := TSendInputHelper.Create;
-  try
-    Center := NumberForm.BoundsRect.CenterPoint;
-    SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
-    SIH.AddMouseClick(mbLeft);
-    SIH.Flush;
-  finally
-    SIH.Free;
-  end;
+  Take(NumberForm)
+    .CancelDelays(VirtualClick1DelayID)
+    .EachDelay(100,
+      function(AQ: TAQ; O: TObject): Boolean
+      begin
+        SIH := TSendInputHelper.Create;
+        try
+          Center := TNumberForm(O).BoundsRect.CenterPoint;
+          SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
+          SIH.AddMouseClick(mbLeft);
+          SIH.Flush;
+        finally
+          SIH.Free;
+        end;
+        Result := True;
+      end, VirtualClick1DelayID);
 end;
 
 procedure TMoverLayer.BringSwitchTargetNumberFormsToTop;
@@ -311,10 +347,31 @@ begin
 //  Logging.AddLog('BringSwitchTargetNumberFormsToTop called');
 
   for NumberForm in FNumberFormList do
-    SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
-      SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+    if NumberForm.Visible then
+      SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+        SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 //    SetWindowPos(NumberForm.Handle, Application.MainFormHandle {HWND_TOPMOST}, 0, 0, 0, 0,
 //      SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+end;
+
+procedure TMoverLayer.SetActiveSwitchTargetIndex(Value: Integer);
+var
+  NumberForm: TNumberForm;
+begin
+  if Value = FActiveSwitchTargetIndex then
+    Exit;
+
+  // Vorheriges einblenden
+  if HasSwitchTargetNumberFormByIndex(FActiveSwitchTargetIndex, NumberForm) then
+    NumberForm.Visible := True;
+
+  // Neues ausblenden
+  if HasSwitchTargetNumberFormByIndex(Value, NumberForm) then
+    NumberForm.Visible := False;
+
+  FActiveSwitchTargetIndex := Value;
+  FArrowIndicator.TargetIndex := Value;
+  InvalidateMainContent;
 end;
 
 procedure TMoverLayer.SetShowNumberForms(NewValue: Boolean);
@@ -323,11 +380,14 @@ begin
     Exit;
 
   FShowNumberForms := NewValue;
+  FArrowIndicator.ShowTargetIndex := not NewValue;
 
   if NewValue then
     UpdateSwitchTargetsWindowList
   else
     FNumberFormList.Clear;
+
+  InvalidateMainContent;
 end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
@@ -341,9 +401,9 @@ begin
     Exit;
 
   if HasSwitchTargetIndex(TargetWindow.Handle, SwitchTargetIndex) then
-    FActiveSwitchTargetIndex := SwitchTargetIndex
+    ActiveSwitchTargetIndex := SwitchTargetIndex
   else
-    FActiveSwitchTargetIndex := -1;
+    ActiveSwitchTargetIndex := -1;
 
   if HasSwitchTargetNumberForm(TargetWindow.Handle, NumberForm) then
   begin
@@ -364,8 +424,6 @@ begin
   end;
 
   RectLocal := MonitorHandler.ScreenToClient(TargetWindow.Rect);
-
-  FArrowIndicator.TargetIndex := FActiveSwitchTargetIndex;
 
   Take(FArrowIndicator)
     .CancelAnimations(ArrowIndicatorAniID)
@@ -610,7 +668,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         BringSwitchTargetNumberFormsToTop;
       end;
 
-      FActiveSwitchTargetIndex := SwitchTargetIndex;
+      ActiveSwitchTargetIndex := SwitchTargetIndex;
 
       VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle);
     end;
@@ -714,7 +772,7 @@ begin
   PaintRect := Rect(RefRect.Left + RemainWidth, RefRect.Top + RemainHeight,
     RefRect.Right - RemainWidth, RefRect.Bottom - RemainHeight);
 
-  if TargetIndex >= 0 then
+  if ShowTargetIndex and (TargetIndex >= 0) then
     KeyRenderManager.Render(Target, TargetIndex + vk0,
       Rect(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare,
       PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare2), ksFlat);
