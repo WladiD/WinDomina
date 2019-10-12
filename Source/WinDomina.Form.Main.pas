@@ -861,7 +861,13 @@ begin
 end;
 
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
+var
+  TargetWindow: TWindow;
 begin
+  // Wenn wir den Fokus haben, so dürfen diesen auch selbst vergeben (Sicherheitsrichtlinie von Windows 10)
+  if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) and (GetForegroundWindow = Handle) then
+    SetForegroundWindow(TargetWindow.Handle);
+
   StopWindowsTracking;
 
   LogForm.Caption := 'Normaler Modus';

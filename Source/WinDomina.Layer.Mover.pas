@@ -39,6 +39,7 @@ type
     class var
     AlignIndicatorAniID: Integer;
     ArrowIndicatorAniID: Integer;
+    ArrowIndicatorAniDuration: Integer;
     NumberFormBoundsAniID: Integer;
     VirtualClick1DelayID: Integer;
   private
@@ -52,6 +53,7 @@ type
     FArrowIndicator: TArrowIndicator;
     FShowNumberForms: Boolean;
     FActiveSwitchTargetIndex: Integer;
+    FClickOnSwitchTarget: Boolean;
 
     procedure UpdateVisibleWindowList;
     procedure UpdateSwitchTargetsWindowList;
@@ -62,7 +64,7 @@ type
     function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
     function HasSwitchTargetNumberFormByIndex(TargetIndex: Integer; out Form: TNumberForm): Boolean;
     function HasSwitchTargetIndex(AssocWindowHandle: HWND; out TargetIndex: Integer): Boolean;
-    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND);
+    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; Delay: Integer);
     procedure BringSwitchTargetNumberFormsToTop;
     procedure SetActiveSwitchTargetIndex(Value: Integer);
     procedure SetShowNumberForms(NewValue: Boolean);
@@ -132,6 +134,7 @@ class constructor TMoverLayer.Create;
 begin
   AlignIndicatorAniID := TAQ.GetUniqueID;
   ArrowIndicatorAniID := TAQ.GetUniqueID;
+  ArrowIndicatorAniDuration := 500;
   NumberFormBoundsAniID := TAQ.GetUniqueID;
   VirtualClick1DelayID := TAQ.GetUniqueID;
 end;
@@ -232,10 +235,15 @@ end;
 
 procedure TMoverLayer.ExitLayer;
 begin
-  AddLog('TMoverLayer.ExitLayer');
+  // Der virtuelle Klick darf nicht ausgeführt werden, wenn der Layer verlassen wird und
+  // ein Klick noch erfolgen soll.
+  FClickOnSwitchTarget := False;
+  Take(Self).CancelDelays(VirtualClick1DelayID).Die;
 
   FNumberFormList.Clear;
   ActiveSwitchTargetIndex := -1;
+
+  AddLog('TMoverLayer.ExitLayer');
 
   inherited ExitLayer;
 end;
@@ -312,32 +320,43 @@ end;
 // Führt einen virtuellen Mausklick auf das Zielfensterkürzel aus
 //
 // Auf diese Weise wird das Hauptfenster aktiviert, dies ist unverzichtbar für ein korrektes Setzen
-// des ForegroundWindow
-procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND);
+// des ForegroundWindow.
+procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; Delay: Integer);
 var
   NumberForm: TNumberForm;
-  SIH: TSendInputHelper;
   Center: TPoint;
+  Window: TWindow;
+  ClickFunction: TEachFunction;
 begin
-  if not HasSwitchTargetNumberForm(AssocWindowHandle, NumberForm) then
+  if HasSwitchTargetNumberForm(AssocWindowHandle, NumberForm) then
+    Center := NumberForm.BoundsRect.CenterPoint
+  else if HasSwitchTarget(ActiveSwitchTargetIndex, Window) then
+    Center := Window.Rect.CenterPoint
+  else
     Exit;
 
-  Take(NumberForm)
-    .CancelDelays(VirtualClick1DelayID)
-    .EachDelay(100,
-      function(AQ: TAQ; O: TObject): Boolean
-      begin
-        SIH := TSendInputHelper.Create;
-        try
-          Center := TNumberForm(O).BoundsRect.CenterPoint;
-          SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
-          SIH.AddMouseClick(mbLeft);
-          SIH.Flush;
-        finally
-          SIH.Free;
-        end;
-        Result := True;
-      end, VirtualClick1DelayID);
+  ClickFunction :=
+    function(AQ: TAQ; O: TObject): Boolean
+    var
+      SIH: TSendInputHelper;
+    begin
+      SIH := TSendInputHelper.Create;
+      try
+        SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
+        SIH.AddMouseClick(mbLeft);
+        SIH.Flush;
+      finally
+        SIH.Free;
+      end;
+      Result := True;
+    end;
+
+  if Delay > 0 then
+    Take(Self)
+      .CancelDelays(VirtualClick1DelayID)
+      .EachDelay(Delay, ClickFunction, VirtualClick1DelayID)
+  else
+    ClickFunction(nil, nil);
 end;
 
 procedure TMoverLayer.BringSwitchTargetNumberFormsToTop;
@@ -350,8 +369,6 @@ begin
     if NumberForm.Visible then
       SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
         SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
-//    SetWindowPos(NumberForm.Handle, Application.MainFormHandle {HWND_TOPMOST}, 0, 0, 0, 0,
-//      SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 end;
 
 procedure TMoverLayer.SetActiveSwitchTargetIndex(Value: Integer);
@@ -392,7 +409,7 @@ end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
 var
-  TargetWindow: TWindow;
+  TargetWindow, ActiveSwitchTargetWindow: TWindow;
   RectLocal: TRect;
   NumberForm: TNumberForm;
   KeySquareSize, SwitchTargetIndex: Integer;
@@ -421,7 +438,11 @@ begin
         RectLocal.Left + ((RectLocal.Width - KeySquareSize) div 2),
         RectLocal.Top + ((RectLocal.Height - KeySquareSize) div 2),
         KeySquareSize, KeySquareSize, 250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic));
-  end;
+  end
+  // Wenn die ShowNumbers nicht eingeblendet sind, dann müssen bei Fensterbewegung die
+  // Fensterpositionen in FSwitchTargets aktualisiert werden
+  else if HasSwitchTarget(ActiveSwitchTargetIndex, ActiveSwitchTargetWindow) then
+    ActiveSwitchTargetWindow.Rect := TargetWindow.Rect;
 
   RectLocal := MonitorHandler.ScreenToClient(TargetWindow.Rect);
 
@@ -437,7 +458,15 @@ begin
         begin
           TArrowIndicator(RefObject).RefRect := NewRect;
           InvalidateMainContent;
-        end, 500, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic));
+        end, ArrowIndicatorAniDuration, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic),
+        procedure(Sender: TObject)
+        begin
+          if FClickOnSwitchTarget then
+          begin
+            VirtualClickOnSwitchTargetNumberForm(TargetWindow.Handle, 0);
+            FClickOnSwitchTarget := False;
+          end;
+        end);
 end;
 
 procedure TMoverLayer.TargetWindowChanged;
@@ -670,7 +699,10 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
       ActiveSwitchTargetIndex := SwitchTargetIndex;
 
-      VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle);
+      if ShowNumberForms then
+        VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, ArrowIndicatorAniDuration)
+      else
+        FClickOnSwitchTarget := SwitchTargetIndex >= 0;
     end;
   end;
 
