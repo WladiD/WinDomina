@@ -58,6 +58,7 @@ type
     procedure UpdateVisibleWindowList;
     procedure UpdateSwitchTargetsWindowList;
     procedure CreateSwitchTargetNumberForms;
+    procedure UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm);
 
     function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
     function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
@@ -188,17 +189,9 @@ end;
 procedure TMoverLayer.CreateSwitchTargetNumberForms;
 
   function CreateSwitchTargetNumberForm(AssocWindow: TWindow): TNumberForm;
-  var
-    KeySquareSize: Integer;
-    WinRect: TRect;
   begin
-    WinRect := AssocWindow.Rect;
     Result := TNumberForm.Create(nil);
     Result.AssignedToWindow := AssocWindow.Handle;
-    KeySquareSize := GetRefRectKeySquareSize(WinRect);
-    Result.Show;
-    Result.SetBounds(WinRect.Left + ((WinRect.Width - KeySquareSize) div 2),
-      WinRect.Top + ((WinRect.Height - KeySquareSize) div 2), KeySquareSize, KeySquareSize);
   end;
 
 var
@@ -214,12 +207,31 @@ begin
   begin
     NumberForm := CreateSwitchTargetNumberForm(FSwitchTargets[cc]);
     NumberForm.Number := cc;
+    FNumberFormList.Add(NumberForm);
+    NumberForm.Show;
+    UpdateSwitchTargetNumberFormBounds(NumberForm);
     if cc = ActiveSwitchTargetIndex then
       NumberForm.Hide;
-    FNumberFormList.Add(NumberForm);
   end;
 
   BringSwitchTargetNumberFormsToTop;
+end;
+
+procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm);
+var
+  KeySquareSize: Integer;
+  WinRect: TRect;
+  AssocWindow: TWindow;
+begin
+  if Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow) then
+  begin
+    WinRect := AssocWindow.Rect;
+    KeySquareSize := GetRefRectKeySquareSize(WinRect);
+    NumberForm.SetBounds(WinRect.Left + ((WinRect.Width - KeySquareSize) div 2),
+      WinRect.Top + ((WinRect.Height - KeySquareSize) div 2), KeySquareSize, KeySquareSize);
+    SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+      SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+  end;
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -378,13 +390,19 @@ begin
   if Value = FActiveSwitchTargetIndex then
     Exit;
 
-  // Vorheriges einblenden
-  if HasSwitchTargetNumberFormByIndex(FActiveSwitchTargetIndex, NumberForm) then
-    NumberForm.Visible := True;
+  if not FArrowIndicator.ShowTargetIndex then
+  begin
+    // Vorheriges einblenden
+    if HasSwitchTargetNumberFormByIndex(FActiveSwitchTargetIndex, NumberForm) then
+    begin
+      NumberForm.Visible := True;
+      UpdateSwitchTargetNumberFormBounds(NumberForm);
+    end;
 
-  // Neues ausblenden
-  if HasSwitchTargetNumberFormByIndex(Value, NumberForm) then
-    NumberForm.Visible := False;
+    // Neues ausblenden
+    if HasSwitchTargetNumberFormByIndex(Value, NumberForm) then
+      NumberForm.Visible := False;
+  end;
 
   FActiveSwitchTargetIndex := Value;
   FArrowIndicator.TargetIndex := Value;
@@ -438,10 +456,11 @@ begin
         RectLocal.Left + ((RectLocal.Width - KeySquareSize) div 2),
         RectLocal.Top + ((RectLocal.Height - KeySquareSize) div 2),
         KeySquareSize, KeySquareSize, 250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic));
-  end
-  // Wenn die ShowNumbers nicht eingeblendet sind, dann müssen bei Fensterbewegung die
-  // Fensterpositionen in FSwitchTargets aktualisiert werden
-  else if HasSwitchTarget(ActiveSwitchTargetIndex, ActiveSwitchTargetWindow) then
+  end;
+
+  // Da FSwitchTargets nicht permanent aktualisiert wird, muss das Fensterrechteck hier
+  // aktualisiert werden.
+  if HasSwitchTarget(ActiveSwitchTargetIndex, ActiveSwitchTargetWindow) then
     ActiveSwitchTargetWindow.Rect := TargetWindow.Rect;
 
   RectLocal := MonitorHandler.ScreenToClient(TargetWindow.Rect);
@@ -697,12 +716,12 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         BringSwitchTargetNumberFormsToTop;
       end;
 
-      ActiveSwitchTargetIndex := SwitchTargetIndex;
-
       if ShowNumberForms then
-        VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, ArrowIndicatorAniDuration)
+        VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, 0)
       else
         FClickOnSwitchTarget := SwitchTargetIndex >= 0;
+
+      ActiveSwitchTargetIndex := SwitchTargetIndex;
     end;
   end;
 
