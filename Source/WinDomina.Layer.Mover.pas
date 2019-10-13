@@ -390,19 +390,16 @@ begin
   if Value = FActiveSwitchTargetIndex then
     Exit;
 
-  if not FArrowIndicator.ShowTargetIndex then
+  // Vorheriges einblenden
+  if HasSwitchTargetNumberFormByIndex(FActiveSwitchTargetIndex, NumberForm) then
   begin
-    // Vorheriges einblenden
-    if HasSwitchTargetNumberFormByIndex(FActiveSwitchTargetIndex, NumberForm) then
-    begin
-      NumberForm.Visible := True;
-      UpdateSwitchTargetNumberFormBounds(NumberForm);
-    end;
-
-    // Neues ausblenden
-    if HasSwitchTargetNumberFormByIndex(Value, NumberForm) then
-      NumberForm.Visible := False;
+    NumberForm.Visible := True;
+    UpdateSwitchTargetNumberFormBounds(NumberForm);
   end;
+
+  // Neues ausblenden
+  if HasSwitchTargetNumberFormByIndex(Value, NumberForm) then
+    NumberForm.Visible := False;
 
   FActiveSwitchTargetIndex := Value;
   FArrowIndicator.TargetIndex := Value;

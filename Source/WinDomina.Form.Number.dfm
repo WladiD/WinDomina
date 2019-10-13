@@ -15,6 +15,7 @@ object NumberForm: TNumberForm
   PopupMode = pmExplicit
   OnCreate = FormCreate
   OnResize = FormResize
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
 end

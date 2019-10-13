@@ -28,6 +28,7 @@ type
   TNumberForm = class(TForm)
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     FAssignedToWindow: HWND;
     FNumber: Byte;
@@ -56,6 +57,11 @@ begin
 end;
 
 procedure TNumberForm.FormResize(Sender: TObject);
+begin
+  UpdateContent;
+end;
+
+procedure TNumberForm.FormShow(Sender: TObject);
 begin
   UpdateContent;
 end;
