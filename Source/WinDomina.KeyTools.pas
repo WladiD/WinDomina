@@ -331,12 +331,11 @@ procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect:
 
 var
   ArrowIndent: Integer;
-  ArrowRemainHalfSquare: Single;
 
   procedure DrawArrowLeft;
   begin
     DrawArrow(
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + (KeyRect.Height / 2)),
       FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
       FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent));
   end;
@@ -345,14 +344,14 @@ var
   begin
     DrawArrow(
       FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent + ArrowRemainHalfSquare),
+      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + (KeyRect.Height / 2)),
       FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
   end;
 
   procedure DrawArrowUp;
   begin
     DrawArrow(
-      FloatPoint(KeyRect.Left + ArrowIndent + ArrowRemainHalfSquare, KeyRect.Top + ArrowIndent),
+      FloatPoint(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Top + ArrowIndent),
       FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent),
       FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
   end;
@@ -362,7 +361,7 @@ var
     DrawArrow(
       FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
       FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Left + ArrowIndent + ArrowRemainHalfSquare, KeyRect.Bottom - ArrowIndent));
+      FloatPoint(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Bottom - ArrowIndent));
   end;
 
 var
@@ -394,7 +393,6 @@ begin
   else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown] then
   begin
     ArrowIndent := Round(Key.Width * 0.25);
-    ArrowRemainHalfSquare := (Key.Width - (ArrowIndent * 2)) / 2;
 
     case Key.VirtualKey of
       vkLeft:
