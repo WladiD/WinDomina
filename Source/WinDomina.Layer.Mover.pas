@@ -187,13 +187,6 @@ begin
 end;
 
 procedure TMoverLayer.CreateSwitchTargetNumberForms;
-
-  function CreateSwitchTargetNumberForm(AssocWindow: TWindow): TNumberForm;
-  begin
-    Result := TNumberForm.Create(nil);
-    Result.AssignedToWindow := AssocWindow.Handle;
-  end;
-
 var
   cc, SwitchTargetsCount: Integer;
   NumberForm: TNumberForm;
@@ -203,35 +196,152 @@ begin
 
   SwitchTargetsCount := Min(9, FSwitchTargets.Count - 1);
 
+  // Zuerst die benötigten NumberForms erzeugen...
   for cc := SwitchTargetsCount downto 0 do
   begin
-    NumberForm := CreateSwitchTargetNumberForm(FSwitchTargets[cc]);
+    NumberForm := TNumberForm.Create(nil);
+    NumberForm.AssignedToWindow := FSwitchTargets[cc].Handle;
     NumberForm.Number := cc;
     FNumberFormList.Add(NumberForm);
+  end;
+
+  // ...und erst wenn alle fertig sind, positionieren und einblenden
+  for NumberForm in FNumberFormList do
+  begin
     NumberForm.Show;
-    UpdateSwitchTargetNumberFormBounds(NumberForm);
-    if cc = ActiveSwitchTargetIndex then
-      NumberForm.Hide;
+    if NumberForm.Number = ActiveSwitchTargetIndex then
+      NumberForm.Hide
+    else
+      UpdateSwitchTargetNumberFormBounds(NumberForm);
   end;
 
   BringSwitchTargetNumberFormsToTop;
 end;
 
 procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm);
-var
-  KeySquareSize: Integer;
-  WinRect: TRect;
-  AssocWindow: TWindow;
-begin
-  if Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow) then
+
+  function GetTargetRect(AssocWindow: TWindow): TRect;
+  var
+    WinRect: TRect;
+    KeySquareSize: Integer;
   begin
     WinRect := AssocWindow.Rect;
     KeySquareSize := GetRefRectKeySquareSize(WinRect);
-    NumberForm.SetBounds(WinRect.Left + ((WinRect.Width - KeySquareSize) div 2),
-      WinRect.Top + ((WinRect.Height - KeySquareSize) div 2), KeySquareSize, KeySquareSize);
+
+    Result.Left := WinRect.Left + ((WinRect.Width - KeySquareSize) div 2);
+    Result.Top := WinRect.Top + ((WinRect.Height - KeySquareSize) div 2);
+    Result.Right := Result.Left + KeySquareSize;
+    Result.Bottom := Result.Top + KeySquareSize;
+  end;
+
+  procedure CheckCollisions(NumberForm: TNumberForm; CancelAnimation: Boolean);
+  var
+    Collision, AnyCollisions, ReplaceTestNF: Boolean;
+    DeltaX, DeltaY: Integer;
+    TestNF: TNumberForm;
+    TestAssocWindow: TWindow;
+    TestTargetRect, TestBoundsRect: TRect;
+    TargetRect: TRect;
+    AssocWindow: TWindow;
+  begin
+    if not (Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow)) then
+      Exit;
+
+    TargetRect := GetTargetRect(AssocWindow);
+
+    AnyCollisions := False;
+
+    for TestNF in FNumberFormList do
+    begin
+      if (TestNF = NumberForm) or not HasSwitchTarget(TestNF.Number, TestAssocWindow) then
+        Continue;
+
+      TestTargetRect := GetTargetRect(TestAssocWindow);
+
+      Collision := TargetRect.IntersectsWith(TestTargetRect);
+      AnyCollisions := AnyCollisions or Collision;
+      ReplaceTestNF := True;
+
+      if Collision then
+      begin
+        Logging.AddLog(Format('Kollision von %d mit %d ', [NumberForm.Number, TestNF.Number]));
+
+        TestBoundsRect := TestNF.BoundsRect;
+        DeltaX := 0;
+        DeltaY := 0;
+
+        if (TargetRect.Left < TestBoundsRect.Right) and (TargetRect.Right > TestBoundsRect.Right) then
+          DeltaX := -(TestBoundsRect.Right - TargetRect.Left)
+        else if (TargetRect.Right > TestBoundsRect.Left) and (TargetRect.Left < TestBoundsRect.Right) then
+          DeltaX := TargetRect.Right - TestBoundsRect.Left;
+
+        if (TargetRect.Top < TestBoundsRect.Bottom) and (TargetRect.Bottom > TestBoundsRect.Bottom) then
+          DeltaY := -(TestBoundsRect.Bottom - TargetRect.Top)
+        else if (TargetRect.Bottom > TestBoundsRect.Top) and (TargetRect.Top < TestBoundsRect.Bottom) then
+          DeltaY := TargetRect.Bottom - TestBoundsRect.Top;
+
+        Logging.AddLog(Format('TargetRect(%d, %d, %d, %d); TestBoundsRect(%d, %d, %d, %d); DeltaX: %d; DeltaY: %d',
+          [TargetRect.Left, TargetRect.Top, TargetRect.Right, TargetRect.Bottom,
+          TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Right, TestBoundsRect.Bottom,
+          DeltaX, DeltaY]));
+
+        // Wähle das kleinere Delta
+        if Abs(DeltaX) > Abs(DeltaY) then
+          DeltaX := 0
+        else
+          DeltaY := 0;
+
+        if (DeltaX <> 0) or (DeltaY <> 0) then
+          TestBoundsRect.Offset(DeltaX, DeltaY);
+
+      end
+      // Wieder an die Ursprungsposition schieben
+      else if TestNF.BoundsRect <> TestTargetRect then
+        TestBoundsRect := TestTargetRect
+      else
+        ReplaceTestNF := False;
+
+      if ReplaceTestNF and (TestBoundsRect <> TestNF.BoundsRect) then
+        Take(TestNF)
+          .CancelAnimations(NumberFormBoundsAniID)
+          .Plugin<TAQPControlAnimations>
+          .BoundsAnimation(
+            TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Width, TestBoundsRect.Height,
+            250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic));
+    end;
+
+    if not AnyCollisions then
+      Logging.AddLog('Keine Kollisionen.');
+
     SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
       SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+
+    Take(NumberForm)
+      .CancelAnimations(NumberFormBoundsAniID)
+      .Plugin<TAQPControlAnimations>
+      .BoundsAnimation(
+        TargetRect.Left, TargetRect.Top, TargetRect.Width, TargetRect.Height,
+        250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic),
+        procedure(Sender: TObject)
+        begin
+          SetWindowPos(TNumberForm(Sender).Handle, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+        end);
   end;
+
+var
+  TestNF: TNumberForm;
+begin
+//  for TestNF in FNumberFormList do
+//    if TestNF <> NumberForm then
+//      CheckCollisions(TestNF);
+
+  CheckCollisions(NumberForm);
+
+//    NumberForm.SetBounds(WinRect.Left + ((WinRect.Width - KeySquareSize) div 2),
+//      WinRect.Top + ((WinRect.Height - KeySquareSize) div 2), KeySquareSize, KeySquareSize);
+//    SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+//      SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -427,7 +537,7 @@ var
   TargetWindow, ActiveSwitchTargetWindow: TWindow;
   RectLocal: TRect;
   NumberForm: TNumberForm;
-  KeySquareSize, SwitchTargetIndex: Integer;
+  SwitchTargetIndex: Integer;
 begin
   if not HasTargetWindow(TargetWindow) then
     Exit;
@@ -437,28 +547,20 @@ begin
   else
     ActiveSwitchTargetIndex := -1;
 
+  // Da FSwitchTargets nicht permanent aktualisiert wird, muss das Fensterrechteck hier
+  // aktualisiert werden.
+  if HasSwitchTarget(ActiveSwitchTargetIndex, ActiveSwitchTargetWindow) then
+    ActiveSwitchTargetWindow.Rect := TargetWindow.Rect;
+
   if HasSwitchTargetNumberForm(TargetWindow.Handle, NumberForm) then
   begin
-    RectLocal := TargetWindow.Rect;
-    KeySquareSize := GetRefRectKeySquareSize(RectLocal);
     // Damit die Fenster während einer Fensterbewegung nicht permanent nach vorne geholt
     // werden müssen, wird dies nur bei einer nicht laufender Animation gemacht.
     if not TAQ.HasActiveActors([arAnimation], NumberForm, NumberFormBoundsAniID) then
       BringSwitchTargetNumberFormsToTop;
 
-    Take(NumberForm)
-      .CancelAnimations(NumberFormBoundsAniID)
-      .Plugin<TAQPControlAnimations>
-      .BoundsAnimation(
-        RectLocal.Left + ((RectLocal.Width - KeySquareSize) div 2),
-        RectLocal.Top + ((RectLocal.Height - KeySquareSize) div 2),
-        KeySquareSize, KeySquareSize, 250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic));
+    UpdateSwitchTargetNumberFormBounds(NumberForm);
   end;
-
-  // Da FSwitchTargets nicht permanent aktualisiert wird, muss das Fensterrechteck hier
-  // aktualisiert werden.
-  if HasSwitchTarget(ActiveSwitchTargetIndex, ActiveSwitchTargetWindow) then
-    ActiveSwitchTargetWindow.Rect := TargetWindow.Rect;
 
   RectLocal := MonitorHandler.ScreenToClient(TargetWindow.Rect);
 

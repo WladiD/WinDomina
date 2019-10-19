@@ -8,6 +8,7 @@ uses
   System.Classes,
   System.Generics.Collections,
   System.Contnrs,
+  System.Types,
 
   GR32,
   AnyiQuack,
