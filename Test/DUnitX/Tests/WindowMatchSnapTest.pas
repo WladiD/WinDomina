@@ -3,11 +3,13 @@
 interface
 
 uses
+  Winapi.Windows,
   DUnitX.TestFramework,
   System.Types,
   System.SysUtils,
 
   WindowEnumerator,
+  WinDomina.Types,
   WinDomina.WindowMatchSnap;
 
 type
@@ -15,6 +17,12 @@ type
   TWindowMatchSnapTest = class
   private
     FWindowList: TWindowList;
+
+    procedure AddWindow(const Rect: TRect; Handle: HWND = 0; const Text: string = '';
+      const ClassName: string = '');
+    procedure MatchSimple(Direction: TDirection; const RefRect: TRect; const ExpectedPos: TPoint);
+
+    property WindowList: TWindowList read FWindowList;
 
   public
     [Setup]
@@ -24,16 +32,34 @@ type
 
     [Test]
     procedure CreateAndDestroy;
+
     [Test]
-    [TestCase('A', '')]
-    procedure MatchLeftSimple(RefLeft, RefTop, RefRight, RefBottom: Integer);
+    // Die Testfälle laufen gegen die folgenden Fenster:
+    // - RectA(100, 100, 200, 200)
+    // - RectB(300, 300, 500, 500)
+    [TestCase('RectA_Left_1', '150, 150, 300, 300, 100, 150')]
+    [TestCase('RectA_Right_1', '250, 150, 300, 300, 200, 150')]
+    // Hier greift der Snap-Mechanismus (Toleranz von 5px)
+    [TestCase('RectA_Left_2', '204, 150, 300, 300, 100, 150')]
+    // Hier greift der Snap-Mechanismus NICHT
+    [TestCase('RectA_Right_2', '205, 150, 300, 300, 200, 150')]
+    [TestCase('RectB_Left_1', '400, 600, 500, 700, 300, 600')]
+    [TestCase('RectB_Left_2', '350, 300, 400, 350, 300, 300')]
+    [TestCase('RectB_Right_2', '600, 300, 700, 400, 500, 300')]
+    // Keine Übereinstimmung, da zu weit links
+    [TestCase('NoMatch_1', '50, 50, 100, 100, -1, -1')]
+    [TestCase('NoMatch_2', '0, 0, 100, 100, -1, -1')]
+    procedure MatchLeftSimple(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
 
-
-    // Test with TestCase Attribute to supply parameters.
-//    [Test]
-//    [TestCase('TestA','1,2')]
-//    [TestCase('TestB','3,4')]
-//    procedure Test2(const AValue1 : Integer;const AValue2 : Integer);
+    [Test]
+    // Die Testfälle laufen gegen die folgenden Fenster:
+    // - RectA(100, 100, 200, 200)
+    // - RectB(300, 300, 500, 500)
+    [TestCase('RectA_Left_1', '0, 75, 50, 125, 50, 75')]
+    [TestCase('RectA_Right_1', '100, 75, 150, 125, 150, 75')]
+    [TestCase('RectB_Left_1', '200, 75, 250, 125, 250, 75')]
+    [TestCase('RectB_Right_1', '350, 75, 450, 125, 400, 75')]
+    procedure MatchLeftRight(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
   end;
 
 implementation
@@ -48,11 +74,26 @@ begin
   FWindowList.Free;
 end;
 
+procedure TWindowMatchSnapTest.AddWindow(const Rect: TRect; Handle: HWND;
+  const Text, ClassName: string);
+var
+  Window: TWindow;
+begin
+  Window := TWindow.Create;
+  Window.Rect := Rect;
+  Window.Handle := Handle;
+  Window.Text := Text;
+  Window.ClassName := ClassName;
+  WindowList.Add(Window);
+end;
+
 procedure TWindowMatchSnapTest.CreateAndDestroy;
 var
   WMS: TWindowMatchSnap;
   List: TWindowList;
 begin
+  Assert.IsNotNull(FWindowList);
+
   WMS := nil;
   List := TWindowList.Create;
   try
@@ -71,17 +112,61 @@ begin
   end;
 end;
 
-procedure TWindowMatchSnapTest.MatchLeftSimple(RefLeft, RefTop, RefRight, RefBottom: Integer);
+procedure TWindowMatchSnapTest.MatchSimple(Direction: TDirection; const RefRect: TRect;
+  const ExpectedPos: TPoint);
 var
-  List: TWindowList;
+  WMS: TWindowMatchSnap;
+  MatchWindow: TWindow;
+  MatchEdge: TRectEdge;
+  NewPos: TPoint;
+  MatchExpected, MatchActual: Boolean;
 begin
+  WMS := TWindowMatchSnap.Create(RefRect, Rect(0, 0, 1000, 1000), WindowList);
+  try
+    MatchExpected := (ExpectedPos.X >= 0) and (ExpectedPos.Y >= 0);
 
+    case Direction of
+      dirUp:
+        MatchActual := WMS.HasMatchSnapWindowTop(MatchWindow, MatchEdge, NewPos);
+      dirRight:
+        MatchActual := WMS.HasMatchSnapWindowRight(MatchWindow, MatchEdge, NewPos);
+      dirDown:
+        MatchActual := WMS.HasMatchSnapWindowBottom(MatchWindow, MatchEdge, NewPos);
+      dirLeft:
+        MatchActual := WMS.HasMatchSnapWindowLeft(MatchWindow, MatchEdge, NewPos);
+    else
+      Exit;
+    end;
+
+    Assert.IsTrue(MatchExpected = MatchActual, 'No expected match');
+    if MatchExpected then
+    begin
+      Assert.IsTrue(MatchEdge in [reLeft, reRight], 'Matching edge should be reLeft or reRight');
+      Assert.AreEqual(ExpectedPos.X, NewPos.X);
+      Assert.AreEqual(ExpectedPos.Y, NewPos.Y);
+    end;
+  finally
+    WMS.Free;
+  end;
 end;
 
-//procedure TWindowMatchSnapTest.Test2(const AValue1 : Integer;const AValue2 : Integer);
-//begin
-//
-//end;
+procedure TWindowMatchSnapTest.MatchLeftSimple(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft,
+  ExpectedTop: Integer);
+begin
+  AddWindow(Rect(100, 100, 200, 200));
+  AddWindow(Rect(300, 300, 500, 500));
+  MatchSimple(dirLeft, Rect(RefLeft, RefTop, RefRight, RefBottom),
+    Point(ExpectedLeft, ExpectedTop));
+end;
+
+procedure TWindowMatchSnapTest.MatchLeftRight(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft,
+  ExpectedTop: Integer);
+begin
+  AddWindow(Rect(100, 100, 200, 200));
+  AddWindow(Rect(300, 300, 500, 500));
+  MatchSimple(dirRight, Rect(RefLeft, RefTop, RefRight, RefBottom),
+    Point(ExpectedLeft, ExpectedTop));
+end;
 
 initialization
   TDUnitX.RegisterTestFixture(TWindowMatchSnapTest);
