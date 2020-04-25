@@ -234,7 +234,7 @@ procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm
     Result.Bottom := Result.Top + KeySquareSize;
   end;
 
-  procedure CheckCollisions(NumberForm: TNumberForm; CancelAnimation: Boolean);
+  procedure CheckCollisions(NumberForm: TNumberForm);
   var
     Collision, AnyCollisions, ReplaceTestNF: Boolean;
     DeltaX, DeltaY: Integer;

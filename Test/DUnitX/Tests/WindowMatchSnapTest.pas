@@ -94,24 +94,26 @@ type
     [TestCase('NoMatch_3', '100, 550, 200, 650, -1, -1')]
     procedure MatchSnapWindowBottom(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
 
-    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [Test]
+    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [TestCase('Left', '100, 100, 200, 200, 0, 100')]
     [TestCase('NoMatch', '0, 100, 200, 200, -1, -1')]
     procedure MatchWorkAreaEdgeLeft(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
 
-    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [Test]
+    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [TestCase('Right', '100, 100, 200, 200, 900, 100')]
     [TestCase('NoMatch', '900, 100, 1000, 200, -1, -1')]
     procedure MatchWorkAreaEdgeRight(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
 
     [Test]
+    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [TestCase('Top', '100, 100, 200, 200, 100, 0')]
     [TestCase('NoMatch', '100, 0, 200, 200, -1, -1')]
     procedure MatchWorkAreaEdgeTop(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
 
     [Test]
+    // Die Testfälle laufen gegen eine Workarea von Rect(0, 0, 1000, 1000)
     [TestCase('Bottom', '100, 100, 200, 200, 100, 900')]
     [TestCase('NoMatch', '100, 900, 200, 1000, -1, -1')]
     procedure MatchWorkAreaEdgeBottom(RefLeft, RefTop, RefRight, RefBottom, ExpectedLeft, ExpectedTop: Integer);
