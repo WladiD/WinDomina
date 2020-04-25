@@ -1,4 +1,4 @@
-unit WinDomina.Layer;
+unit WD.Layer;
 
 interface
 
@@ -14,7 +14,7 @@ uses
   AnyiQuack,
   WindowEnumerator,
 
-  WinDomina.Types;
+  WD.Types;
 
 type
   TBaseLayer = class;
@@ -110,7 +110,7 @@ type
 implementation
 
 uses
-  WinDomina.Registry;
+  WD.Registry;
 
 { TBaseLayer }
 

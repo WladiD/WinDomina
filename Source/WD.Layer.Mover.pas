@@ -1,4 +1,4 @@
-unit WinDomina.Layer.Mover;
+unit WD.Layer.Mover;
 
 interface
 
@@ -23,13 +23,13 @@ uses
   AQPControlAnimations,
   SendInputHelper,
 
-  WinDomina.Types,
-  WinDomina.Layer,
-  WinDomina.Registry,
-  WinDomina.WindowTools,
-  WinDomina.WindowMatchSnap,
-  WinDomina.Form.Number,
-  WinDomina.KeyTools;
+  WD.Types,
+  WD.Layer,
+  WD.Registry,
+  WD.WindowTools,
+  WD.WindowMatchSnap,
+  WD.Form.Number,
+  WD.KeyTools;
 
 type
   TArrowIndicator = class;
@@ -794,7 +794,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
   var
     Direction: TDirection;
   begin
-    Result := WinDomina.Types.IsDirectionKey(Key, Direction);
+    Result := WD.Types.IsDirectionKey(Key, Direction);
     if Result then
       MoveSizeWindow(Direction);
   end;

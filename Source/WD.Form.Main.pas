@@ -1,4 +1,4 @@
-unit WinDomina.Form.Main;
+unit WD.Form.Main;
 
 interface
 
@@ -35,15 +35,15 @@ uses
   SendInputHelper,
   WindowEnumerator,
 
-  WinDomina.Types,
-  WinDomina.Types.Messages,
-  WinDomina.WindowTools,
-  WinDomina.WindowPositioner,
-  WinDomina.Registry,
-  WinDomina.Layer,
-  WinDomina.KBHKLib,
-  WinDomina.Form.Log,
-  WinDomina.KeyTools;
+  WD.Types,
+  WD.Types.Messages,
+  WD.WindowTools,
+  WD.WindowPositioner,
+  WD.Registry,
+  WD.Layer,
+  WD.KBHKLib,
+  WD.Form.Log,
+  WD.KeyTools;
 
 type
   TUpdateWindowThread = class;
@@ -163,8 +163,8 @@ var
 implementation
 
 uses
-  WinDomina.Layer.Grid,
-  WinDomina.Layer.Mover;
+  WD.Layer.Grid,
+  WD.Layer.Mover;
 
 {$R *.dfm}
 

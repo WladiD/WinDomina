@@ -9,8 +9,8 @@ uses
   System.SysUtils,
 
   WindowEnumerator,
-  WinDomina.Types,
-  WinDomina.WindowMatchSnap;
+  WD.Types,
+  WD.WindowMatchSnap;
 
 type
   [TestFixture]

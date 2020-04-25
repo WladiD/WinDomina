@@ -44,7 +44,7 @@ uses
   DUnitX.IoC,
   DUnitX.MemoryLeakMonitor.Default,
   WindowMatchSnapTest in 'Tests\WindowMatchSnapTest.pas',
-  WinDomina.WindowMatchSnap in '..\..\Source\WinDomina.WindowMatchSnap.pas';
+  WD.WindowMatchSnap in '..\..\Source\WD.WindowMatchSnap.pas';
 
 {$R *.res}
 

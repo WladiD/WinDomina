@@ -1,4 +1,4 @@
-unit WinDomina.Types;
+unit WD.Types;
 
 interface
 

@@ -1,4 +1,4 @@
-unit WinDomina.WindowMatchSnap;
+unit WD.WindowMatchSnap;
 
 interface
 
@@ -8,8 +8,8 @@ uses
   System.SysUtils,
   System.Math,
 
-  WinDomina.Types,
-  WinDomina.WindowTools,
+  WD.Types,
+  WD.WindowTools,
   WindowEnumerator;
 
 type

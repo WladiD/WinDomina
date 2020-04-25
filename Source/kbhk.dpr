@@ -3,7 +3,7 @@ library kbhk;
 uses
   Winapi.Messages,
   Winapi.Windows,
-  WinDomina.Types.Messages;
+  WD.Types.Messages;
 
 {$R *.res}
 

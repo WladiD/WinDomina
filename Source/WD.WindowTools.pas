@@ -1,4 +1,4 @@
-unit WinDomina.WindowTools;
+unit WD.WindowTools;
 
 interface
 

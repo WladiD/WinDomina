@@ -1,4 +1,4 @@
-unit WinDomina.Layer.Grid;
+unit WD.Layer.Grid;
 
 interface
 
@@ -20,11 +20,11 @@ uses
   AQPSystemTypesAnimations,
   WindowEnumerator,
 
-  WinDomina.Types,
-  WinDomina.Layer,
-  WinDomina.WindowTools,
-  WinDomina.KeyTools,
-  WinDomina.Registry;
+  WD.Types,
+  WD.Layer,
+  WD.WindowTools,
+  WD.KeyTools,
+  WD.Registry;
 
 type
   TTile = class

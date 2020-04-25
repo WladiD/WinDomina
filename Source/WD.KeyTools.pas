@@ -1,4 +1,4 @@
-unit WinDomina.KeyTools;
+unit WD.KeyTools;
 
 interface
 
@@ -86,7 +86,7 @@ type
 implementation
 
 uses
-  WinDomina.Registry;
+  WD.Registry;
 
 { TKeyRenderManager.TCachedKey }
 

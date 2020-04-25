@@ -103,18 +103,18 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="WinDomina.Form.Main.pas">
+        <DCCReference Include="WD.Form.Main.pas">
             <Form>MainForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="WinDomina.Types.pas"/>
-        <DCCReference Include="WinDomina.WindowTools.pas"/>
-        <DCCReference Include="WinDomina.Layer.pas"/>
-        <DCCReference Include="WinDomina.Layer.Grid.pas"/>
-        <DCCReference Include="WinDomina.Layer.Mover.pas"/>
-        <DCCReference Include="WinDomina.Registry.pas"/>
-        <DCCReference Include="WinDomina.KBHKLib.pas"/>
-        <DCCReference Include="WinDomina.Form.Log.pas">
+        <DCCReference Include="WD.Types.pas"/>
+        <DCCReference Include="WD.WindowTools.pas"/>
+        <DCCReference Include="WD.Layer.pas"/>
+        <DCCReference Include="WD.Layer.Grid.pas"/>
+        <DCCReference Include="WD.Layer.Mover.pas"/>
+        <DCCReference Include="WD.Registry.pas"/>
+        <DCCReference Include="WD.KBHKLib.pas"/>
+        <DCCReference Include="WD.Form.Log.pas">
             <Form>LogForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
@@ -123,14 +123,14 @@
         <DCCReference Include="..\..\Localization\ProcedureHook.pas"/>
         <DCCReference Include="..\..\SendInputHelper\SendInputHelper.pas"/>
         <DCCReference Include="..\..\WindowEnumerator\WindowEnumerator.pas"/>
-        <DCCReference Include="WinDomina.WindowMatchSnap.pas"/>
-        <DCCReference Include="WinDomina.WindowPositioner.pas"/>
-        <DCCReference Include="WinDomina.Types.Messages.pas"/>
-        <DCCReference Include="WinDomina.Form.Number.pas">
+        <DCCReference Include="WD.WindowMatchSnap.pas"/>
+        <DCCReference Include="WD.WindowPositioner.pas"/>
+        <DCCReference Include="WD.Types.Messages.pas"/>
+        <DCCReference Include="WD.Form.Number.pas">
             <Form>NumberForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="WinDomina.KeyTools.pas"/>
+        <DCCReference Include="WD.KeyTools.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

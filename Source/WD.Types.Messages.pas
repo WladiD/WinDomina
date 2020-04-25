@@ -1,4 +1,4 @@
-unit WinDomina.Types.Messages;
+unit WD.Types.Messages;
 
 interface
 

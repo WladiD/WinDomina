@@ -1,4 +1,4 @@
-unit WinDomina.KBHKLib;
+unit WD.KBHKLib;
 
 interface
 

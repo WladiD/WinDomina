@@ -1,14 +1,15 @@
-unit WinDomina.Registry;
+unit WD.Registry;
 
 interface
 
 uses
   System.SysUtils,
   System.Generics.Collections,
-  WinDomina.Types,
-  WinDomina.Layer,
-  WinDomina.WindowPositioner,
-  WinDomina.KeyTools;
+  
+  WD.Types,
+  WD.Layer,
+  WD.WindowPositioner,
+  WD.KeyTools;
 
 // WDMKeyStates protokolliert den Zustand der Tasten im WinDomina-Modus
 procedure RegisterWDMKeyStates(States: TKeyStates);

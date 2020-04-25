@@ -97,7 +97,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="Tests\WindowMatchSnapTest.pas"/>
-        <DCCReference Include="..\..\Source\WinDomina.WindowMatchSnap.pas"/>
+        <DCCReference Include="..\..\Source\WD.WindowMatchSnap.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

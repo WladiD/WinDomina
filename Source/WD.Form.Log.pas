@@ -1,4 +1,4 @@
-unit WinDomina.Form.Log;
+unit WD.Form.Log;
 
 interface
 

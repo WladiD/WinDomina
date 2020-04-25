@@ -1,4 +1,4 @@
-unit WinDomina.Form.Number;
+unit WD.Form.Number;
 
 interface
 
@@ -20,9 +20,9 @@ uses
   GR32,
   GR32_Backends,
 
-  WinDomina.KeyTools,
-  WinDomina.Registry,
-  WinDomina.WindowTools;
+  WD.KeyTools,
+  WD.Registry,
+  WD.WindowTools;
 
 type
   TNumberForm = class(TForm)

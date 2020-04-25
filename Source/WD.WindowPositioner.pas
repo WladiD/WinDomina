@@ -1,4 +1,4 @@
-unit WinDomina.WindowPositioner;
+unit WD.WindowPositioner;
 
 interface
 
@@ -12,8 +12,8 @@ uses
   AnyiQuack,
   AQPSystemTypesAnimations,
   WindowEnumerator,
-  WinDomina.WindowTools,
-  WinDomina.Types;
+  WD.WindowTools,
+  WD.Types;
 
 type
   TWindowPositioner = class
