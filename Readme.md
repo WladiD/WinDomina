@@ -11,3 +11,8 @@ By default the mover layer is activated, here you see numbers for all visible wi
 
 Here an example:
 ![Mover-Layer 1](https://raw.githubusercontent.com/WladiD/WinDomina/master/Media/Readme/WinDomina-Mover-1.png)
+
+After some key strokes the windows are exactly aligned:
+![Mover-Layer 2](https://raw.githubusercontent.com/WladiD/WinDomina/master/Media/Readme/WinDomina-Mover-2.png)
+
+To leave the dominate mode you can press [Enter], [Escape] or double-tap the [CapsLock] key again.
