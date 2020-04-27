@@ -12,11 +12,15 @@ uses
   Vcl.Controls,
   Vcl.Forms,
   Vcl.Dialogs,
-  Vcl.StdCtrls;
+  Vcl.StdCtrls,
+  Vcl.ExtCtrls;
 
 type
   TLogForm = class(TForm)
     LogMemo: TMemo;
+    ToolsPanel: TPanel;
+    ClearButton: TButton;
+    procedure ClearButtonClick(Sender: TObject);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
   end;
@@ -33,6 +37,11 @@ begin
   inherited CreateParams(Params);
 
   Params.ExStyle := Params.ExStyle or WS_EX_APPWINDOW;
+end;
+
+procedure TLogForm.ClearButtonClick(Sender: TObject);
+begin
+  LogMemo.Lines.Clear;
 end;
 
 end.

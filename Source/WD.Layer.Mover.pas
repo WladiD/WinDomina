@@ -247,6 +247,8 @@ procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm
     if not (Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow)) then
       Exit;
 
+    Logging.AddLog('>> CheckCollisions');
+
     TargetRect := GetTargetRect(AssocWindow);
 
     AnyCollisions := False;
@@ -266,7 +268,7 @@ procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm
       begin
         Logging.AddLog(Format('Kollision von %d mit %d ', [NumberForm.Number, TestNF.Number]));
 
-        TestBoundsRect := TestNF.BoundsRect;
+        TestBoundsRect := TestTargetRect;
         DeltaX := 0;
         DeltaY := 0;
 
@@ -327,6 +329,8 @@ procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm
           SetWindowPos(TNumberForm(Sender).Handle, HWND_TOPMOST, 0, 0, 0, 0,
             SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
         end);
+
+    Logging.AddLog('<< CheckCollisions');
   end;
 
 var
@@ -704,7 +708,7 @@ begin
         Snapper.HasMatchSnapWindowRight(MatchWindow, MatchEdge, NewPos)
       ) or
       (
-        (Direction = DirUp) and
+        (Direction = dirUp) and
         Snapper.HasMatchSnapWindowTop(MatchWindow, MatchEdge, NewPos)
       ) or
       (
