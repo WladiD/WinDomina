@@ -864,7 +864,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
         BringSwitchTargetNumberFormsToTop;
       end;
 
-      if ShowNumberForms then
+      if ShowNumberForms or (ActiveSwitchTargetIndex = SwitchTargetIndex) then
         VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, 500)
       else
         FClickOnSwitchTarget := SwitchTargetIndex >= 0;
