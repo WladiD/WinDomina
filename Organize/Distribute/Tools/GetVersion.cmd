@@ -14,4 +14,4 @@ FOR /F "tokens=2 delims==" %%a in ('
 
 endlocal & set "vers=%vers%"
 
-echo %vers:~0,-2%
+REM echo %vers:~0,-2%
