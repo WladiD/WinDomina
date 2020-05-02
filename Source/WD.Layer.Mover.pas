@@ -41,7 +41,7 @@ type
     ArrowIndicatorAniID: Integer;
     ArrowIndicatorAniDuration: Integer;
     NumberFormBoundsAniID: Integer;
-    VirtualClick1DelayID: Integer;
+    MouseMoveAniID: Integer;
   private
     type
     TNumberFormList = TObjectList<TNumberForm>;
@@ -65,7 +65,7 @@ type
     function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
     function HasSwitchTargetNumberFormByIndex(TargetIndex: Integer; out Form: TNumberForm): Boolean;
     function HasSwitchTargetIndex(AssocWindowHandle: HWND; out TargetIndex: Integer): Boolean;
-    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; Delay: Integer);
+    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; MoveCursorDuration: Integer);
     procedure BringSwitchTargetNumberFormsToTop;
     procedure SetActiveSwitchTargetIndex(Value: Integer);
     procedure SetShowNumberForms(NewValue: Boolean);
@@ -137,7 +137,7 @@ begin
   ArrowIndicatorAniID := TAQ.GetUniqueID;
   ArrowIndicatorAniDuration := 500;
   NumberFormBoundsAniID := TAQ.GetUniqueID;
-  VirtualClick1DelayID := TAQ.GetUniqueID;
+  MouseMoveAniID := TAQ.GetUniqueID;
 end;
 
 constructor TMoverLayer.Create;
@@ -364,7 +364,7 @@ begin
   // Der virtuelle Klick darf nicht ausgeführt werden, wenn der Layer verlassen wird und
   // ein Klick noch erfolgen soll.
   FClickOnSwitchTarget := False;
-  Take(Self).CancelDelays(VirtualClick1DelayID).Die;
+  Take(Mouse).CancelAnimations(MouseMoveAniID);
 
   FNumberFormList.Clear;
   ActiveSwitchTargetIndex := -1;
@@ -447,42 +447,87 @@ end;
 //
 // Auf diese Weise wird das Hauptfenster aktiviert, dies ist unverzichtbar für ein korrektes Setzen
 // des ForegroundWindow.
-procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; Delay: Integer);
+procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND;
+  MoveCursorDuration: Integer);
 var
   NumberForm: TNumberForm;
-  Center: TPoint;
   Window: TWindow;
-  ClickFunction: TEachFunction;
+  GetCenterPoint: TFunc<TPoint>;
+  ClickProc: TProc;
+
+  function IsCursorOnTargetCenterPoint: Boolean;
+  var
+    CurPoint, TargetPoint: TPoint;
+  begin
+    CurPoint := Mouse.CursorPos;
+    TargetPoint := GetCenterPoint;
+    Result := CurPoint = TargetPoint;
+  end;
+
 begin
   if HasSwitchTargetNumberForm(AssocWindowHandle, NumberForm) then
-    Center := NumberForm.BoundsRect.CenterPoint
+    GetCenterPoint :=
+      function: TPoint
+      begin
+        Result := NumberForm.BoundsRect.CenterPoint
+      end
   else if HasSwitchTarget(ActiveSwitchTargetIndex, Window) then
-    Center := Window.Rect.CenterPoint
+    GetCenterPoint :=
+      function: TPoint
+      begin
+        Result := Window.Rect.CenterPoint
+      end
   else
     Exit;
 
-  ClickFunction :=
-    function(AQ: TAQ; O: TObject): Boolean
+  ClickProc :=
+    procedure
     var
       SIH: TSendInputHelper;
     begin
       SIH := TSendInputHelper.Create;
       try
-        SIH.AddAbsoluteMouseMove(Center.X, Center.Y);
         SIH.AddMouseClick(mbLeft);
         SIH.Flush;
       finally
         SIH.Free;
       end;
-      Result := True;
     end;
 
-  if Delay > 0 then
-    Take(Self)
-      .CancelDelays(VirtualClick1DelayID)
-      .EachDelay(Delay, ClickFunction, VirtualClick1DelayID)
-  else
-    ClickFunction(nil, nil);
+  if IsCursorOnTargetCenterPoint then
+  begin
+    ClickProc;
+    Exit;
+  end;
+
+  Take(Mouse)
+    .CancelAnimations(MouseMoveAniID)
+    .Plugin<TAQPSystemTypesAnimations>
+    .RectAnimation(
+      function: TRect
+      var
+        Center: TPoint;
+      begin
+        Center := GetCenterPoint;
+        Result := Rect(Center.X, Center.Y, 0, 0);
+      end,
+      function(RefO: TObject): TRect
+      begin
+        Result := Rect(Mouse.CursorPos.X, Mouse.CursorPos.Y, 0, 0);
+      end,
+      procedure(RefO: TObject; const NewValue: TRect)
+      var
+        NewPos: TPoint;
+      begin
+        NewPos.X := NewValue.Left;
+        NewPos.Y := NewValue.Top;
+        Mouse.CursorPos := NewPos;
+      end,
+      MoveCursorDuration, MouseMoveAniID, TAQ.Ease(TEaseType.etSinus),
+      procedure(Sender: TObject)
+      begin
+        ClickProc;
+      end);
 end;
 
 procedure TMoverLayer.BringSwitchTargetNumberFormsToTop;
@@ -585,7 +630,7 @@ begin
         begin
           if FClickOnSwitchTarget then
           begin
-            VirtualClickOnSwitchTargetNumberForm(TargetWindow.Handle, 0);
+            VirtualClickOnSwitchTargetNumberForm(TargetWindow.Handle, 300);
             FClickOnSwitchTarget := False;
           end;
         end);
@@ -820,7 +865,7 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
       end;
 
       if ShowNumberForms then
-        VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, 0)
+        VirtualClickOnSwitchTargetNumberForm(SwitchTargetWindow.Handle, 500)
       else
         FClickOnSwitchTarget := SwitchTargetIndex >= 0;
 
