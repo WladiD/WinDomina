@@ -7,6 +7,7 @@ uses
   System.Types,
   System.StrUtils,
   Vcl.Forms,
+  Vcl.Controls,
   Winapi.Windows,
   Winapi.Dwmapi,
 
@@ -24,6 +25,7 @@ procedure BringWindowToTop(Window: THandle);
 
 procedure SwitchToPreviouslyFocusedAppWindow;
 function GetTaskbarHandle: THandle;
+function FindWindowFromPoint(const Point: TPoint): HWND;
 
 function NoSnap(A, B: Integer): Boolean;
 function Snap(A, B: Integer): Boolean;
@@ -261,6 +263,24 @@ function SnapRect(const A, B: TRect): Boolean;
 begin
   Result := Snap(A.Left, B.Left) and Snap(A.Top, B.Top) and
     Snap(A.Right, B.Right) and Snap(A.Bottom, B.Bottom);
+end;
+
+function IsDelphiHandle(Handle: HWND): Boolean;
+var
+  OwningProcess: DWORD;
+begin
+  Result := (Handle <> 0) and (GetWindowThreadProcessID(Handle, OwningProcess) <> 0) and
+    (OwningProcess = GetCurrentProcessId) and (FindControl(Handle) <> nil);
+end;
+
+function FindWindowFromPoint(const Point: TPoint): HWND;
+begin
+  Result := WindowFromPoint(Point);
+  while Result <> 0 do
+    if not IsDelphiHandle(Result) then
+      Result := GetParent(Result)
+    else
+      Exit;
 end;
 
 end.
