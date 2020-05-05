@@ -101,6 +101,7 @@ type
   end;
 
 function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
+function GetOppositeDirection(Direction: TDirection): TDirection;
 
 implementation
 
@@ -118,6 +119,22 @@ begin
       Direction := dirDown;
   else
     Result := False;
+  end;
+end;
+
+function GetOppositeDirection(Direction: TDirection): TDirection;
+begin
+  case Direction of
+    dirUp:
+      Result := dirDown;
+    dirRight:
+      Result := dirLeft;
+    dirDown:
+      Result := dirUp;
+    dirLeft:
+      Result := dirRight;
+  else
+    Result := dirUnknown;
   end;
 end;
 

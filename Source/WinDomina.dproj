@@ -86,7 +86,7 @@
         <DCC_ExeOutput>..\Runtime</DCC_ExeOutput>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <Icon_MainIcon>..\Media\WinDominaActive.ico</Icon_MainIcon>
-        <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
+        <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
         <DCC_Define>madExcept;$(DCC_Define)</DCC_Define>
         <VerInfo_MajorVer>0</VerInfo_MajorVer>
         <VerInfo_MinorVer>1</VerInfo_MinorVer>

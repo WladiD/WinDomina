@@ -246,7 +246,7 @@ begin
   if not (Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow)) then
     Exit;
 
-  Logging.AddLog('>> CheckCollisions');
+//  Logging.AddLog('>> CheckCollisions');
 
   TargetRect := GetTargetRect(AssocWindow);
 
@@ -265,7 +265,7 @@ begin
 
     if Collision then
     begin
-      Logging.AddLog(Format('Kollision von %d mit %d ', [NumberForm.Number, TestNF.Number]));
+//      Logging.AddLog(Format('Kollision von %d mit %d ', [NumberForm.Number, TestNF.Number]));
 
       TestBoundsRect := TestTargetRect;
       DeltaX := 0;
@@ -281,10 +281,10 @@ begin
       else if (TargetRect.Bottom > TestBoundsRect.Top) and (TargetRect.Top < TestBoundsRect.Bottom) then
         DeltaY := TargetRect.Bottom - TestBoundsRect.Top;
 
-      Logging.AddLog(Format('TargetRect(%d, %d, %d, %d); TestBoundsRect(%d, %d, %d, %d); DeltaX: %d; DeltaY: %d',
-        [TargetRect.Left, TargetRect.Top, TargetRect.Right, TargetRect.Bottom,
-        TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Right, TestBoundsRect.Bottom,
-        DeltaX, DeltaY]));
+//      Logging.AddLog(Format('TargetRect(%d, %d, %d, %d); TestBoundsRect(%d, %d, %d, %d); DeltaX: %d; DeltaY: %d',
+//        [TargetRect.Left, TargetRect.Top, TargetRect.Right, TargetRect.Bottom,
+//        TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Right, TestBoundsRect.Bottom,
+//        DeltaX, DeltaY]));
 
       // Wähle das kleinere Delta
       if Abs(DeltaX) > Abs(DeltaY) then
@@ -311,8 +311,8 @@ begin
           250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic));
   end;
 
-  if not AnyCollisions then
-    Logging.AddLog('Keine Kollisionen.');
+//  if not AnyCollisions then
+//    Logging.AddLog('Keine Kollisionen.');
 
   SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
     SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
@@ -329,7 +329,7 @@ begin
           SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
       end);
 
-  Logging.AddLog('<< CheckCollisions');
+//  Logging.AddLog('<< CheckCollisions');
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -668,7 +668,8 @@ var
   MatchEdge: TRectEdge;
   MatchWindow: TWindow;
   Snapper: TWindowMatchSnap;
-  AdjacentMonitor: TMonitor;
+  FromMonitor, AdjacentMonitor: TMonitor;
+  FromDPI, TargetDPI: Integer;
 
   // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
   // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
@@ -694,20 +695,28 @@ var
     end;
   end;
 
+  function ConvertDiffDPI(Value: Integer): Integer;
+  begin
+    if FromDPI <> TargetDPI then
+      Result := Trunc(Value / FromDPI * TargetDPI)
+    else
+      Result := Value;
+  end;
+
   procedure AdjustXOnAdjacentMonitor;
   begin
     if NewPos.X < AdjacentMonitor.WorkareaRect.Left then
       NewPos.X := AdjacentMonitor.WorkareaRect.Left
-    else if (NewPos.X + WinRect.Width) > AdjacentMonitor.WorkareaRect.Right then
-      NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
+    else if (NewPos.X + ConvertDiffDPI(WinRect.Width)) > AdjacentMonitor.WorkareaRect.Right then
+      NewPos.X := AdjacentMonitor.WorkareaRect.Right - ConvertDiffDPI(WinRect.Width);
   end;
 
   procedure AdjustYOnAdjacentMonitor;
   begin
     if NewPos.Y < AdjacentMonitor.WorkareaRect.Top then
       NewPos.Y := AdjacentMonitor.WorkareaRect.Top
-    else if (NewPos.Y + WinRect.Height) > AdjacentMonitor.WorkareaRect.Bottom then
-      NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
+    else if (NewPos.Y + ConvertDiffDPI(WinRect.Height)) > AdjacentMonitor.WorkareaRect.Bottom then
+      NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - ConvertDiffDPI(WinRect.Height);
   end;
 
 begin
@@ -727,6 +736,9 @@ begin
     NewPos := TPoint.Zero;
     MatchRect := TRect.Empty;
     MatchEdge := reUnknown;
+    FromDPI := 0;
+    TargetDPI := 0;
+    WindowPositioner.AnimatedMovement := True;
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
     Snapper.AddPhantomWorkareaCenterWindows;
@@ -780,32 +792,31 @@ begin
     // Suche nach einem benachbartem Monitor
     else if MonitorHandler.HasAdjacentMonitor(Direction, AdjacentMonitor) then
     begin
+      FromMonitor := MonitorHandler.CurrentMonitor;
       MonitorHandler.CurrentMonitor := AdjacentMonitor;
+
+      FromDPI := FromMonitor.PixelsPerInch;
+      TargetDPI := AdjacentMonitor.PixelsPerInch;
+
       NewPos := WinRect.Location;
       case Direction of
         dirLeft:
-        begin
-          NewPos.X := AdjacentMonitor.WorkareaRect.Right - WinRect.Width;
-          AdjustYOnAdjacentMonitor;
-        end;
+          NewPos.X := AdjacentMonitor.WorkareaRect.Right - ConvertDiffDPI(WinRect.Width);
         dirRight:
-        begin
           NewPos.X := AdjacentMonitor.WorkareaRect.Left;
-          AdjustYOnAdjacentMonitor;
-        end;
         dirUp:
-        begin
-          NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - WinRect.Height;
-          AdjustXOnAdjacentMonitor;
-        end;
+          NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - ConvertDiffDPI(WinRect.Height);
         dirDown:
-        begin
           NewPos.Y := AdjacentMonitor.WorkareaRect.Top;
-          AdjustXOnAdjacentMonitor;
-        end;
       else
         Exit;
       end;
+
+      AdjustXOnAdjacentMonitor;
+      AdjustYOnAdjacentMonitor;
+      // Animated movement between monitors with different DPI can makes different problems,
+      // f.i. because the application must recalculate its layout and so breaks the movement.
+      WindowPositioner.AnimatedMovement := FromDPI = TargetDPI;
     end
     // Nichts trifft zu, also raus hier
     else
@@ -813,8 +824,8 @@ begin
 
     // WinRect enthält ab hier die neue Position
     WinRect.TopLeft := NewPos;
-    WindowPositioner.MoveWindow(NewPos);
 
+    WindowPositioner.MoveWindow(NewPos);
     BringSwitchTargetNumberFormsToTop;
 
     if not MatchRect.IsEmpty then

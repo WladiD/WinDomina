@@ -33,6 +33,7 @@ type
     // Stapel. Ein weiterer Aufruf von ExitWindow entfernt den letzten Eintrag von diesem Stapel.
     FCurrentStack: TSubjectWindowStack;
     FWindowsHandler: IWindowsHandler;
+    FAnimatedMovement: Boolean;
 
     function CurrentWindow: TWindow;
     procedure SetWindowPosInternal(Window: TWindow; TargetRect: TRect; Flags: Cardinal);
@@ -51,6 +52,7 @@ type
     procedure PushChangedWindowsPositions;
 
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
+    property AnimatedMovement: Boolean read FAnimatedMovement write FAnimatedMovement;
   end;
 
 implementation
@@ -82,6 +84,7 @@ constructor TWindowPositioner.Create;
 begin
   FStackDictionary := TStackDictionary.Create([doOwnsValues]);
   FCurrentStack := TSubjectWindowStack.Create(False);
+  FAnimatedMovement := True;
 end;
 
 destructor TWindowPositioner.Destroy;
@@ -137,18 +140,23 @@ begin
     SetWindowPlacement(Window.Handle, Placement);
   end;
 
-  Take(Window)
-    .Plugin<TAQPSystemTypesAnimations>
-    .RectAnimation(TargetRect,
-      function(RefObject: TObject): TRect
-      begin
-        Result := TWindow(RefObject).Rect;
-      end,
-      procedure(RefObject: TObject; const NewRect: TRect)
-      begin
-        SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, Flags);
-      end,
-      350, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+  if AnimatedMovement then
+  begin
+    Take(Window)
+      .Plugin<TAQPSystemTypesAnimations>
+      .RectAnimation(TargetRect,
+        function(RefObject: TObject): TRect
+        begin
+          Result := TWindow(RefObject).Rect;
+        end,
+        procedure(RefObject: TObject; const NewRect: TRect)
+        begin
+          SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, Flags);
+        end,
+        350, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+  end
+  else
+    SetWindowPosDominaStyle(Window.Handle, 0, TargetRect, Flags);
 end;
 
 // Bewegt das aktuelle Fenster, unter Beibehaltung seiner aktuellen Größe, an die neue Stelle
