@@ -934,7 +934,7 @@ begin
   if not Handled and LayerActivationKeys.TryGetValue(Key, Layer) and (Layer <> CurActiveLayer) then
   begin
     EnterLayer(Layer);
-    Layer.HandleKeyDown(Key, Handled);
+    Handled := True;
   end;
 
   if not Handled then

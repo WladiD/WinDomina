@@ -400,8 +400,7 @@ begin
   end;
 
   case Key of
-    vkDecimal,
-    vkComma:
+    vkG:
     begin
       if QuotientGridStyle < High(QuotientGridStyle) then
         QuotientGridStyle := Succ(QuotientGridStyle)
