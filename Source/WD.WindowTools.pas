@@ -49,6 +49,16 @@ type
 function UpdateLayeredWindowIndirect(Handle: THandle; Info: PUpdateLayeredWindowInfo): Boolean; stdcall;
   external user32;
 
+type
+  TWindowInfo = record
+    Window: THandle;
+    DropShadowSize: TRect;
+    WindowSizeable: Boolean;
+    DPIAwareness: DPI_AWARENESS;
+  end;
+
+function GetWindowInfo(Window: THandle): TWindowInfo;
+
 implementation
 
 function GetWorkareaRect(const RefRect: TRect): TRect;
@@ -101,26 +111,21 @@ begin
   AppendFlag(WS_VSCROLL, 'WS_VSCROLL');
 end;
 
-type
-  TWindowInfo = record
-    InitializedWindow: THandle;
-    DropShadowSize: TRect;
-    WindowSizeable: Boolean;
-  end;
-
 var
   WindowInfo: TWindowInfo;
 
-procedure InitWindowInfo(Window: THandle);
+function GetWindowInfo(Window: THandle): TWindowInfo;
 var
   Success: Boolean;
   Rect, LegacyRect: TRect;
   WindowStyle: NativeInt;
+  DPIAC: DPI_AWARENESS_CONTEXT;
 begin
-  if WindowInfo.InitializedWindow = Window then
-    Exit;
+  if WindowInfo.Window = Window then
+    Exit(WindowInfo);
 
-  WindowInfo.InitializedWindow := Window;
+  Result := Default(TWindowInfo);
+  Result.Window := Window;
 
   // Initialize DropShadowSize on Windows Vista or later
   if TOSVersion.Check(6) then
@@ -130,17 +135,35 @@ begin
 
     if Success then
     begin
-      WindowInfo.DropShadowSize.Left := LegacyRect.Left - Rect.Left;
-      WindowInfo.DropShadowSize.Right := LegacyRect.Right - Rect.Right;
-      WindowInfo.DropShadowSize.Top := LegacyRect.Top - Rect.Top;
-      WindowInfo.DropShadowSize.Bottom := LegacyRect.Bottom - Rect.Bottom;
+      Result.DropShadowSize.Left := LegacyRect.Left - Rect.Left;
+      Result.DropShadowSize.Right := LegacyRect.Right - Rect.Right;
+      Result.DropShadowSize.Top := LegacyRect.Top - Rect.Top;
+      Result.DropShadowSize.Bottom := LegacyRect.Bottom - Rect.Bottom;
     end
     else
-      WindowInfo.DropShadowSize := TRect.Empty;
+      Result.DropShadowSize := TRect.Empty;
   end;
 
+  // Windows 10
+  if TOSVersion.Check(6, 3) then
+  begin
+    DPIAC := GetWindowDpiAwarenessContext(Window);
+    Result.DPIAwareness := GetAwarenessFromDpiAwarenessContext(DPIAC);
+  end
+  else
+    Result.DPIAwareness := DPI_AWARENESS_INVALID;
+
   WindowStyle := GetWindowLong(Window, GWL_STYLE);
-  WindowInfo.WindowSizeable := (WindowStyle and WS_SIZEBOX) <> 0;
+  Result.WindowSizeable := (WindowStyle and WS_SIZEBOX) <> 0;
+
+  // Cache the last result
+  WindowInfo := Result;
+end;
+
+procedure InitWindowInfo(Window: THandle);
+begin
+  if WindowInfo.Window <> Window then
+    WindowInfo := GetWindowInfo(Window);
 end;
 
 // GetWindowRect liefert das Fensterrechteck inkl. ggf vorhandenem Fensterschatten. Diese Funktion
@@ -151,7 +174,8 @@ begin
 
   Result := GetWindowRect(Window, Rect);
   // Extend the given rect by shadow
-  if not WindowInfo.DropShadowSize.IsEmpty then
+  if not WindowInfo.DropShadowSize.IsEmpty and
+    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE) then
   begin
     Dec(Rect.Left, WindowInfo.DropShadowSize.Left);
     Dec(Rect.Top, WindowInfo.DropShadowSize.Top);
@@ -169,14 +193,16 @@ end;
 function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect;
   Flags: Cardinal): Boolean;
 var
-  NoSizeFlag: Boolean;
+  NoSizeFlag, SizeWindow: Boolean;
 begin
   InitWindowInfo(hWnd);
 
   NoSizeFlag := (Flags and SWP_NOSIZE) <> 0;
+  SizeWindow := not NoSizeFlag;
 
-  // Extend the given rect by shadow
-  if not WindowInfo.DropShadowSize.IsEmpty then
+  // Extend the given rect by shadow only for modern applications
+  if not WindowInfo.DropShadowSize.IsEmpty and
+    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE) then
   begin
     // Flag not present?
     if (Flags and SWP_NOMOVE) = 0 then
@@ -185,7 +211,7 @@ begin
       Inc(Rect.Top, WindowInfo.DropShadowSize.Top);
     end;
 
-    if not NoSizeFlag then
+    if SizeWindow then
     begin
       Inc(Rect.Right, WindowInfo.DropShadowSize.Right);
       Inc(Rect.Bottom, WindowInfo.DropShadowSize.Bottom);
@@ -193,7 +219,7 @@ begin
   end;
 
   // If the window is not sizeable, add the SWP_NOSIZE flag
-  if not NoSizeFlag and not WindowInfo.WindowSizeable then
+  if SizeWindow and not WindowInfo.WindowSizeable then
     Flags := Flags or SWP_NOSIZE;
 
   Result := Winapi.Windows.SetWindowPos(hWnd, hWndInsertAfter, Rect.Left, Rect.Top,

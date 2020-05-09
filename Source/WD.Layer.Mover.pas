@@ -664,6 +664,7 @@ procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
 var
   Window: HWND;
   WinRect, MatchRect, WorkareaRect: TRect;
+  WindowInfo: TWindowInfo;
   NewPos: TPoint;
   MatchEdge: TRectEdge;
   MatchWindow: TWindow;
@@ -729,6 +730,7 @@ begin
   WindowPositioner.EnterWindow(Window);
   try
     GetWindowRect(Window, WinRect);
+    WindowInfo := GetWindowInfo(Window);
     WorkareaRect := GetWorkareaRect(WinRect);
     GetWindowRectDominaStyle(Window, WinRect);
 
@@ -738,7 +740,6 @@ begin
     MatchEdge := reUnknown;
     FromDPI := 0;
     TargetDPI := 0;
-    WindowPositioner.AnimatedMovement := True;
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
     Snapper.AddPhantomWorkareaCenterWindows;
@@ -814,9 +815,6 @@ begin
 
       AdjustXOnAdjacentMonitor;
       AdjustYOnAdjacentMonitor;
-      // Animated movement between monitors with different DPI can makes different problems,
-      // f.i. because the application must recalculate its layout and so breaks the movement.
-      WindowPositioner.AnimatedMovement := FromDPI = TargetDPI;
     end
     // Nichts trifft zu, also raus hier
     else

@@ -8,6 +8,7 @@ uses
   System.Classes,
   System.Types,
   System.Generics.Collections,
+  Vcl.Forms,
 
   AnyiQuack,
   AQPSystemTypesAnimations,
@@ -33,7 +34,6 @@ type
     // Stapel. Ein weiterer Aufruf von ExitWindow entfernt den letzten Eintrag von diesem Stapel.
     FCurrentStack: TSubjectWindowStack;
     FWindowsHandler: IWindowsHandler;
-    FAnimatedMovement: Boolean;
 
     function CurrentWindow: TWindow;
     procedure SetWindowPosInternal(Window: TWindow; TargetRect: TRect; Flags: Cardinal);
@@ -52,7 +52,6 @@ type
     procedure PushChangedWindowsPositions;
 
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
-    property AnimatedMovement: Boolean read FAnimatedMovement write FAnimatedMovement;
   end;
 
 implementation
@@ -84,7 +83,6 @@ constructor TWindowPositioner.Create;
 begin
   FStackDictionary := TStackDictionary.Create([doOwnsValues]);
   FCurrentStack := TSubjectWindowStack.Create(False);
-  FAnimatedMovement := True;
 end;
 
 destructor TWindowPositioner.Destroy;
@@ -130,6 +128,23 @@ procedure TWindowPositioner.SetWindowPosInternal(Window: TWindow; TargetRect: TR
   Flags: Cardinal);
 var
   Placement: TWindowPlacement;
+  WindowInfo: TWindowInfo;
+  FromMonitor, TargetMonitor: TMonitor;
+  MonitorWillChanged, AnimatedMovement: Boolean;
+
+  function GetMonitorWillChanged: Boolean;
+  begin
+    Result := Screen.MonitorCount > 1;
+
+    if not Result then
+      Exit;
+
+    FromMonitor := Screen.MonitorFromRect(Window.Rect);
+    TargetMonitor := Screen.MonitorFromRect(TargetRect);
+
+    Result := Assigned(FromMonitor) and Assigned(TargetMonitor) and (FromMonitor <> TargetMonitor);
+  end;
+
 begin
   // Ist ein Fenster aktuell maximiert, so wird es zuvor in den normalen Fenstermodus
   // wiederhergestellt
@@ -138,7 +153,27 @@ begin
   begin
     Placement.showCmd := SW_RESTORE;
     SetWindowPlacement(Window.Handle, Placement);
+    Sleep(250);
+    UpdateWindowRect(Window);
   end;
+
+  FromMonitor := nil;
+  TargetMonitor := nil;
+  WindowInfo := GetWindowInfo(Window.Handle);
+
+  MonitorWillChanged := GetMonitorWillChanged;
+
+  // Animated movement between monitors with different DPI can makes different problems,
+  // f.i. because the application must recalculate its layout and so breaks the movement.
+  AnimatedMovement :=
+    not MonitorWillChanged or
+    (
+      MonitorWillChanged and
+      (
+        (FromMonitor.PixelsPerInch = TargetMonitor.PixelsPerInch) or
+        (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE)
+      )
+    );
 
   if AnimatedMovement then
   begin
