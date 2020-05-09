@@ -14,8 +14,10 @@ SET RUNTIME_PATH=%CD%\
 POPD
 
 REM Determine the version of the WinDomina.exe
-CALL "%TOOLS_PATH%GetVersion.cmd" "%RUNTIME_PATH%WinDomina.exe"
-SET WD_VERSION=%vers:~0,-2%
+"%TOOLS_PATH%FileVersion.exe" "%RUNTIME_PATH%WinDomina.exe" "%%FileMajor%%.%%FileMinor%%.%%FileRelease%%" > WD_VERSION.temp
+set /p WD_VERSION=<WD_VERSION.temp
+DEL WD_VERSION.temp
+ECHO %WD_VERSION%
 
 ECHO Prepare portable release for v%WD_VERSION%
 SET PACK_PATH=%TEMP_PATH%WinDomina_v%WD_VERSION%\
@@ -45,4 +47,7 @@ SET OUTPUT_PATH=%value%
 
 IF NOT EXIST "%OUTPUT_PATH%" MKDIR "%OUTPUT_PATH%"
 
-"%SEVENZIP_PATH%7z" a -tzip -mx9 "%OUTPUT_PATH%WinDomina_v%WD_VERSION%_portable.zip" "%PACK_PATH%"
+SET PORTABLE_ZIP=%OUTPUT_PATH%WinDomina_v%WD_VERSION%_portable.zip
+IF EXIST %PORTABLE_ZIP% DEL %PORTABLE_ZIP%
+
+"%SEVENZIP_PATH%7z" a -tzip -mx9 "%PORTABLE_ZIP%" "%PACK_PATH%"
