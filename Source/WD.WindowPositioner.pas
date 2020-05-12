@@ -136,13 +136,12 @@ var
   begin
     Result := Screen.MonitorCount > 1;
 
-    if not Result then
-      Exit;
-
-    FromMonitor := Screen.MonitorFromRect(Window.Rect);
-    TargetMonitor := Screen.MonitorFromRect(TargetRect);
-
-    Result := Assigned(FromMonitor) and Assigned(TargetMonitor) and (FromMonitor <> TargetMonitor);
+    if Result then
+    begin
+      TargetMonitor := Screen.MonitorFromRect(TargetRect);
+      Result := Assigned(FromMonitor) and Assigned(TargetMonitor) and
+        (FromMonitor <> TargetMonitor);
+    end;
   end;
 
 begin
@@ -157,7 +156,7 @@ begin
     UpdateWindowRect(Window);
   end;
 
-  FromMonitor := nil;
+  FromMonitor := Screen.MonitorFromRect(Window.Rect);
   TargetMonitor := nil;
   WindowInfo := GetWindowInfo(Window.Handle);
 

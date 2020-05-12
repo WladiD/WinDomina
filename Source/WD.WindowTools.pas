@@ -166,6 +166,13 @@ begin
     WindowInfo := GetWindowInfo(Window);
 end;
 
+function UseDropShadowArea: Boolean;
+begin
+  // Currently only for modern applications available
+  Result := not WindowInfo.DropShadowSize.IsEmpty and
+    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE);
+end;
+
 // GetWindowRect liefert das Fensterrechteck inkl. ggf vorhandenem Fensterschatten. Diese Funktion
 // zieht den Schatten vom Rechteck ab und liefert das effektiv genutzte Fenster.
 function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
@@ -174,8 +181,7 @@ begin
 
   Result := GetWindowRect(Window, Rect);
   // Extend the given rect by shadow
-  if not WindowInfo.DropShadowSize.IsEmpty and
-    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE) then
+  if UseDropShadowArea then
   begin
     Dec(Rect.Left, WindowInfo.DropShadowSize.Left);
     Dec(Rect.Top, WindowInfo.DropShadowSize.Top);
@@ -200,9 +206,7 @@ begin
   NoSizeFlag := (Flags and SWP_NOSIZE) <> 0;
   SizeWindow := not NoSizeFlag;
 
-  // Extend the given rect by shadow only for modern applications
-  if not WindowInfo.DropShadowSize.IsEmpty and
-    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE) then
+  if UseDropShadowArea then
   begin
     // Flag not present?
     if (Flags and SWP_NOMOVE) = 0 then
