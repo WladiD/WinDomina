@@ -381,7 +381,7 @@ var
   TempPos: TPoint;
 begin
   TempPos := GetRefRectDefaultPositionLeft;
-  Result := TempPos <> FRefRect.Location;
+  Result := NoSnap(TempPos.X, FRefRect.Left);
   if Result then
   begin
     MatchEdge := reLeft;
@@ -395,7 +395,7 @@ var
   TempPos: TPoint;
 begin
   TempPos := GetRefRectDefaultPositionRight;
-  Result := TempPos <> FRefRect.Location;
+  Result := NoSnap(TempPos.X, FRefRect.Left);
   if Result then
   begin
     MatchEdge := reRight;
@@ -409,7 +409,7 @@ var
   TempPos: TPoint;
 begin
   TempPos := GetRefRectDefaultPositionTop;
-  Result := TempPos <> FRefRect.Location;
+  Result := NoSnap(TempPos.Y, FRefRect.Top);
   if Result then
   begin
     MatchEdge := reTop;
@@ -423,7 +423,7 @@ var
   TempPos: TPoint;
 begin
   TempPos := GetRefRectDefaultPositionBottom;
-  Result := TempPos <> FRefRect.Location;
+  Result := NoSnap(TempPos.Y, FRefRect.Top);
   if Result then
   begin
     MatchEdge := reBottom;

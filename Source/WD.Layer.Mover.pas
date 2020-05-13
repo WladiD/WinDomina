@@ -699,7 +699,7 @@ var
   function ConvertDiffDPI(Value: Integer): Integer;
   begin
     if FromDPI <> TargetDPI then
-      Result := Trunc(Value / FromDPI * TargetDPI)
+      Result := Round(Value / FromDPI * TargetDPI)
     else
       Result := Value;
   end;
@@ -729,10 +729,9 @@ begin
   // Sollte die Animation noch laufen, so muss sie abgebrochen werden
   WindowPositioner.EnterWindow(Window);
   try
-    GetWindowRect(Window, WinRect);
+    GetWindowRectDominaStyle(Window, WinRect);
     WindowInfo := GetWindowInfo(Window);
     WorkareaRect := GetWorkareaRect(WinRect);
-    GetWindowRectDominaStyle(Window, WinRect);
 
     UpdateVisibleWindowList;
     NewPos := TPoint.Zero;
