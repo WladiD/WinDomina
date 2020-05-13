@@ -167,10 +167,36 @@ begin
 end;
 
 function UseDropShadowArea: Boolean;
+
+  function AllMonitorsHasSameDPI: Boolean;
+  var
+    cc, CurrentDPI, PrevDPI: Integer;
+  begin
+    PrevDPI := 0;
+    for cc := 0 to Screen.MonitorCount - 1 do
+    begin
+      CurrentDPI := Screen.Monitors[cc].PixelsPerInch;
+      if (PrevDPI > 0) and (CurrentDPI <> PrevDPI) then
+        Exit(False);
+      PrevDPI := CurrentDPI;
+    end;
+
+    Result := True;
+  end;
+
+  function SingleMonitor: Boolean;
+  begin
+    Result := Screen.MonitorCount = 1;
+  end;
+
 begin
-  // Currently only for modern applications available
   Result := not WindowInfo.DropShadowSize.IsEmpty and
-    (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE);
+    (
+      // Modern applications has mostly no scaling problems
+      (WindowInfo.DPIAwareness = DPI_AWARENESS_PER_MONITOR_AWARE) or
+      SingleMonitor or
+      AllMonitorsHasSameDPI
+    );
 end;
 
 // GetWindowRect liefert das Fensterrechteck inkl. ggf vorhandenem Fensterschatten. Diese Funktion
