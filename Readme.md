@@ -1,6 +1,8 @@
 # WinDomina
 
-WinDomina is primary a tool for keyboard fans. It should become a collection of functions that I miss on Windows.
+The idea for WinDomina was born after I had written a small tool just to catch the [CapsLock] key and to ignore it, because I find this key mostly annoying instead of to be useful. So, why not to give this key a second chance? I decided to use it as a activator key. Just double-tap the [CapsLock] key and WinDomina is active.
+
+By the way: WinDomina is primary a tool for keyboard fans. ;-)
 
 ## Quick start
 After you started the *WinDomina.exe*, a icon is showed in your system tray and it does nothing until you activate it. 
