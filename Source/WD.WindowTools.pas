@@ -27,9 +27,9 @@ procedure SwitchToPreviouslyFocusedAppWindow;
 function GetTaskbarHandle: THandle;
 function FindWindowFromPoint(const Point: TPoint): HWND;
 
-function NoSnap(A, B: Integer): Boolean;
-function Snap(A, B: Integer): Boolean;
-function SnapRect(const A, B: TRect): Boolean;
+function NoSnap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
+function Snap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
+function SnapRect(const A, B: TRect; SnapThreshold: Integer = 5): Boolean;
 
 type
   TUpdateLayeredWindowInfo = record
@@ -305,20 +305,20 @@ end;
 
 // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
 // eine Mindestdifferenz erfüllt
-function NoSnap(A, B: Integer): Boolean;
+function NoSnap(A, B, SnapThreshold: Integer): Boolean;
 begin
-  Result := Abs(A - B) >= 5;
+  Result := Abs(A - B) >= SnapThreshold;
 end;
 
-function Snap(A, B: Integer): Boolean;
+function Snap(A, B, SnapThreshold: Integer): Boolean;
 begin
-  Result := Abs(A - B) < 5;
+  Result := Abs(A - B) < SnapThreshold;
 end;
 
-function SnapRect(const A, B: TRect): Boolean;
+function SnapRect(const A, B: TRect; SnapThreshold: Integer): Boolean;
 begin
-  Result := Snap(A.Left, B.Left) and Snap(A.Top, B.Top) and
-    Snap(A.Right, B.Right) and Snap(A.Bottom, B.Bottom);
+  Result := Snap(A.Left, B.Left, SnapThreshold) and Snap(A.Top, B.Top, SnapThreshold) and
+    Snap(A.Right, B.Right, SnapThreshold) and Snap(A.Bottom, B.Bottom, SnapThreshold);
 end;
 
 function IsDelphiHandle(Handle: HWND): Boolean;

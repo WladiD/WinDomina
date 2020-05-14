@@ -720,6 +720,23 @@ var
       NewPos.Y := AdjacentMonitor.WorkareaRect.Bottom - ConvertDiffDPI(WinRect.Height);
   end;
 
+  function GetSnapperRefRect: TRect;
+  const
+    RefEdge: array [TDirection] of TRectEdge = (
+      reUnknown, // dirUnknown
+      reBottom,  // dirUp
+      reLeft,    // dirRight
+      reTop,     // dirDown
+      reRight    // dirLeft
+      );
+  begin
+    // For window shrink mode we need other ref rects as for move and grow
+    if WDMKeyStates.IsShiftKeyPressed then
+      Result := GetRectEdgeRect(WinRect, RefEdge[Direction])
+    else
+      Result := WinRect;
+  end;
+
 begin
   if not HasTargetWindow(Window) then
     Exit;
@@ -740,11 +757,11 @@ begin
     FromDPI := 0;
     TargetDPI := 0;
 
-    Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
+    Snapper := TWindowMatchSnap.Create(GetSnapperRefRect, WorkareaRect, FVisibleWindowList);
 
     // Phantom windows which are there for centering purposes are not useful when we want to change
     // the size of the window
-    if not WDMKeyStates.IsControlKeyPressed then
+    if not (WDMKeyStates.IsControlKeyPressed or WDMKeyStates.IsShiftKeyPressed) then
       Snapper.AddPhantomWorkareaCenterWindows;
 
     // Zuerst suchen wir nach einer benachbarten Fensterkante...
@@ -823,17 +840,44 @@ begin
     else
       Exit;
 
-    if (Direction in [dirRight, dirDown]) and WDMKeyStates.IsControlKeyPressed then
+    // Grow window mode, if [Ctrl] is pressed
+    if WDMKeyStates.IsControlKeyPressed then
     begin
-      WinRect.Width := WinRect.Width + (NewPos.X - WinRect.Left);
-      WinRect.Height := WinRect.Height + (NewPos.Y - WinRect.Top);
+      if Direction in [dirRight, dirDown] then
+      begin
+        WinRect.Width := WinRect.Width + (NewPos.X - WinRect.Left);
+        WinRect.Height := WinRect.Height + (NewPos.Y - WinRect.Top);
+      end
+      else if Direction in [dirLeft, dirUp] then
+        WinRect.TopLeft := NewPos
+      else
+        Exit;
+
       WindowPositioner.PlaceWindow(WinRect);
     end
-    else if (Direction in [dirLeft, dirUp]) and WDMKeyStates.IsControlKeyPressed then
+    // Shrink window mode, if [Shift] is pressed
+    else if WDMKeyStates.IsShiftKeyPressed then
     begin
-      WinRect.TopLeft := NewPos;
-      WindowPositioner.PlaceWindow(WinRect);
+      case Direction of
+        dirUp:
+          WinRect.Bottom := NewPos.Y;
+        dirRight:
+          WinRect.Left := NewPos.X;
+        dirDown:
+          WinRect.Top := NewPos.Y;
+        dirLeft:
+          WinRect.Right := NewPos.X;
+      else
+        Exit;
+      end;
+
+      if (WinRect.Left < WinRect.Right) and
+        (WinRect.Top < WinRect.Bottom) and
+        NoSnap(WinRect.Left, WinRect.Right, 100) and
+        NoSnap(WinRect.Top, WinRect.Bottom, 100) then
+        WindowPositioner.PlaceWindow(WinRect);
     end
+    // Default move window mode
     else
     begin
       // WinRect enthält ab hier die neue Position

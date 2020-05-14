@@ -6,6 +6,7 @@ uses
   System.SysUtils,
   System.Classes,
   System.Generics.Collections,
+  System.Types,
   System.UITypes,
   Winapi.Windows,
   Winapi.Messages,
@@ -103,6 +104,8 @@ type
 function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
 function GetOppositeDirection(Direction: TDirection): TDirection;
 
+function GetRectEdgeRect(const RefRect: TRect; Edge: TRectEdge; EdgeWidth: Integer = 1): TRect;
+
 implementation
 
 function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
@@ -135,6 +138,22 @@ begin
       Result := dirRight;
   else
     Result := dirUnknown;
+  end;
+end;
+
+function GetRectEdgeRect(const RefRect: TRect; Edge: TRectEdge; EdgeWidth: Integer = 1): TRect;
+begin
+  case Edge of
+    reTop:
+      Result := Rect(RefRect.Left, RefRect.Top, RefRect.Right, RefRect.Top + EdgeWidth);
+    reRight:
+      Result := Rect(RefRect.Right - EdgeWidth, RefRect.Top, RefRect.Right, RefRect.Bottom);
+    reBottom:
+      Result := Rect(RefRect.Left, RefRect.Bottom - EdgeWidth, RefRect.Right, RefRect.Bottom);
+    reLeft:
+      Result := Rect(RefRect.Left, RefRect.Top, RefRect.Left + EdgeWidth, RefRect.Bottom);
+  else
+    Result := TRect.Empty;
   end;
 end;
 
