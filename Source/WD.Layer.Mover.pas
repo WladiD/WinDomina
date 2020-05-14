@@ -741,7 +741,11 @@ begin
     TargetDPI := 0;
 
     Snapper := TWindowMatchSnap.Create(WinRect, WorkareaRect, FVisibleWindowList);
-    Snapper.AddPhantomWorkareaCenterWindows;
+
+    // Phantom windows which are there for centering purposes are not useful when we want to change
+    // the size of the window
+    if not WDMKeyStates.IsControlKeyPressed then
+      Snapper.AddPhantomWorkareaCenterWindows;
 
     // Zuerst suchen wir nach einer benachbarten Fensterkante...
     if
@@ -819,10 +823,24 @@ begin
     else
       Exit;
 
-    // WinRect enthält ab hier die neue Position
-    WinRect.TopLeft := NewPos;
+    if (Direction in [dirRight, dirDown]) and WDMKeyStates.IsControlKeyPressed then
+    begin
+      WinRect.Width := WinRect.Width + (NewPos.X - WinRect.Left);
+      WinRect.Height := WinRect.Height + (NewPos.Y - WinRect.Top);
+      WindowPositioner.PlaceWindow(WinRect);
+    end
+    else if (Direction in [dirLeft, dirUp]) and WDMKeyStates.IsControlKeyPressed then
+    begin
+      WinRect.TopLeft := NewPos;
+      WindowPositioner.PlaceWindow(WinRect);
+    end
+    else
+    begin
+      // WinRect enthält ab hier die neue Position
+      WinRect.TopLeft := NewPos;
+      WindowPositioner.MoveWindow(NewPos);
+    end;
 
-    WindowPositioner.MoveWindow(NewPos);
     BringSwitchTargetNumberFormsToTop;
 
     if not MatchRect.IsEmpty then
