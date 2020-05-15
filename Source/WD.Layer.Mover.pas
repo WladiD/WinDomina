@@ -45,6 +45,8 @@ type
   private
     type
     TNumberFormList = TObjectList<TNumberForm>;
+    TControlMode = (cmWindow, cmMouse);
+    TWindowControlMode = (wcmMoveWindow, wcmGrowWindow, wcmShrinkWindow);
 
     var
     FVisibleWindowList: TWindowList;
@@ -54,6 +56,8 @@ type
     FShowNumberForms: Boolean;
     FActiveSwitchTargetIndex: Integer;
     FClickOnSwitchTarget: Boolean;
+    FControlMode: TControlMode;
+    FWindowMode: TWindowControlMode;
 
     procedure UpdateVisibleWindowList;
     procedure UpdateSwitchTargetsWindowList;
@@ -69,11 +73,16 @@ type
     procedure BringSwitchTargetNumberFormsToTop;
     procedure SetActiveSwitchTargetIndex(Value: Integer);
     procedure SetShowNumberForms(NewValue: Boolean);
+    procedure SetWindowMode(Value: TWindowControlMode);
+    function IsWindowModeModifierKey(Key: Integer): Boolean;
+    procedure UpdateCurrentWindowMode;
 
     procedure MoveSizeWindow(Direction: TDirection);
     procedure TargetWindowChangedOrMoved;
 
     property ActiveSwitchTargetIndex: Integer read FActiveSwitchTargetIndex write SetActiveSwitchTargetIndex;
+    property ControlMode: TControlMode read FControlMode write FControlMode;
+    property WindowMode: TWindowControlMode read FWindowMode write SetWindowMode;
 
   public
     class constructor Create;
@@ -218,6 +227,18 @@ begin
   BringSwitchTargetNumberFormsToTop;
 end;
 
+procedure TMoverLayer.UpdateCurrentWindowMode;
+begin
+  if ControlMode <> cmWindow then
+    Exit
+  else if WDMKeyStates.IsControlKeyPressed then
+    WindowMode := wcmGrowWindow
+  else if WDMKeyStates.IsShiftKeyPressed then
+    WindowMode := wcmShrinkWindow
+  else
+    WindowMode := wcmMoveWindow;
+end;
+
 procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm);
 
   function GetTargetRect(AssocWindow: TWindow): TRect;
@@ -337,6 +358,8 @@ begin
   inherited EnterLayer;
   AddLog('TMoverLayer.EnterLayer');
   FArrowIndicator.RefRect := TRect.Empty;
+  ControlMode := cmWindow;
+  WindowMode := wcmMoveWindow;
 
   ActiveSwitchTargetIndex := 0;
   TargetWindowChangedOrMoved;
@@ -570,6 +593,14 @@ begin
   InvalidateMainContent;
 end;
 
+procedure TMoverLayer.SetWindowMode(Value: TWindowControlMode);
+begin
+  if Value = FWindowMode then
+    Exit;
+
+  FWindowMode := Value;
+end;
+
 procedure TMoverLayer.TargetWindowChangedOrMoved;
 var
   TargetWindow, ActiveSwitchTargetWindow: TWindow;
@@ -652,6 +683,12 @@ begin
     Result := False;
 end;
 
+function TMoverLayer.IsWindowModeModifierKey(Key: Integer): Boolean;
+begin
+  Result := (ControlMode = cmWindow) and
+    (Key in [vkControl, vkLControl, vkRControl, vkShift, vkLShift, vkRShift]);
+end;
+
 function TMoverLayer.HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
 begin
   Result := Assigned(FSwitchTargets) and (TargetIndex >= 0) and
@@ -731,7 +768,7 @@ var
       );
   begin
     // For window shrink mode we need other ref rects as for move and grow
-    if WDMKeyStates.IsShiftKeyPressed then
+    if WindowMode = wcmShrinkWindow then
       Result := GetRectEdgeRect(WinRect, RefEdge[Direction])
     else
       Result := WinRect;
@@ -759,9 +796,8 @@ begin
 
     Snapper := TWindowMatchSnap.Create(GetSnapperRefRect, WorkareaRect, FVisibleWindowList);
 
-    // Phantom windows which are there for centering purposes are not useful when we want to change
-    // the size of the window
-    if not (WDMKeyStates.IsControlKeyPressed or WDMKeyStates.IsShiftKeyPressed) then
+    // Phantom windows which are there for centering purposes are only useful for window moving
+    if WindowMode = wcmMoveWindow then
       Snapper.AddPhantomWorkareaCenterWindows;
 
     // Zuerst suchen wir nach einer benachbarten Fensterkante...
@@ -841,7 +877,7 @@ begin
       Exit;
 
     // Grow window mode, if [Ctrl] is pressed
-    if WDMKeyStates.IsControlKeyPressed then
+    if WindowMode = wcmGrowWindow then
     begin
       if Direction in [dirRight, dirDown] then
       begin
@@ -856,7 +892,7 @@ begin
       WindowPositioner.PlaceWindow(WinRect);
     end
     // Shrink window mode, if [Shift] is pressed
-    else if WDMKeyStates.IsShiftKeyPressed then
+    else if WindowMode = wcmShrinkWindow then
     begin
       case Direction of
         dirUp:
@@ -878,7 +914,7 @@ begin
         WindowPositioner.PlaceWindow(WinRect);
     end
     // Default move window mode
-    else
+    else if WindowMode = wcmMoveWindow then
     begin
       // WinRect enthält ab hier die neue Position
       WinRect.TopLeft := NewPos;
@@ -942,16 +978,35 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
     end;
   end;
 
+  function IsModeModifierKey: Boolean;
+  begin
+    Result := True;
+    if IsWindowModeModifierKey(Key) then
+      UpdateCurrentWindowMode
+    else
+      Result := False;
+  end;
+
 begin
   if WindowsHandler.GetWindowList(wldDominaTargets).Count = 0 then
     Exit;
 
-  Handled := IsDirectionKey or IsSwitchTargetNumKey or IsSpaceKey;
+  Handled := IsDirectionKey or IsSwitchTargetNumKey or IsSpaceKey or IsModeModifierKey;
 end;
 
 procedure TMoverLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
-begin
 
+  function IsModeModifierKey: Boolean;
+  begin
+    Result := True;
+    if IsWindowModeModifierKey(Key) then
+      UpdateCurrentWindowMode
+    else
+      Result := False;
+  end;
+
+begin
+  Handled := IsModeModifierKey;
 end;
 
 { TAlignIndicatorAnimation }
