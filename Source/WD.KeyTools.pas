@@ -15,9 +15,14 @@ uses
 
   GR32,
   GR32_Polygons,
-  AnyiQuack;
+  AnyiQuack,
+  WD.Types;
 
 type
+  TKeyRenderer = class;
+  TKeyDecoratorProc = reference to procedure(Renderer: TKeyRenderer; Target: TBitmap32;
+    KeyRect: TRect);
+
   TKeyState = (ksFlat, ksUp, ksPressed);
   TRenderKey = record
     VirtualKey: Integer;
@@ -25,6 +30,7 @@ type
     Enabled: Boolean;
     Width: Integer;
     Height: Integer;
+    Decorator: TKeyDecoratorProc;
   end;
 
   TKeyRenderer = class
@@ -76,9 +82,9 @@ type
     destructor Destroy; override;
 
     procedure Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect; State: TKeyState;
-      Enabled: Boolean = True); overload;
+      Enabled: Boolean = True; const Decorator: TKeyDecoratorProc = nil); overload;
     procedure Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect; State: TKeyState;
-      Enabled: Boolean = True); overload;
+      Enabled: Boolean = True; const Decorator: TKeyDecoratorProc = nil); overload;
 
     property KeyRendererClass: TKeyRendererClass read FKeyRendererClass write SetKeyRendererClass;
   end;
@@ -114,7 +120,8 @@ begin
         // Für das Wissen "Das Rendering ist bei dem Key schnell" braucht man nur wenige Kriterien.
         // Die Größe des Keys ist z.B. nicht relevant.
         if (Left.VirtualKey = Right.VirtualKey) and
-          (Left.State = Right.State) and (Left.Enabled = Right.Enabled) then
+          (Left.State = Right.State) and (Left.Enabled = Right.Enabled) and
+          (Left.Decorator = Right.Decorator) then
           Result := 0
         else
           Result := 1;
@@ -176,7 +183,7 @@ begin
 end;
 
 procedure TKeyRenderManager.Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect;
-  State: TKeyState; Enabled: Boolean);
+  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorProc);
 var
   RK: TRenderKey;
 
@@ -198,6 +205,7 @@ begin
   RK.Enabled := Enabled;
   RK.Width := Rect.Width;
   RK.Height := Rect.Height;
+  RK.Decorator := Decorator;
 
   if not FCachedKeys.TryGetValue(RK, CachedKey) then
   begin
@@ -238,7 +246,7 @@ begin
 end;
 
 procedure TKeyRenderManager.Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect;
-  State: TKeyState; Enabled: Boolean);
+  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorProc);
 var
   RK: TRenderKey;
 begin
@@ -248,6 +256,7 @@ begin
   RK.Enabled := Enabled;
   RK.Width := Rect.Width;
   RK.Height := Rect.Height;
+  RK.Decorator := Decorator;
 
   // Die schnellste Methode, wenn zuvor bereits bekannt geworden ist,
   // dass das Rendering für diesen Key ganz schnell ist.
@@ -262,7 +271,7 @@ begin
     begin
       Target.Draw(Rect.Left, Rect.Top, Source);
     end,
-    VirtualKey, Rect, State, Enabled);
+    VirtualKey, Rect, State, Enabled, Decorator);
 end;
 
 procedure TKeyRenderManager.SetKeyRendererClass(Value: TKeyRendererClass);
@@ -404,8 +413,10 @@ begin
       vkDown:
         DrawArrowDown;
     end;
-
   end;
+
+  if Assigned(Key.Decorator) then
+    Key.Decorator(Self, Target, KeyRect);
 end;
 
 end.

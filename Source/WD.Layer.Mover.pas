@@ -29,10 +29,13 @@ uses
   WD.WindowTools,
   WD.WindowMatchSnap,
   WD.Form.Number,
-  WD.KeyTools;
+  WD.KeyTools,
+  WD.KeyDecorators;
 
 type
   TArrowIndicator = class;
+  TControlMode = (cmWindow, cmMouse);
+  TWindowControlMode = (wcmMoveWindow, wcmGrowWindow, wcmShrinkWindow);
 
   TMoverLayer = class(TBaseLayer)
   private
@@ -45,8 +48,6 @@ type
   private
     type
     TNumberFormList = TObjectList<TNumberForm>;
-    TControlMode = (cmWindow, cmMouse);
-    TWindowControlMode = (wcmMoveWindow, wcmGrowWindow, wcmShrinkWindow);
 
     var
     FVisibleWindowList: TWindowList;
@@ -111,6 +112,7 @@ type
     FRefRect: TRect;
     FTargetIndex: Integer;
     FShowTargetIndex: Boolean;
+    FWindowMode: TWindowControlMode;
 
   public
     procedure Draw(Target: TBitmap32);
@@ -118,6 +120,7 @@ type
     property RefRect: TRect read FRefRect write FRefRect;
     property TargetIndex: Integer read FTargetIndex write FTargetIndex;
     property ShowTargetIndex: Boolean read FShowTargetIndex write FShowTargetIndex;
+    property WindowMode: TWindowControlMode read FWindowMode write FWindowMode;
   end;
 
   TAlignIndicatorAnimation = class(TAnimationBase)
@@ -599,6 +602,8 @@ begin
     Exit;
 
   FWindowMode := Value;
+  FArrowIndicator.WindowMode := Value;
+  InvalidateMainContent;
 end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
@@ -1073,6 +1078,7 @@ var
   ContainSquare, ArrowSquare, RemainWidth, RemainHeight: Integer;
   ArrowSquare2, ArrowSquare3: Integer;
   PaintRect, ArrowRect: TRect;
+  KeyUpDecorator, KeyRightDecorator, KeyDownDecorator, KeyLeftDecorator: TKeyDecoratorProc;
 begin
   ArrowSquare := GetRefRectKeySquareSize(RefRect);
   ArrowSquare2 := ArrowSquare * 2;
@@ -1090,25 +1096,45 @@ begin
       Rect(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare,
       PaintRect.Left + ArrowSquare2, PaintRect.Top + ArrowSquare2), ksFlat);
 
+  case WindowMode of
+    wcmGrowWindow:
+    begin
+//      AddLog('Jetzt sollte der Decorator für wcmGrowWindow gezeichnet werden');
+      KeyUpDecorator := TKeyDecorators.TargetEdgeGrowTopIndicator;
+      KeyRightDecorator := TKeyDecorators.TargetEdgeGrowRightIndicator;
+      KeyDownDecorator := TKeyDecorators.TargetEdgeGrowBottomIndicator;
+      KeyLeftDecorator := TKeyDecorators.TargetEdgeGrowLeftIndicator;
+    end;
+//    wcmShrinkWindow:
+//    begin
+//
+//    end;
+  else
+    KeyUpDecorator := nil;
+    KeyRightDecorator := nil;
+    KeyDownDecorator := nil;
+    KeyLeftDecorator := nil;
+  end;
+
   // Pfeil nach Oben
   ArrowRect := Rect(PaintRect.Left + ArrowSquare - 1, PaintRect.Top - 1,
     PaintRect.Left + ArrowSquare2 + 1, PaintRect.Top + ArrowSquare + 1);
-  KeyRenderManager.Render(Target, vkUp, ArrowRect, ksFlat);
+  KeyRenderManager.Render(Target, vkUp, ArrowRect, ksFlat, True, KeyUpDecorator);
 
   // Pfeil nach Rechts
   ArrowRect := Rect(PaintRect.Left + ArrowSquare2 - 1, PaintRect.Top + ArrowSquare - 1,
     PaintRect.Left + ArrowSquare3 + 1, PaintRect.Top + ArrowSquare2 + 1);
-  KeyRenderManager.Render(Target, vkRight, ArrowRect, ksFlat);
+  KeyRenderManager.Render(Target, vkRight, ArrowRect, ksFlat, True, KeyRightDecorator);
 
   // Pfeil nach Unten
   ArrowRect := Rect(PaintRect.Left + ArrowSquare - 1, PaintRect.Top + ArrowSquare2 - 1,
     PaintRect.Left + ArrowSquare2 + 1, PaintRect.Top + ArrowSquare3 + 1);
-  KeyRenderManager.Render(Target, vkDown, ArrowRect, ksFlat);
+  KeyRenderManager.Render(Target, vkDown, ArrowRect, ksFlat, True, KeyDownDecorator);
 
   // Pfeil nach Links
   ArrowRect := Rect(PaintRect.Left - 1, PaintRect.Top + ArrowSquare - 1,
     PaintRect.Left + ArrowSquare + 1, PaintRect.Top + ArrowSquare2 + 1);
-  KeyRenderManager.Render(Target, vkLeft, ArrowRect, ksFlat);
+  KeyRenderManager.Render(Target, vkLeft, ArrowRect, ksFlat, True, KeyLeftDecorator);
 end;
 
 end.

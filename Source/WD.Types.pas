@@ -17,6 +17,7 @@ uses
 type
   TDirection = (dirUnknown, dirUp, dirRight, dirDown, dirLeft);
   TRectEdge = (reUnknown, reTop, reRight, reBottom, reLeft);
+  TRectEdges = set of TRectEdge;
 
   TKeyStates = class
   protected
@@ -104,6 +105,7 @@ type
 function IsDirectionKey(VirtualKey: Integer; out Direction: TDirection): Boolean;
 function GetOppositeDirection(Direction: TDirection): TDirection;
 
+function GetOppositeEdge(Edge: TRectEdge): TRectEdge;
 function GetRectEdgeRect(const RefRect: TRect; Edge: TRectEdge; EdgeWidth: Integer = 1): TRect;
 
 implementation
@@ -141,7 +143,23 @@ begin
   end;
 end;
 
-function GetRectEdgeRect(const RefRect: TRect; Edge: TRectEdge; EdgeWidth: Integer = 1): TRect;
+function GetOppositeEdge(Edge: TRectEdge): TRectEdge;
+begin
+  case Edge of
+    reTop:
+      Result := reBottom;
+    reRight:
+      Result := reLeft;
+    reBottom:
+      Result := reTop;
+    reLeft:
+      Result := reRight;
+  else
+    Result := reUnknown;
+  end;
+end;
+
+function GetRectEdgeRect(const RefRect: TRect; Edge: TRectEdge; EdgeWidth: Integer): TRect;
 begin
   case Edge of
     reTop:
