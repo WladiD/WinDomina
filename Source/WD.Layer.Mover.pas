@@ -1099,16 +1099,18 @@ begin
   case WindowMode of
     wcmGrowWindow:
     begin
-//      AddLog('Jetzt sollte der Decorator für wcmGrowWindow gezeichnet werden');
       KeyUpDecorator := TKeyDecorators.TargetEdgeGrowTopIndicator;
       KeyRightDecorator := TKeyDecorators.TargetEdgeGrowRightIndicator;
       KeyDownDecorator := TKeyDecorators.TargetEdgeGrowBottomIndicator;
       KeyLeftDecorator := TKeyDecorators.TargetEdgeGrowLeftIndicator;
     end;
-//    wcmShrinkWindow:
-//    begin
-//
-//    end;
+    wcmShrinkWindow:
+    begin
+      KeyUpDecorator := TKeyDecorators.TargetEdgeShrinkTopIndicator;
+      KeyRightDecorator := TKeyDecorators.TargetEdgeShrinkRightIndicator;
+      KeyDownDecorator := TKeyDecorators.TargetEdgeShrinkBottomIndicator;
+      KeyLeftDecorator := TKeyDecorators.TargetEdgeShrinkLeftIndicator;
+    end;
   else
     KeyUpDecorator := nil;
     KeyRightDecorator := nil;
