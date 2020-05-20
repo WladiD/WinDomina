@@ -44,6 +44,7 @@ type
     FOnMainContentChanged: TNotifyEvent;
     FAnimations: TAnimationList;
     FInvalidateMainContentLock: Boolean;
+    FOnExitLayer: TNotifyEvent;
 
     procedure DoMainContentChanged;
 
@@ -51,6 +52,7 @@ type
     FIsLayerActive: Boolean;
     FMonitorHandler: IMonitorHandler;
     FWindowsHandler: IWindowsHandler;
+    FExclusive: Boolean;
 
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
 
@@ -86,12 +88,15 @@ type
     function GetDisplayName: string; virtual;
 
     property IsLayerActive: Boolean read FIsLayerActive;
+    // Exclusive layers suppress other layers behind them
+    property Exclusive: Boolean read FExclusive;
     property MonitorHandler: IMonitorHandler read FMonitorHandler write FMonitorHandler;
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
-    // Dieses Ereignis wird ausgelöst, wenn der Layer selbst feststellt, dass er sich neu zeichnen
-    // muss
+    // This event is triggered when the layer itself determines that it must be redrawn
     property OnMainContentChanged: TNotifyEvent read FOnMainContentChanged
       write FOnMainContentChanged;
+    // Will be fired in ExitLayer method
+    property OnExitLayer: TNotifyEvent read FOnExitLayer write FOnExitLayer;
   end;
 
   TAnimationBase = class
@@ -138,7 +143,12 @@ end;
 
 procedure TBaseLayer.ExitLayer;
 begin
+  if not IsLayerActive then
+    Exit;
+
   FIsLayerActive := False;
+  if Assigned(FOnExitLayer) then
+    FOnExitLayer(Self);
 end;
 
 // Registriert die Tasten, die zu einer Aktivierung des Layers führen

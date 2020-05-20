@@ -162,6 +162,7 @@ begin
   QuotientGrid := GetQuotientGridArray(qgsUniform);
 
   RegisterLayerActivationKeys([vkG]);
+  FExclusive := True;
 end;
 
 destructor TGridLayer.Destroy;

@@ -26,7 +26,8 @@ uses
   WD.Types.Messages in 'WD.Types.Messages.pas',
   WD.Form.Number in 'WD.Form.Number.pas' {NumberForm},
   WD.KeyTools in 'WD.KeyTools.pas',
-  WD.KeyDecorators in 'WD.KeyDecorators.pas';
+  WD.KeyDecorators in 'WD.KeyDecorators.pas',
+  WD.Layer.KeyViewer in 'WD.Layer.KeyViewer.pas';
 
 {$R *.res}
 

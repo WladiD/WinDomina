@@ -87,7 +87,8 @@ type
     function HasActiveLayer(out Layer: TBaseLayer): Boolean;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
-    procedure LayerMainContentChanged(Sender: TObject);
+    procedure LayerMainContentChangedEventHandler(Sender: TObject);
+    procedure LayerExitEventHandler(Sender: TObject);
 
     procedure LogWindow(Window: THandle);
 
@@ -164,7 +165,8 @@ implementation
 
 uses
   WD.Layer.Grid,
-  WD.Layer.Mover;
+  WD.Layer.Mover,
+  WD.Layer.KeyViewer;
 
 {$R *.dfm}
 
@@ -186,13 +188,15 @@ procedure TMainForm.FormCreate(Sender: TObject);
     Result := LayerClass.Create;
     Result.MonitorHandler := Self;
     Result.WindowsHandler := Self;
-    Result.OnMainContentChanged := LayerMainContentChanged;
+    Result.OnMainContentChanged := LayerMainContentChangedEventHandler;
+    Result.OnExitLayer := LayerExitEventHandler;
   end;
 
   procedure AddLayers;
   begin
     AddLayer(CreateLayer(TMoverLayer));
     AddLayer(CreateLayer(TGridLayer));
+    AddLayer(CreateLayer(TKeyViewerLayer));
   end;
 
   function CreateWindowPositioner: TWindowPositioner;
@@ -694,10 +698,13 @@ begin
 
   MainBitmap.Lock;
   try
-    if HasActiveLayer(Layer) and Layer.HasMainContent then
-    begin
-      Layer.RenderMainContent(MainBitmap);
-    end;
+    for Layer in FActiveLayers do
+      if Layer.HasMainContent then
+      begin
+        Layer.RenderMainContent(MainBitmap);
+        if Layer.Exclusive then
+          Break;
+      end;
 
     FUpdateWindowThread.RequestUpdateWindow;
   finally
@@ -760,7 +767,7 @@ begin
   if FActiveLayers.Count > 0 then
   begin
     CurLayer := GetActiveLayer;
-    if CurLayer.IsLayerActive and (CurLayer <> Layer) then
+    if CurLayer.IsLayerActive and (CurLayer <> Layer) and Layer.Exclusive then
       CurLayer.ExitLayer;
   end;
 
@@ -772,26 +779,31 @@ begin
     FActiveLayers.Insert(0, Layer);
 
   if not Layer.IsLayerActive then
-  begin
-    Caption := Lang[0] + ': ' + Layer.GetDisplayName;
     Layer.EnterLayer;
-    RenderWindowContent;
-  end;
+
+  Caption := Lang[0] + ': ' + Layer.GetDisplayName;
+  RenderWindowContent;
 end;
 
 procedure TMainForm.ExitLayer;
 var
   CurLayer: TBaseLayer;
 begin
-  if FActiveLayers.Count > 0 then
-  begin
-    CurLayer := GetActiveLayer;
+  for CurLayer in FActiveLayers do
     if CurLayer.IsLayerActive then
       CurLayer.ExitLayer;
-  end;
 end;
 
-procedure TMainForm.LayerMainContentChanged(Sender: TObject);
+// Event handler for TBaseLayer.OnExitLayer
+procedure TMainForm.LayerExitEventHandler(Sender: TObject);
+var
+  SenderLayer: TBaseLayer absolute Sender;
+begin
+  if (GetActiveLayer = SenderLayer) and (FActiveLayers.Count > 1) then
+    EnterLayer(FActiveLayers[1]);
+end;
+
+procedure TMainForm.LayerMainContentChangedEventHandler(Sender: TObject);
 begin
   RenderWindowContent;
 end;

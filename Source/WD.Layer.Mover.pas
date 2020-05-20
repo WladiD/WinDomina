@@ -162,6 +162,7 @@ begin
   FArrowIndicator.ShowTargetIndex := False;
   FNumberFormList := TNumberFormList.Create(True);
   FShowNumberForms := True;
+  FExclusive := True;
 end;
 
 destructor TMoverLayer.Destroy;
