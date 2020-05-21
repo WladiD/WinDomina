@@ -81,6 +81,7 @@ type
     FWindowList: TDomainWindowList;
     FMainBitmap: TBitmap32;
     FUpdateWindowThread: TUpdateWindowThread;
+    FDisableLayerExitEventHandler: Boolean;
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
@@ -789,9 +790,14 @@ procedure TMainForm.ExitLayer;
 var
   CurLayer: TBaseLayer;
 begin
-  for CurLayer in FActiveLayers do
-    if CurLayer.IsLayerActive then
-      CurLayer.ExitLayer;
+  FDisableLayerExitEventHandler := True;
+  try
+    for CurLayer in FActiveLayers do
+      if CurLayer.IsLayerActive then
+        CurLayer.ExitLayer;
+  finally
+    FDisableLayerExitEventHandler := False;
+  end;
 end;
 
 // Event handler for TBaseLayer.OnExitLayer
@@ -799,6 +805,9 @@ procedure TMainForm.LayerExitEventHandler(Sender: TObject);
 var
   SenderLayer: TBaseLayer absolute Sender;
 begin
+  if FDisableLayerExitEventHandler then
+    Exit;
+
   if (GetActiveLayer = SenderLayer) and (FActiveLayers.Count > 1) then
     EnterLayer(FActiveLayers[1]);
 end;
@@ -875,6 +884,19 @@ end;
 procedure TMainForm.WD_ExitDominaMode(var Message: TMessage);
 var
   TargetWindow: TWindow;
+
+  function GetFirstOrExclusiveLayer: TBaseLayer;
+  var
+    CurLayer: TBaseLayer;
+  begin
+    Result := nil;
+    for CurLayer in FActiveLayers do
+      if CurLayer.Exclusive then
+        Exit(CurLayer)
+      else if not Assigned(Result) then
+        Result := CurLayer;
+  end;
+
 begin
   // Wenn wir den Fokus haben, so dürfen diesen auch selbst vergeben (Sicherheitsrichtlinie von Windows 10)
   if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) and (GetForegroundWindow = Handle) then
@@ -884,7 +906,7 @@ begin
 
   LogForm.Caption := 'Normaler Modus';
   WDMKeyStates.ReleaseAllKeys;
-  FLastUsedLayer := GetActiveLayer;
+  FLastUsedLayer := GetFirstOrExclusiveLayer;
   ExitLayer;
   FActiveLayers.Clear;
   ClearWindowContent;
