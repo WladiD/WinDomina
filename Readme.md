@@ -4,6 +4,15 @@ The idea for WinDomina was born after I had written a small tool just to catch t
 
 By the way: WinDomina is primary a tool for keyboard fans. ;-)
 
+## Download
+
+You can download WinDomina binaries under **[Releases](https://github.com/WladiD/WinDomina/releases)**.
+
+Actually there is no installer available, just a portable distribution. 
+Simply extract the archive to an folder with write permissions and start the *WinDomina.exe*.
+
+Requirements: Windows 7 or 10.
+
 ## Quick start
 After you started the *WinDomina.exe*, a icon is showed in your system tray and it does nothing until you activate it. 
 
@@ -19,11 +28,3 @@ After some key strokes the windows are exactly aligned:
 
 To leave the **dominate mode** you can press [Enter], [Escape] or double-tap the [CapsLock] key again.
 
-## Download
-
-You can download WinDomina binaries under [Releases](https://github.com/WladiD/WinDomina/releases).
-
-Actually there is no installer available, just a portable distribution. 
-Simply extract the archive to an folder with write permissions and start the *WinDomina.exe*.
-
-Requirements: Windows 7 or 10.
