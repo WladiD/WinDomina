@@ -27,7 +27,9 @@ uses
   WD.Form.Number in 'WD.Form.Number.pas' {NumberForm},
   WD.KeyTools in 'WD.KeyTools.pas',
   WD.KeyDecorators in 'WD.KeyDecorators.pas',
-  WD.Layer.KeyViewer in 'WD.Layer.KeyViewer.pas';
+  WD.Layer.KeyViewer in 'WD.Layer.KeyViewer.pas',
+  WD.LangIndex in 'WD.LangIndex.pas',
+  WD.GR32Tools in 'WD.GR32Tools.pas';
 
 {$R *.res}
 

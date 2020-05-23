@@ -43,7 +43,8 @@ uses
   WD.Layer,
   WD.KBHKLib,
   WD.Form.Log,
-  WD.KeyTools;
+  WD.KeyTools,
+  WD.LangIndex;
 
 type
   TUpdateWindowThread = class;
@@ -85,7 +86,6 @@ type
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
-    function HasActiveLayer(out Layer: TBaseLayer): Boolean;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
     procedure LayerMainContentChangedEventHandler(Sender: TObject);
@@ -281,8 +281,8 @@ end;
 
 procedure TMainForm.Translate;
 begin
-  TrayIcon.BalloonTitle := Lang[2]; // Dominate-Modus aktivieren
-  TrayIcon.BalloonHint := Lang[4]; // Tippen Sie doppelt auf die CapsLock-Taste (Feststelltaste) um den Dominate-Modus zu aktivieren
+  TrayIcon.BalloonTitle := Lang[LS_2];
+  TrayIcon.BalloonHint := Lang[LS_4];
 
   // Weil es dort statusabhängige Übersetzungen geben kann
   DominaModeChanged;
@@ -753,13 +753,6 @@ begin
   Result := FActiveLayers.First;
 end;
 
-function TMainForm.HasActiveLayer(out Layer: TBaseLayer): Boolean;
-begin
-  Result := FActiveLayers.Count > 0;
-  if Result then
-    Layer := FActiveLayers.First;
-end;
-
 procedure TMainForm.EnterLayer(Layer: TBaseLayer);
 var
   LayerIndex: Integer;
@@ -782,7 +775,7 @@ begin
   if not Layer.IsLayerActive then
     Layer.EnterLayer;
 
-  Caption := Lang[0] + ': ' + Layer.GetDisplayName;
+  Caption := Lang[LS_0] + ': ' + Layer.GetDisplayName;
   RenderWindowContent;
 end;
 
@@ -924,11 +917,11 @@ begin
   Activated := IsDominaModeActivated;
   TrayIcon.IconIndex := IfThen(Activated, 1, 0);
 
-  TrayIcon.Hint := Lang[0] + sLineBreak + // WinDomina
-    IfThen(Activated, Lang[5] {Dominate-Modus ist aktiv}, Lang[6] {Dominate-Modus ist nicht aktiv}) + sLineBreak +
-    Lang[7]; // Tippen Sie doppelt auf die CapsLock-Taste...
+  TrayIcon.Hint := Lang[LS_0] + sLineBreak +
+    IfThen(Activated, Lang[LS_5], Lang[LS_6]) + sLineBreak +
+    Lang[LS_7];
 
-  ToggleDominaModeAction.Caption := IfThen(Activated, {End dominate mode} Lang[3], {Start dominate mode} Lang[2]);
+  ToggleDominaModeAction.Caption := IfThen(Activated, Lang[LS_3], Lang[LS_2]);
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
