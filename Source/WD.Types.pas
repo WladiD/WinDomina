@@ -50,6 +50,8 @@ type
     function ClientToScreen(const Rect: TRect): TRect; overload;
     function ScreenToClient(const Rect: TRect): TRect; overload;
 
+    function ConvertMmToPixel(MM: Real): Integer;
+
     function GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
 

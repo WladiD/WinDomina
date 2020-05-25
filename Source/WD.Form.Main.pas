@@ -130,6 +130,8 @@ type
     function ClientToScreen(const Rect: TRect): TRect; overload;
     function ScreenToClient(const Rect: TRect): TRect; overload;
 
+    function ConvertMmToPixel(MM: Real): Integer;
+
     function GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
 
@@ -389,6 +391,11 @@ begin
   Result.TopLeft := ScreenToClient(Rect.TopLeft);
   Result.Width := Rect.Width;
   Result.Height := Rect.Height;
+end;
+
+function TMainForm.ConvertMmToPixel(MM: Real): Integer;
+begin
+  Result := Round(Monitor.PixelsPerInch / 25.4 {MM per Inch} * MM);
 end;
 
 function TMainForm.GetCurrentMonitor: TMonitor;

@@ -3,6 +3,10 @@ unit WD.Layer.KeyViewer;
 interface
 
 uses
+  GR32,
+  GR32_Polygons,
+  GR32_VectorUtils,
+
   System.SysUtils,
   System.Classes,
   System.UITypes,
@@ -15,9 +19,6 @@ uses
   Vcl.Controls,
   Vcl.Graphics,
 
-  GR32,
-  GR32_Polygons,
-  GR32_VectorUtils,
   WindowEnumerator,
   AnyiQuack,
   AQPSystemTypesAnimations,
@@ -228,7 +229,7 @@ const
   IndentTop = 0.1;
   IndentLeft = 0.1;
   IndentRight = 0.1;
-  IndentBottom = 0.1;
+  IndentBottom = 0.05;
 
   function WidthFactor(Factor: Real): Integer;
   begin
@@ -241,8 +242,12 @@ const
   end;
 
 var
-  HelpContentRect: TRect;
+  HelpContentRect, LayersRect: TRect;
   BGColor: TColor32;
+  HeadlinePoint: TPoint;
+  EscKeyWidth: Integer;
+  EscKeyRect: TRect;
+  Points: TArrayOfFloatPoint;
 begin
   inherited RenderMainContent(Target);
 
@@ -257,12 +262,40 @@ begin
   Target.FillRect(HelpContentRect.Right, 0, Target.Width, Target.Height, BGColor);
   Target.FillRect(HelpContentRect.Left, HelpContentRect.Bottom, HelpContentRect.Right, Target.Height, BGColor);
 
+  LayersRect := HelpContentRect;
+  LayersRect.Right := LayersRect.Left + MonitorHandler.ConvertMmToPixel(80);
+  HelpContentRect.Left := LayersRect.Right;
+
   Target.FillRect(HelpContentRect.Left, HelpContentRect.Top,
     HelpContentRect.Right, HelpContentRect.Bottom,
     EaseColor32(Color32(255, 255, 255, 0), clWhite32, InitProgress));
 
+  Target.FillRect(LayersRect.Left, LayersRect.Top,
+    LayersRect.Right, LayersRect.Bottom, clLightGray32);
+
   Target.Font.Height := HeightFactor(0.05);
-  Target.RenderText(WidthFactor(IndentLeft), HeightFactor(0.04), Lang[LS_16], -1, clWhite32);
+  HeadlinePoint := Point(WidthFactor(IndentLeft), HeightFactor(0.04));
+  Target.RenderText(HeadlinePoint.X, HeadlinePoint.Y, Lang[LS_16], -1, clWhite32);
+
+  EscKeyWidth := Abs(Target.Font.Height); // MonitorHandler.ConvertMmToPixel(10);
+  Dec(HeadlinePoint.X, 10 + EscKeyWidth);
+
+  EscKeyRect := Rect(EscKeyWidth, HeadlinePoint.Y,
+    EscKeyWidth * 2, HeadlinePoint.Y + EscKeyWidth);
+
+  Target.FillRect(EscKeyRect.Left, EscKeyRect.Top, EscKeyRect.Right, EscKeyRect.Bottom, clWhite32);
+  KeyRenderManager.Render(Target, vkEscape, EscKeyRect, ksFlat);
+
+  // Arrow to the left on the left side of the [Esc] key
+  EscKeyRect.Offset(-EscKeyWidth, 0);
+  EscKeyRect.Inflate(-Round(EscKeyRect.Width * 0.6), -Round(EscKeyRect.Height * 0.6));
+  EscKeyRect.NormalizeRect;
+
+  SetLength(Points, 3);
+  Points[0] := TFloatPoint.Create(EscKeyRect.Right, EscKeyRect.Top);
+  Points[1] := TFloatPoint.Create(EscKeyRect.Left, EscKeyRect.Top + EscKeyRect.Height / 2);
+  Points[2] := TFloatPoint.Create(EscKeyRect.Right, EscKeyRect.Bottom);
+  PolylineFS(Target, Points, clWhite32, False, 3);
 end;
 
 procedure TKeyViewerLayer.SetInitProgress(const Value: Single);
