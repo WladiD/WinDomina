@@ -11,11 +11,14 @@ uses
   System.UITypes,
   System.Diagnostics,
   System.Types,
+  System.Math,
   Vcl.Graphics,
 
   GR32,
   GR32_Polygons,
+
   AnyiQuack,
+  Localization,
   WD.Types;
 
 type
@@ -289,41 +292,57 @@ end;
 
 procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect: TRect);
 
-  function CalcFontSize(Text: string): Integer;
+  function CalcFontHeight(Text: string): Integer;
   var
-    PrevSize: Integer;
+    PrevHeight: Integer;
     Extent: TSize;
+    PadX, PadY, AvailWidth, AvailHeight: Integer;
   begin
-    PrevSize := 0;
-    Result := 12;
+    PrevHeight := 0;
+    Result := 6;
+
+    if Length(Text) > 1 then
+    begin
+      PadX := Round(KeyRect.Width * 0.25);
+      PadY := Round(KeyRect.Height * 0.15);
+    end
+    else
+    begin
+      PadX := Round(KeyRect.Width * 0.05);
+      PadY := Round(KeyRect.Height * 0.05);
+    end;
+
+    PadX := Max(4, PadX);
+    PadY := Max(4, PadY);
+    AvailWidth := KeyRect.Width - PadX;
+    AvailHeight := KeyRect.Height - PadY;
+
     while True do
     begin
-      Target.Font.Size := -Result;
+      Target.Font.Height := Result;
       Extent := Target.TextExtent(Text);
-      if (Extent.cx < KeyRect.Width) and (Extent.cy < KeyRect.Height) then
-        Inc(Result)
-      else
-        Exit(PrevSize);
-      PrevSize := Result
+
+      if (Extent.cx >= AvailWidth) or (Extent.cy >= AvailHeight) then
+        Exit(PrevHeight);
+
+      PrevHeight := Result;
+      Inc(Result, 4);
     end;
   end;
 
   function GetKeyText: string;
   var
-    VK, NumKey: Integer;
+    VK: Integer;
   begin
     Result := '';
     VK := Key.VirtualKey;
 
     if VK in [vkNumpad0..vkNumpad9] then
-      NumKey := (VK - vkNumpad0)
+      Result := IntToStr(VK - vkNumpad0)
     else if VK in [vk0..vk9] then
-      NumKey := (VK - vk0)
-    else
-      NumKey := -1;
-
-    if NumKey >= 0 then
-      Result := IntToStr(NumKey);
+      Result := IntToStr(VK - vk0)
+    else if VK = vkEscape then
+      Result := Lang.Consts['KeyEscapeShort'];
   end;
 
   procedure DrawArrow(const P1, P2, P3: TFloatPoint);
@@ -375,7 +394,7 @@ var
 
 var
   KeyText: string;
-  FontSize: Integer;
+  FontHeight: Integer;
   TextSize: TSize;
 begin
   Target.Font.Name := 'Arial';
@@ -390,8 +409,8 @@ begin
 
   if KeyText <> '' then
   begin
-    FontSize := CalcFontSize(KeyText);
-    Target.Font.Size := FontSize;
+    FontHeight := CalcFontHeight(KeyText);
+    Target.Font.Height := FontHeight;
 
     TextSize := Target.TextExtent(KeyText);
     Target.RenderText(
