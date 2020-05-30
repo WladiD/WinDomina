@@ -16,10 +16,13 @@ uses
 
   GR32,
   GR32_Polygons,
+  GR32_Blend,
 
   AnyiQuack,
   Localization,
-  WD.Types;
+  WD.Types,
+  WD.GR32Tools,
+  WDDT.DelayedMethod;
 
 type
   TKeyRenderer = class;
@@ -44,11 +47,7 @@ type
   TKeyRendererClass = class of TKeyRenderer;
   TDrawSource = reference to procedure(Source: TBitmap32; Rect: TRect);
 
-  TKeyRenderManager = class
-  private
-    class var
-    CleanupDelayID: Integer;
-
+  TKeyRenderManager = class(TComponent)
   private
     type
     TCachedKey = class
@@ -64,7 +63,6 @@ type
 
     var
     FCachedKeys: TCachedKeys;
-    FKnownFastRenderKeys: TRenderKeys;
     FKeyRenderer: TKeyRenderer;
     FKeyRendererClass: TKeyRendererClass;
     // Wird der Wert überschritten, wird der Bereinigungsvorgang ausgelöst
@@ -76,12 +74,9 @@ type
     procedure Cleanup;
     procedure SetKeyRendererClass(Value: TKeyRendererClass);
 
-    procedure AddKnownFastRenderKey(const RenderKey: TRenderKey);
-    function IsKnownFastRenderKey(const RenderKey: TRenderKey): Boolean;
-
   public
     class constructor Create;
-    constructor Create;
+    constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
 
     procedure Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect; State: TKeyState;
@@ -109,27 +104,16 @@ end;
 
 class constructor TKeyRenderManager.Create;
 begin
-  CleanupDelayID := TAQ.GetUniqueID;
+
 end;
 
-constructor TKeyRenderManager.Create;
+constructor TKeyRenderManager.Create(Owner: TComponent);
 begin
+  inherited Create(Owner);
+
   FCachedKeys := TCachedKeys.Create([doOwnsValues]);
   KeyRendererClass := TKeyRenderer;
-  FKnownFastRenderKeys := TRenderKeys.Create(
-    TDelegatedComparer<TRenderKey>.Create(
-      function(const Left, Right: TRenderKey): Integer
-      begin
-        // Für das Wissen "Das Rendering ist bei dem Key schnell" braucht man nur wenige Kriterien.
-        // Die Größe des Keys ist z.B. nicht relevant.
-        if (Left.VirtualKey = Right.VirtualKey) and
-          (Left.State = Right.State) and (Left.Enabled = Right.Enabled) and
-          (Left.Decorator = Right.Decorator) then
-          Result := 0
-        else
-          Result := 1;
-      end));
-  FCleanupCountThreshold := 128;
+  FCleanupCountThreshold := 512;
   FCleanupFactor := 0.5; // Standardmäßig soll die Hälfte der Einträge entfernt werden
 end;
 
@@ -137,19 +121,8 @@ destructor TKeyRenderManager.Destroy;
 begin
   FCachedKeys.Free;
   FKeyRenderer.Free;
-  FKnownFastRenderKeys.Free;
 
   inherited Destroy;
-end;
-
-procedure TKeyRenderManager.AddKnownFastRenderKey(const RenderKey: TRenderKey);
-begin
-  FKnownFastRenderKeys.Add(RenderKey);
-end;
-
-function TKeyRenderManager.IsKnownFastRenderKey(const RenderKey: TRenderKey): Boolean;
-begin
-  Result := FKnownFastRenderKeys.IndexOf(RenderKey) >= 0;
 end;
 
 procedure TKeyRenderManager.Cleanup;
@@ -198,9 +171,7 @@ var
   end;
 
 var
-  CacheKey: Boolean;
   CachedKey: TCachedKey;
-  Stopper: TStopwatch;
 begin
   RK := Default(TRenderKey);
   RK.VirtualKey := VirtualKey;
@@ -212,40 +183,15 @@ begin
 
   if not FCachedKeys.TryGetValue(RK, CachedKey) then
   begin
-    Stopper := TStopwatch.StartNew;
     CachedKey := CreateCachedKey;
-    Stopper.Stop;
-
-    // Gecacht soll nur, wenn das Rendering zu lange dauert
-    CacheKey := Stopper.ElapsedMilliseconds > 0;
-    if CacheKey then
-      FCachedKeys.Add(RK, CachedKey)
-    else if not IsKnownFastRenderKey(RK) then
-      AddKnownFastRenderKey(RK);
-
-//    Logging.AddLog(Format('Duration for render: %d msec. FCachedKeys.Count = %d',
-//      [Stopper.ElapsedMilliseconds, FCachedKeys.Count]));
-  end
-  else
-    CacheKey := True;
+    FCachedKeys.Add(RK, CachedKey);
+  end;
 
   DrawSource(CachedKey.FBitmap, Rect);
-
-  if CacheKey then
-    CachedKey.FLastUsed := GetTickCount
-  // Wenn das Rendering schnell war und es nicht gecacht wird, dann freigeben.
-  else
-    CachedKey.Free;
+  CachedKey.FLastUsed := GetTickCount;
 
   if FCachedKeys.Count > FCleanupCountThreshold then
-    Take(Self)
-      .CancelDelays(CleanupDelayID)
-      .EachDelay(1000,
-        function(AQ: TAQ; O: TObject): Boolean
-        begin
-          Cleanup;
-          Result := False;
-        end, CleanupDelayID);
+    TDelayedMethod.Execute(Cleanup, 1000);
 end;
 
 procedure TKeyRenderManager.Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect;
@@ -261,18 +207,10 @@ begin
   RK.Height := Rect.Height;
   RK.Decorator := Decorator;
 
-  // Die schnellste Methode, wenn zuvor bereits bekannt geworden ist,
-  // dass das Rendering für diesen Key ganz schnell ist.
-  if IsKnownFastRenderKey(RK) then
-  begin
-    FKeyRenderer.Render(RK, Target, Rect);
-    Exit;
-  end;
-
   Render(
     procedure(Source: TBitmap32; Rect: TRect)
     begin
-      Target.Draw(Rect.Left, Rect.Top, Source);
+      MergedDraw(Source, Target, Rect.Left, Rect.Top);
     end,
     VirtualKey, Rect, State, Enabled, Decorator);
 end;
@@ -331,18 +269,19 @@ procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect:
   end;
 
   function GetKeyText: string;
-  var
-    VK: Integer;
   begin
-    Result := '';
-    VK := Key.VirtualKey;
-
-    if VK in [vkNumpad0..vkNumpad9] then
-      Result := IntToStr(VK - vkNumpad0)
-    else if VK in [vk0..vk9] then
-      Result := IntToStr(VK - vk0)
-    else if VK = vkEscape then
-      Result := Lang.Consts['KeyEscapeShort'];
+    case Key.VirtualKey of
+      vkNumpad0..vkNumpad9:
+        Result := IntToStr(Key.VirtualKey - vkNumpad0);
+      vk0..vk9:
+        Result := IntToStr(Key.VirtualKey - vk0);
+      vkA..vkZ:
+        Result := string(AnsiChar(Key.VirtualKey));
+      vkEscape:
+        Result := Lang.Consts['KeyEscapeShort'];
+    else
+      Result := '';
+    end;
   end;
 
   procedure DrawArrow(const P1, P2, P3: TFloatPoint);
@@ -413,10 +352,10 @@ begin
     Target.Font.Height := FontHeight;
 
     TextSize := Target.TextExtent(KeyText);
-    Target.RenderText(
+    Target.RenderTextWD(
       KeyRect.Left + ((KeyRect.Width - TextSize.cx) div 2),
       KeyRect.Top + ((KeyRect.Height - TextSize.cy) div 2),
-      KeyText, 2, clBlack32);
+      KeyText, clBlack32);
   end
   else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown] then
   begin
