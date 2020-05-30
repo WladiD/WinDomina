@@ -188,7 +188,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
 
   function CreateLayer(LayerClass: TBaseLayerClass): TBaseLayer;
   begin
-    Result := LayerClass.Create;
+    Result := LayerClass.Create(Self);
     Result.MonitorHandler := Self;
     Result.WindowsHandler := Self;
     Result.OnMainContentChanged := LayerMainContentChangedEventHandler;
@@ -210,7 +210,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
 
   function CreateKeyRenderManager: TKeyRenderManager;
   begin
-    Result := TKeyRenderManager.Create;
+    Result := TKeyRenderManager.Create(Self);
   end;
 
 var

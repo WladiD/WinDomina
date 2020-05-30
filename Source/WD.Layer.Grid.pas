@@ -71,7 +71,7 @@ type
   public
     class constructor Create;
 
-    constructor Create; override;
+    constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
 
     procedure EnterLayer; override;
@@ -153,9 +153,9 @@ begin
   TileSlideAniID := TAQ.GetUniqueID;
 end;
 
-constructor TGridLayer.Create;
+constructor TGridLayer.Create(Owner: TComponent);
 begin
-  inherited Create;
+  inherited Create(Owner);
 
   InitializeTileGrid(FTileGrid);
 

@@ -39,7 +39,7 @@ type
     wtAnySwitchTargetMoved);
   TWindowTrackings = set of TWindowTracking;
 
-  TBaseLayer = class
+  TBaseLayer = class(TComponent)
   private
     FOnMainContentChanged: TNotifyEvent;
     FAnimations: TAnimationList;
@@ -64,7 +64,7 @@ type
 
   public
     class constructor Create;
-    constructor Create; virtual;
+    constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
 
     procedure EnterLayer; virtual;
@@ -124,8 +124,10 @@ begin
 
 end;
 
-constructor TBaseLayer.Create;
+constructor TBaseLayer.Create(Owner: TComponent);
 begin
+  inherited Create(Owner);
+
   FAnimations := TAnimationList.Create(True);
 end;
 

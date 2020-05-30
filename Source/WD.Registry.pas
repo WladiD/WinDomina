@@ -127,6 +127,5 @@ FreeAndNil(LAK);
 FreeAndNil(RI);
 LogInterface := nil;
 FreeAndNil(WP);
-FreeAndNil(GlobalKeyRenderManager);
 
 end.
