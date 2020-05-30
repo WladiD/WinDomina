@@ -61,7 +61,7 @@ begin
   begin
     CumTargetY := TargetY + SourceY;
 
-    if CumTargetY > Target.Height then
+    if CumTargetY >= Target.Height then
       Exit;
 
     PSrc := PColor32Array(Source.ScanLine[SourceY]);
@@ -69,7 +69,7 @@ begin
     for SourceX := 0 to Source.Width - 1 do
     begin
       CumTargetX := SourceX + TargetX;
-      if CumTargetX > Target.Width then
+      if CumTargetX >= Target.Width then
         Break;
       MergeMem(PSrc[SourceX], PDst[CumTargetX]);
     end;
@@ -141,7 +141,6 @@ begin
       Size.cX := Height;
     B.SetSize(Size.cX, Size.cY);
     B.Font := Font;
-    B.Font.Quality := fqClearTypeNatural;
     B.Clear(0);
     B.Font.Color := clWhite;
     B.Textout(0, 0, Text);
