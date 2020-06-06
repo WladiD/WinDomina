@@ -95,24 +95,33 @@ end;
 
 { TBitmap32Helper }
 
-// Copied from GR32.pas
-procedure TextBlueToAlpha(const B: TCustomBitmap32; const Color: TColor32);
+// Copied from GR32.pas and optimized
+procedure TextBlueToAlpha(B: TCustomBitmap32; Color: TColor32);
+const
+  WhiteLocal: TColor32 = clWhite;
 var
+  BlueMasterAlpha: Byte;
   I: Integer;
   P: PColor32;
-  C: TColor32;
+  OpaqueColor: TColor32;
 begin
-  // convert blue channel to alpha and fill the color
+  BlueMasterAlpha := Color shr 24;
+
+  // If the passed color is opaque, so we decrease the master alpha for better results
+  if BlueMasterAlpha = $FF then
+    BlueMasterAlpha := 200;
+
+  OpaqueColor := Color and $00FFFFFF; // Remove alpha channel from the passed color
+
   P := @B.Bits[0];
   for I := 0 to B.Width * B.Height - 1 do
   begin
-    C := P^;
-    if C <> 0 then
-    begin
-      C := P^ shl 24; // transfer blue channel to alpha
-      C := C + Color;
-      P^ := C;
-    end;
+    if P^ = WhiteLocal then
+      P^ := Color
+    // Transfer the blue channel to alpha and add the color
+    else
+      P^ := (DivTable[P^ and $000000FF, BlueMasterAlpha] shl 24) + OpaqueColor;  // DivTableBit-Version (fast version)
+//      P^ := ((((P^ and $000000FF) * BlueMasterAlpha) div 255) shl 24) + OpaqueColor; // AlwaysCalc-Version (slow version because always calculated)
     Inc(P);
   end;
 end;
@@ -122,14 +131,11 @@ procedure TBitmap32Helper.RenderTextWD(X, Y: Integer; const Text: string; Color:
 var
   B: TBitmap32;
   Size: TSize;
-  Alpha: TColor32;
   PaddedText: string;
 begin
   if Empty then
     Exit;
 
-  Alpha := Color shr 24;
-  Color := Color and $00FFFFFF;
   PaddedText := Text + ' ';
 
   B := TBitmap32.Create;
@@ -145,7 +151,6 @@ begin
     B.Font.Color := clWhite;
     B.Textout(0, 0, Text);
     TextBlueToAlpha(B, Color);
-
     MergedDraw(B, Self, X, Y);
   finally
     B.Free;
