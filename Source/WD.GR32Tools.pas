@@ -131,16 +131,13 @@ procedure TBitmap32Helper.RenderTextWD(X, Y: Integer; const Text: string; Color:
 var
   B: TBitmap32;
   Size: TSize;
-  PaddedText: string;
 begin
   if Empty then
     Exit;
 
-  PaddedText := Text + ' ';
-
   B := TBitmap32.Create;
   try
-    Size := TextExtent(PaddedText);
+    Size := TextExtent(Text + ' ');
     if Size.cX > Width then
       Size.cX := Width;
     if Size.cY > Height then
