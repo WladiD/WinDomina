@@ -800,8 +800,10 @@ begin
   if FDisableLayerExitEventHandler then
     Exit;
 
-  if (GetActiveLayer = SenderLayer) and (FActiveLayers.Count > 1) then
-    EnterLayer(FActiveLayers[1]);
+  if (FActiveLayers.Count > 1) and (GetActiveLayer = SenderLayer) then
+    EnterLayer(FActiveLayers[1])
+  else if (FActiveLayers.Count = 1) and (FActiveLayers[0] <> FLayers.First) then
+    EnterLayer(FLayers.First);
 end;
 
 procedure TMainForm.LayerMainContentChangedEventHandler(Sender: TObject);
