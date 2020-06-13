@@ -39,6 +39,7 @@ type
   public
     property AssignedToWindow: HWND read FAssignedToWindow write FAssignedToWindow;
     property Number: Byte read FNumber write SetNumber;
+    property WindowHandle;
   end;
 
 implementation

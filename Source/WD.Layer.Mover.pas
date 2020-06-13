@@ -163,6 +163,7 @@ begin
   FNumberFormList := TNumberFormList.Create(True);
   FShowNumberForms := True;
   FExclusive := True;
+  FActiveSwitchTargetIndex := -1;
 end;
 
 destructor TMoverLayer.Destroy;
@@ -222,10 +223,7 @@ begin
   for NumberForm in FNumberFormList do
   begin
     NumberForm.Show;
-    if NumberForm.Number = ActiveSwitchTargetIndex then
-      NumberForm.Hide
-    else
-      UpdateSwitchTargetNumberFormBounds(NumberForm);
+    UpdateSwitchTargetNumberFormBounds(NumberForm);
   end;
 
   BringSwitchTargetNumberFormsToTop;
@@ -339,7 +337,7 @@ begin
 //  if not AnyCollisions then
 //    Logging.AddLog('Keine Kollisionen.');
 
-  SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+  SetWindowPos(NumberForm.WindowHandle, HWND_TOPMOST, 0, 0, 0, 0,
     SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 
   Take(NumberForm)
@@ -350,7 +348,7 @@ begin
       250, NumberFormBoundsAniID, TAQ.Ease(TEaseType.etElastic),
       procedure(Sender: TObject)
       begin
-        SetWindowPos(TNumberForm(Sender).Handle, HWND_TOPMOST, 0, 0, 0, 0,
+        SetWindowPos(TNumberForm(Sender).WindowHandle, HWND_TOPMOST, 0, 0, 0, 0,
           SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
       end);
 
@@ -554,7 +552,7 @@ begin
 
   for NumberForm in FNumberFormList do
     if NumberForm.Visible then
-      SetWindowPos(NumberForm.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+      SetWindowPos(NumberForm.WindowHandle, HWND_TOPMOST, 0, 0, 0, 0,
         SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 end;
 
