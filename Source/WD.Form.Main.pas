@@ -86,6 +86,7 @@ type
 
     procedure AddLayer(Layer: TBaseLayer);
     function GetActiveLayer: TBaseLayer;
+    function GetPrevOrDefaultLayer: TBaseLayer;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
     procedure LayerMainContentChangedEventHandler(Sender: TObject);
@@ -193,6 +194,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
     Result.WindowsHandler := Self;
     Result.OnMainContentChanged := LayerMainContentChangedEventHandler;
     Result.OnExitLayer := LayerExitEventHandler;
+    Result.OnGetPrevLayer := GetPrevOrDefaultLayer;
   end;
 
   procedure AddLayers;
@@ -792,18 +794,28 @@ begin
   end;
 end;
 
+function TMainForm.GetPrevOrDefaultLayer: TBaseLayer;
+begin
+  if FActiveLayers.Count > 1 then
+    Result := FActiveLayers[1]
+  else if (FActiveLayers.Count = 1) and (FActiveLayers[0] <> FLayers.First) then
+    Result := FLayers.First
+  else
+    Result := nil;
+end;
+
 // Event handler for TBaseLayer.OnExitLayer
 procedure TMainForm.LayerExitEventHandler(Sender: TObject);
 var
   SenderLayer: TBaseLayer absolute Sender;
 begin
-  if FDisableLayerExitEventHandler then
+  if FDisableLayerExitEventHandler or (GetActiveLayer <> SenderLayer) then
     Exit;
 
-  if (FActiveLayers.Count > 1) and (GetActiveLayer = SenderLayer) then
-    EnterLayer(FActiveLayers[1])
-  else if (FActiveLayers.Count = 1) and (FActiveLayers[0] <> FLayers.First) then
-    EnterLayer(FLayers.First);
+  SenderLayer := GetPrevOrDefaultLayer;
+
+  if Assigned(SenderLayer) then
+    EnterLayer(SenderLayer);
 end;
 
 procedure TMainForm.LayerMainContentChangedEventHandler(Sender: TObject);

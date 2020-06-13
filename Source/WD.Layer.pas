@@ -25,6 +25,8 @@ type
   TAnimationBase = class;
   TAnimationList = TObjectList<TAnimationBase>;
 
+  TGetLayerEvent = reference to function: TBaseLayer;
+
   // Verfügbar Fenster-Tracking-Features
   TWindowTracking = (
     // Änderung des Zielfensters
@@ -45,6 +47,7 @@ type
     FAnimations: TAnimationList;
     FInvalidateMainContentLock: Boolean;
     FOnExitLayer: TNotifyEvent;
+    FOnGetPrevLayer: TGetLayerEvent;
 
     procedure DoMainContentChanged;
 
@@ -59,6 +62,7 @@ type
     function HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
     function HasTargetWindow(out Window: TWindow): Boolean; overload;
     procedure InvalidateMainContent; virtual;
+    function GetPrevLayer: TBaseLayer;
 
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
 
@@ -97,6 +101,8 @@ type
       write FOnMainContentChanged;
     // Will be fired in ExitLayer method
     property OnExitLayer: TNotifyEvent read FOnExitLayer write FOnExitLayer;
+    // Will be fired in GetPrevLayer method to obtain the previous layer
+    property OnGetPrevLayer: TGetLayerEvent read FOnGetPrevLayer write FOnGetPrevLayer;
   end;
 
   TAnimationBase = class
@@ -324,6 +330,14 @@ end;
 function TBaseLayer.GetDisplayName: string;
 begin
   Result := Copy(ClassName, 2, Pos('Layer', ClassName) - 2);
+end;
+
+function TBaseLayer.GetPrevLayer: TBaseLayer;
+begin
+  if Assigned(FOnGetPrevLayer) then
+    Result := FOnGetPrevLayer
+  else
+    Result := nil;
 end;
 
 { TAnimationBase }
