@@ -37,6 +37,8 @@ type
     procedure SetNumber(Value: Byte);
 
   public
+    procedure SetBounds(ALeft, ATop, AWidth, AHeight: Integer); override;
+
     property AssignedToWindow: HWND read FAssignedToWindow write FAssignedToWindow;
     property Number: Byte read FNumber write SetNumber;
     property WindowHandle;
@@ -65,6 +67,12 @@ end;
 procedure TNumberForm.FormShow(Sender: TObject);
 begin
   UpdateContent;
+end;
+
+procedure TNumberForm.SetBounds(ALeft, ATop, AWidth, AHeight: Integer);
+begin
+  if HandleAllocated then
+    inherited SetBounds(ALeft, ATop, AWidth, AHeight);
 end;
 
 procedure TNumberForm.SetNumber(Value: Byte);
