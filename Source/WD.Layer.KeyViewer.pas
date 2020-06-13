@@ -51,12 +51,17 @@ type
   private
     FSections: TObjectList<THelpSectionItem>;
     FInitProgress: Single;
+    FActiveHelpSection: THelpSectionItem;
 
     function AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
-    procedure ChangeHelpSection(Section: THelpSectionItem);
+    procedure SetActiveSection(Value: THelpSectionItem);
+    procedure SetActiveSectionByLayer(Layer: TBaseLayer);
+    function HasActiveSectionByKey(Key: Integer; out Section: THelpSectionItem): Boolean;
+
     procedure SetInitProgress(const Value: Single);
 
     property InitProgress: Single read FInitProgress write SetInitProgress;
+    property ActiveHelpSection: THelpSectionItem read FActiveHelpSection write SetActiveSection;
 
   public
     class constructor Create;
@@ -126,11 +131,31 @@ type
 
   THelpKeyAssignmentItem = class(THelpBaseItem)
   private
+    const
+    KeyPaddingLeftFactor = 0.05;
+    KeyPaddingRightFactor = 0.05;
+    KeyPaddingTopFactor = 0.05;
+    KeyPaddingBottomFactor = 0.05;
+    HeadlineFontSize = 20;
+    HeadlinePaddingLeft = 0;
+    HeadlinePaddingRight = 0;
+    HeadlinePaddingTop = 5;
+    HeadlinePaddingBottom = 0;
+
+    var
     FSection: THelpSectionItem;
+    FAvailWidth: Integer;
+    FRequiredHeight: Integer;
+
+  protected
+    function GetKeySizeRequired(AvailWidth: Integer): TSize; virtual;
 
   public
     Shift: TShiftState;
     Key: Integer;
+
+    function GetRequiredHeight(AvailWidth: Integer): Integer; override;
+    procedure Render(Target: TBitmap32); override;
   end;
 
   THelpKeyAssignmentItemClass = class of THelpKeyAssignmentItem;
@@ -224,6 +249,7 @@ begin
   inherited EnterLayer;
 
   FInitProgress := 0;
+  SetActiveSectionByLayer(GetPrevLayer);
 
   Take(Self)
     .CancelAnimations(InitAniID)
@@ -237,16 +263,31 @@ begin
 end;
 
 procedure TKeyViewerLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
+var
+  Section: THelpSectionItem;
 begin
   if Key = vkEscape then
-  begin
-
-    ExitLayer;
-
-  end;
+    ExitLayer
+  else if HasActiveSectionByKey(Key, Section) then
+    ActiveHelpSection := Section;
 
   // Catch all keys, the only way to escape is [Esc]
   Handled := True;
+end;
+
+function TKeyViewerLayer.HasActiveSectionByKey(Key: Integer;
+  out Section: THelpSectionItem): Boolean;
+var
+  CheckSection: THelpSectionItem;
+begin
+  for CheckSection in FSections do
+    if CheckSection.ActivationKey = Key then
+    begin
+      Section := CheckSection;
+      Exit(True);
+    end;
+
+  Result := False;
 end;
 
 function TKeyViewerLayer.HasMainContent: Boolean;
@@ -309,6 +350,14 @@ var
     end;
   end;
 
+  procedure RenderActiveSection(Alpha: Single);
+  begin
+    if Alpha <= 0 then
+      Exit;
+
+
+  end;
+
 begin
   inherited RenderMainContent(Target);
 
@@ -360,6 +409,31 @@ begin
 
   MaxRequiredSectionHeight := GetMaxRequiredSectionHeight(SectionsRect.Width);
   RenderSections;
+  RenderActiveSection(Max(0, (InitProgress - 0.8) / 0.2));
+end;
+
+procedure TKeyViewerLayer.SetActiveSection(Value: THelpSectionItem);
+begin
+  if FActiveHelpSection = Value then
+    Exit;
+
+  FActiveHelpSection := Value;
+  InvalidateMainContent;
+end;
+
+procedure TKeyViewerLayer.SetActiveSectionByLayer(Layer: TBaseLayer);
+var
+  Section: THelpSectionItem;
+begin
+  if not Assigned(Layer) then
+    Exit;
+
+  for Section in FSections do
+    if Section.FLayer = Layer.ClassType then
+    begin
+      ActiveHelpSection := Section;
+      Exit;
+    end;
 end;
 
 procedure TKeyViewerLayer.SetInitProgress(const Value: Single);
@@ -385,11 +459,6 @@ begin
       Result.DescriptionCustom := TestPair.Value.GetDisplayName;
       Break;
     end;
-end;
-
-procedure TKeyViewerLayer.ChangeHelpSection(Section: THelpSectionItem);
-begin
-
 end;
 
 { THelpBaseItem }
@@ -494,6 +563,88 @@ end;
 procedure THelpSectionItem.AddKeyAssignment(Key: THelpKeyAssignmentItem);
 begin
   FKeys.Add(Key);
+end;
+
+{ THelpKeyAssignmentItem }
+
+function THelpKeyAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
+begin
+  Result.cx := Round(AvailWidth * 0.15);
+  Result.cy := Result.cx;
+end;
+
+function THelpKeyAssignmentItem.GetRequiredHeight(AvailWidth: Integer): Integer;
+
+  function CalcRequiredHeight: Integer;
+  var
+    CalcTarget: TBitmap32;
+    HeadlineRect: TRect;
+    KeySize: TSize;
+  begin
+    CalcTarget := TBitmap32.Create(AvailWidth, 200);
+    try
+      CalcTarget.Font.Size := HeadlineFontSize;
+
+      KeySize := GetKeySizeRequired(AvailWidth);
+      HeadlineRect.Left := KeySize.cx + HeadlinePaddingLeft;
+      HeadlineRect.Top := HeadlinePaddingTop;
+      HeadlineRect.Right := AvailWidth - HeadlinePaddingRight;
+      HeadlineRect.Bottom := CalcTarget.Height;
+
+      CalcTarget.TextoutW(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
+      Result := HeadlineRect.Height;
+      if KeySize.cy > Result then
+        Result := KeySize.cy;
+    finally
+      CalcTarget.Free;
+    end;
+  end;
+
+begin
+  if FAvailWidth = AvailWidth then
+    Result := FRequiredHeight
+  else
+  begin
+    Result := CalcRequiredHeight;
+    FAvailWidth := AvailWidth;
+    FRequiredHeight := Result;
+  end;
+end;
+
+procedure THelpKeyAssignmentItem.Render(Target: TBitmap32);
+var
+  WholeRect, KeyRect, TextRect: TRect;
+  KeySize: TSize;
+  KeyPaddingLeft, KeyPaddingRight, KeyPaddingTop, KeyPaddingBottom: Integer;
+  Text: string;
+  TextExt: TSize;
+  TextX, TextY: Integer;
+begin
+  WholeRect := Rect(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+
+  KeySize := GetKeySizeRequired(WholeRect.Width);
+  KeyPaddingLeft := Round(KeySize.cx * KeyPaddingLeftFactor);
+  KeyPaddingRight := Round(KeySize.cx * KeyPaddingRightFactor);
+  KeyPaddingTop := Round(KeySize.cy * KeyPaddingTopFactor);
+  KeyPaddingBottom := Round(KeySize.cy * KeyPaddingBottomFactor);
+
+  KeyRect.Left := WholeRect.Left + KeyPaddingLeft;
+  KeyRect.Top := WholeRect.Top + KeyPaddingTop;
+  KeyRect.Right := KeyRect.Left + KeySize.cx - KeyPaddingRight - KeyPaddingLeft;
+  KeyRect.Bottom := KeyRect.Top + KeySize.cy - KeyPaddingBottom - KeyPaddingTop;
+
+  if Key <> 0 then
+    KeyRenderManager.Render(Target, Key, KeyRect, ksUp);
+
+  TextRect := Rect(KeyRect.Right, WholeRect.Top, WholeRect.Right, WholeRect.Bottom);
+
+  Target.Font.Height := -Round(KeySize.cy * 0.6); //HeadlineFontSize;
+  Text := Description;
+  TextExt := Target.TextExtent(Text);
+  TextX := TextRect.Left + KeyPaddingLeft; // + ((TextRect.Width - TextExt.cx) div 2);
+  TextY := TextRect.Top + ((TextRect.Height - TextExt.cy) div 2);
+
+  Target.RenderTextWD(TextX, TextY, Text, clBlack32);
 end;
 
 end.
