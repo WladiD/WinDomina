@@ -693,15 +693,11 @@ procedure TMainForm.RenderWindowContent;
 var
   Layer: TBaseLayer;
 {$IFDEF BOTTLENECK_LOG}
-  WholeStopper, BottleneckStopper: TStopwatch;
+  WholeStopper: TStopwatch;
 {$ENDIF}
 begin
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper := TStopwatch.StartNew;
-{$ENDIF}
-
-{$IFDEF BOTTLENECK_LOG}
-  BottleneckStopper := TStopwatch.StartNew;
 {$ENDIF}
 
   MainBitmap.Lock;
@@ -718,10 +714,6 @@ begin
   finally
     MainBitmap.Unlock;
   end;
-{$IFDEF BOTTLENECK_LOG}
-  BottleneckStopper.Stop;
-  Logging.AddLog('Dauer Init/RenderMainContent/RequestUpdateWindow ' + BottleneckStopper.ElapsedMilliseconds.ToString + ' msec.');
-{$ENDIF}
 
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper.Stop;
