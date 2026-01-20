@@ -164,11 +164,11 @@ type
 
   TUpdateWindowThread = class(TThread)
   protected
-    Bitmap           : TBitmap32;
-    ContentValid     : Boolean;
-    UpdateWindowEvent: TEvent;
-    WindowHandle     : HWND;
-    WindowPosition   : TPoint;
+    FBitmap           : TBitmap32;
+    FContentValid     : Boolean;
+    FUpdateWindowEvent: TEvent;
+    FWindowHandle     : HWND;
+    FWindowPosition   : TPoint;
     procedure TerminatedSet; override;
     procedure Execute; override;
   public
@@ -343,8 +343,8 @@ begin
 
   FMainBitmap := TBitmap32.Create;
   FUpdateWindowThread := TUpdateWindowThread.Create;
-  FUpdateWindowThread.WindowHandle := Handle;
-  FUpdateWindowThread.Bitmap := FMainBitmap;
+  FUpdateWindowThread.FWindowHandle := Handle;
+  FUpdateWindowThread.FBitmap := FMainBitmap;
 
   InitializeLang(RuntimeInfo.CommonPath);
 
@@ -615,7 +615,7 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
 
     MainBitmap.Lock;
     try
-      FUpdateWindowThread.WindowPosition := Workarea.Location;
+      FUpdateWindowThread.FWindowPosition := Workarea.Location;
       SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
         SWP_SHOWWINDOW{ or SWP_NOACTIVATE});
       UpdateBoundsRect(Workarea);
@@ -1106,8 +1106,8 @@ end;
 
 constructor TUpdateWindowThread.Create;
 begin
-  UpdateWindowEvent := TEvent.Create(nil, False, False, '');
-  WindowPosition := GR32.Point(0, 0);
+  FUpdateWindowEvent := TEvent.Create(nil, False, False, '');
+  FWindowPosition := GR32.Point(0, 0);
 
   inherited Create(False);
 end;
@@ -1127,51 +1127,51 @@ procedure TUpdateWindowThread.Execute;
     Blend.SourceConstantAlpha := 255;
     Blend.AlphaFormat := AC_SRC_ALPHA;
 
-    Bitmap.Lock;
+    FBitmap.Lock;
     try
-      Size.cx := Bitmap.Width;
-      Size.cy := Bitmap.Height;
-      if Bitmap.Empty then
+      Size.cx := FBitmap.Width;
+      Size.cy := FBitmap.Height;
+      if FBitmap.Empty then
         Exit;
 
       ZeroMemory(@Info, SizeOf(Info));
       Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
       Info.pptSrc := @SourcePosition;
-      Info.pptDst := @WindowPosition;
+      Info.pptDst := @FWindowPosition;
       Info.psize  := @Size;
       Info.pblend := @Blend;
       Info.dwFlags := ULW_ALPHA;
-      Info.hdcSrc := Bitmap.Handle;
+      Info.hdcSrc := FBitmap.Handle;
 
-      if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
+      if not UpdateLayeredWindowIndirect(FWindowHandle, @Info) then
         RaiseLastOSError();
 
-      Bitmap.Clear(Color32(0, 0, 0, 0));
-      ContentValid := False;
+      FBitmap.Clear(Color32(0, 0, 0, 0));
+      FContentValid := False;
     finally
-      Bitmap.Unlock;
+      FBitmap.Unlock;
     end;
   end;
 
 begin
   while not Terminated do
-    if (UpdateWindowEvent.WaitFor = wrSignaled) and ContentValid and not Terminated then
+    if (FUpdateWindowEvent.WaitFor = wrSignaled) and FContentValid and not Terminated then
       UpdateWindow;
 end;
 
 // Sagt dem Thread, dass er das Fenster aktualisieren soll
 //
 // Da an dieser Stelle keine eigenen Locks implementiert sind, darf diese Methode nur
-// aufgerufen werden, während die Bitmap gelockt ist.
+// aufgerufen werden, während die FBitmap gelockt ist.
 procedure TUpdateWindowThread.RequestUpdateWindow;
 begin
-  ContentValid := True;
-  UpdateWindowEvent.SetEvent;
+  FContentValid := True;
+  FUpdateWindowEvent.SetEvent;
 end;
 
 procedure TUpdateWindowThread.TerminatedSet;
 begin
-  UpdateWindowEvent.SetEvent;
+  FUpdateWindowEvent.SetEvent;
 end;
 
 end.
