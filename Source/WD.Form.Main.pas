@@ -1,66 +1,77 @@
+ï»¿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.Form.Main;
 
 interface
 
 uses
-  System.SysUtils,
-  System.Variants,
-  System.Classes,
-  System.Generics.Collections,
-  System.Types,
-  System.UITypes,
-  System.Win.ComObj,
-  System.ImageList,
-  System.Actions,
-  System.Math,
-  System.StrUtils,
-  System.Diagnostics,
-  System.SyncObjs,
+
   Winapi.Windows,
   Winapi.Messages,
-  Vcl.Graphics,
+
+  System.Actions,
+  System.Classes,
+  System.Diagnostics,
+  System.Generics.Collections,
+  System.ImageList,
+  System.IniFiles,
+  System.Math,
+  System.StrUtils,
+  System.SyncObjs,
+  System.SysUtils,
+  System.Types,
+  System.UITypes,
+  System.Variants,
+  System.Win.ComObj,
+  Vcl.ActnList,
   Vcl.Controls,
-  Vcl.Forms,
   Vcl.Dialogs,
-  Vcl.StdCtrls,
   Vcl.ExtCtrls,
+  Vcl.Forms,
+  Vcl.Graphics,
   Vcl.ImgList,
   Vcl.Menus,
-  Vcl.ActnList,
+  Vcl.StdCtrls,
 
   GR32,
   GR32_Backends,
+
   AnyiQuack,
   Localization,
   SendInputHelper,
   WindowEnumerator,
 
+  WD.Form.Log,
+  WD.KBHKLib,
+  WD.KeyTools,
+  WD.LangIndex,
+  WD.Layer,
+  WD.Registry,
   WD.Types,
   WD.Types.Messages,
-  WD.WindowTools,
   WD.WindowPositioner,
-  WD.Registry,
-  WD.Layer,
-  WD.KBHKLib,
-  WD.Form.Log,
-  WD.KeyTools,
-  WD.LangIndex;
+  WD.WindowTools;
 
 type
+
   TUpdateWindowThread = class;
 
   TMainForm = class(TForm, ITranslate, IMonitorHandler, IWindowsHandler)
-    TrayIcon: TTrayIcon;
-    TrayImageList: TImageList;
-    TrayPopupMenu: TPopupMenu;
     ActionList: TActionList;
     CloseAction: TAction;
     CloseMenuItem: TMenuItem;
     ToggleDominaModeAction: TAction;
     ToggleDominaModeMenuItem: TMenuItem;
+    TrayIcon: TTrayIcon;
+    TrayImageList: TImageList;
+    TrayPopupMenu: TPopupMenu;
+    procedure CloseActionExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure CloseActionExecute(Sender: TObject);
     procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
   private
@@ -68,30 +79,35 @@ type
     TDomainWindowList = TObjectDictionary<TWindowListDomain, TWindowList>;
 
     class var
-    UpdateWindowWorkareaDelayID: Integer;
     PushChangedWindowsPositionsDelayID: Integer;
-    WindowsTrackingIntervalID: Integer;
-    TargetWindowChangedDelayID: Integer;
-    TargetWindowMovedDelayID: Integer;
+    TargetWindowChangedDelayID        : Integer;
+    TargetWindowMovedDelayID          : Integer;
+    UpdateWindowWorkareaDelayID       : Integer;
+    WindowsTrackingIntervalID         : Integer;
 
     var
-    FVisible: Boolean;
-    FLayers: TLayerList;
-    FActiveLayers: TLayerList;
-    FLastUsedLayer: TBaseLayer;
-    FWindowList: TDomainWindowList;
-    FMainBitmap: TBitmap32;
-    FUpdateWindowThread: TUpdateWindowThread;
+    FActivationKey               : Integer;
+    FActiveLayers                : TLayerList;
     FDisableLayerExitEventHandler: Boolean;
+    FLastUsedLayer               : TBaseLayer;
+    FLayers                      : TLayerList;
+    FMainBitmap                  : TBitmap32;
+    FUpdateWindowThread          : TUpdateWindowThread;
+    FVisible                     : Boolean;
+    FWindowList                  : TDomainWindowList;
 
+    procedure LoadConfig;
+    procedure SaveConfig;
+    procedure SetAppActivationKey(Key: Integer);
+    procedure CreateActivationMenu;
+    procedure ActivationKeyMenuClick(Sender: TObject);
     procedure AddLayer(Layer: TBaseLayer);
-    function GetActiveLayer: TBaseLayer;
-    function GetPrevOrDefaultLayer: TBaseLayer;
+    function  GetActiveLayer: TBaseLayer;
+    function  GetPrevOrDefaultLayer: TBaseLayer;
     procedure EnterLayer(Layer: TBaseLayer);
     procedure ExitLayer;
     procedure LayerMainContentChangedEventHandler(Sender: TObject);
     procedure LayerExitEventHandler(Sender: TObject);
-
     procedure LogWindow(Window: THandle);
 
     procedure WD_EnterDominaMode(var Message: TMessage); message WD_ENTER_DOMINA_MODE;
@@ -148,17 +164,15 @@ type
 
   TUpdateWindowThread = class(TThread)
   protected
+    Bitmap           : TBitmap32;
+    ContentValid     : Boolean;
     UpdateWindowEvent: TEvent;
-    Bitmap: TBitmap32;
-    WindowHandle: HWND;
-    ContentValid: Boolean;
-    WindowPosition: TPoint;
-
+    WindowHandle     : HWND;
+    WindowPosition   : TPoint;
     procedure TerminatedSet; override;
     procedure Execute; override;
   public
     constructor Create;
-
     procedure RequestUpdateWindow;
   end;
 
@@ -168,6 +182,7 @@ var
 implementation
 
 uses
+
   WD.Layer.Grid,
   WD.Layer.Mover,
   WD.Layer.KeyViewer;
@@ -183,6 +198,85 @@ begin
   PushChangedWindowsPositionsDelayID := TAQ.GetUniqueID;
   TargetWindowChangedDelayID := TAQ.GetUniqueID;
   TargetWindowMovedDelayID := TAQ.GetUniqueID;
+end;
+
+procedure TMainForm.LoadConfig;
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(RuntimeInfo.DefaultPath + 'Config.ini');
+  try
+    FActivationKey := Ini.ReadInteger('Settings', 'ActivationKey', VK_CAPITAL);
+    SetAppActivationKey(FActivationKey);
+  finally
+    Ini.Free;
+  end;
+end;
+
+procedure TMainForm.SaveConfig;
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(RuntimeInfo.DefaultPath + 'Config.ini');
+  try
+    Ini.WriteInteger('Settings', 'ActivationKey', FActivationKey);
+  finally
+    Ini.Free;
+  end;
+end;
+
+procedure TMainForm.SetAppActivationKey(Key: Integer);
+begin
+  FActivationKey := Key;
+  WD.KBHKLib.SetActivationKey(Key);
+  CreateActivationMenu;
+end;
+
+procedure TMainForm.CreateActivationMenu;
+var
+  Item: TMenuItem;
+  SubItem: TMenuItem;
+  I: Integer;
+begin
+  Item := nil;
+  for I := 0 to TrayPopupMenu.Items.Count - 1 do
+    if TrayPopupMenu.Items[I].Tag = 999 then
+    begin
+      Item := TrayPopupMenu.Items[I];
+      Break;
+    end;
+
+  if Item = nil then
+  begin
+    Item := TMenuItem.Create(TrayPopupMenu);
+    Item.Caption := 'Activation Key';
+    Item.Tag := 999;
+    TrayPopupMenu.Items.Insert(0, Item);
+    
+    SubItem := TMenuItem.Create(Item);
+    SubItem.Caption := 'Caps Lock';
+    SubItem.Tag := VK_CAPITAL;
+    SubItem.OnClick := ActivationKeyMenuClick;
+    Item.Add(SubItem);
+
+    SubItem := TMenuItem.Create(Item);
+    SubItem.Caption := 'Left Windows';
+    SubItem.Tag := VK_LWIN;
+    SubItem.OnClick := ActivationKeyMenuClick;
+    Item.Add(SubItem);
+  end;
+
+  for I := 0 to Item.Count - 1 do
+    Item.Items[I].Checked := (Item.Items[I].Tag = FActivationKey);
+end;
+
+procedure TMainForm.ActivationKeyMenuClick(Sender: TObject);
+begin
+  if Sender is TMenuItem then
+  begin
+    SetAppActivationKey(TMenuItem(Sender).Tag);
+    SaveConfig;
+  end;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -243,6 +337,8 @@ begin
   RuntimeInfo.DefaultPath := IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName));
   RuntimeInfo.CommonPath := IncludeTrailingPathDelimiter(RuntimeInfo.DefaultPath + 'common');
 
+  LoadConfig;
+
   InstallHook(Handle);
 
   FMainBitmap := TBitmap32.Create;
@@ -288,7 +384,7 @@ begin
   TrayIcon.BalloonTitle := Lang[LS_2];
   TrayIcon.BalloonHint := Lang[LS_4];
 
-  // Weil es dort statusabhängige Übersetzungen geben kann
+  // Weil es dort statusabhÃ¤ngige Ãœbersetzungen geben kann
   DominaModeChanged;
 end;
 
@@ -440,8 +536,8 @@ function TMainForm.CreateWindowList(Domain: TWindowListDomain): TWindowList;
     case Domain of
       wldDominaTargets:
       begin
-        // Ohne diesen Filter wird jedes Vordergrundfenster, unabhängig davon ob es aktiv ist oder
-        // nicht, zum Zielfenster. Daher müssen alle Vordergrundfenster, die nicht aktiv sind
+        // Ohne diesen Filter wird jedes Vordergrundfenster, unabhÃ¤ngig davon ob es aktiv ist oder
+        // nicht, zum Zielfenster. Daher mÃ¼ssen alle Vordergrundfenster, die nicht aktiv sind
         // ausgefiltert werden.
         Result.InactiveTopMostWindowsFilter := True;
       end;
@@ -503,12 +599,12 @@ begin
   ToggleDominaModeAction.Execute;
 end;
 
-// Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das
+// Aktualisiert die Position dieses Forms auf die ArbeitsflÃ¤che des Monitors auf dem sich das
 // aktuelle Fenster befindet. Wenn kein Zielfenster vorhanden ist, so wird die Position des
 // Mauscursors verwendet.
 procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect);
 
-  // Passt das Fenster an die übergebene Arbeitsfläche an und setzt es in den Vordergrund
+  // Passt das Fenster an die Ã¼bergebene ArbeitsflÃ¤che an und setzt es in den Vordergrund
   procedure AdjustWindowWorkarea(Workarea: TRect);
   begin
     if not ((FVisible and (BoundsRect <> Workarea)) or ForceMode) then
@@ -582,7 +678,7 @@ procedure TMainForm.CheckWindowsTracking;
 var
   TargetWindow: TWindow;
 begin
-  // Diese Methode wird überwiegend aus einer verzögernden Methode aufgerufen. In bestimmten Fällen
+  // Diese Methode wird Ã¼berwiegend aus einer verzÃ¶gernden Methode aufgerufen. In bestimmten FÃ¤llen
   // kann sie auch noch aufgerufen werden, wenn der Domina-Modus nicht mehr aktiv ist. Dann kann es
   // hier zu Zugriffsverletzungen kommen. Dies soll diese Weiche verhindern.
   if not IsDominaModeActivated then
@@ -608,7 +704,7 @@ begin
   FPrevTargetWindow.Rect := TRect.Empty;
 end;
 
-// Sollte aufgerufen werden, wenn sich das Zielfenster verändert
+// Sollte aufgerufen werden, wenn sich das Zielfenster verÃ¤ndert
 procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindowHandle: HWND);
 
   procedure NotifyTargetWindowChanged(Layer: TBaseLayer);
@@ -646,7 +742,7 @@ begin
   WindowPositioner.ExitWindow;
 end;
 
-// Sollte aufgerufen werden, wenn sich die Position des Zielfensters ändert
+// Sollte aufgerufen werden, wenn sich die Position des Zielfensters Ã¤ndert
 procedure TMainForm.DoTargetWindowMoved;
 
   procedure NotifyTargetWindowMoved(Layer: TBaseLayer);
@@ -679,7 +775,7 @@ begin
   if wtTargetMoved in GetActiveLayer.GetRequiredWindowTrackings then
     NotifyTargetWindowMoved(GetActiveLayer);
 
-  // Die geänderte Position des Fensters soll verzögert auch im Positionierungsstack erfasst werden
+  // Die geÃ¤nderte Position des Fensters soll verzÃ¶gert auch im Positionierungsstack erfasst werden
   Take(Self)
     .CancelDelays(PushChangedWindowsPositionsDelayID)
     .EachDelay(750,
@@ -724,10 +820,10 @@ begin
 {$ENDIF}
 end;
 
-// Leert das Bitmap für das Layer-Window
+// Leert das Bitmap fÃ¼r das Layer-Window
 //
-// Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nächsten Start des Domina-Modus
-// für einen kurzen Moment der vorherige Inhalt sichtbar sein kann.
+// Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nÃ¤chsten Start des Domina-Modus
+// fÃ¼r einen kurzen Moment der vorherige Inhalt sichtbar sein kann.
 procedure TMainForm.ClearWindowContent;
 begin
   MainBitmap.Lock;
@@ -904,7 +1000,7 @@ var
   end;
 
 begin
-  // Wenn wir den Fokus haben, so dürfen diesen auch selbst vergeben (Sicherheitsrichtlinie von Windows 10)
+  // Wenn wir den Fokus haben, so dÃ¼rfen diesen auch selbst vergeben (Sicherheitsrichtlinie von Windows 10)
   if GetWindowList(wldDominaTargets).HasFirst(TargetWindow) and (GetForegroundWindow = Handle) then
     SetForegroundWindow(TargetWindow.Handle);
 
@@ -954,8 +1050,8 @@ var
     try
       WindowPositioner.PopWindowPosition;
 
-      // Durch die Widerherstellung der Fensterposition kann sich der Zielmonitor verändert haben,
-      // Dies sichern wir durch einen verzögernden Aufruf von UpdateWindowWorkarea
+      // Durch die Widerherstellung der Fensterposition kann sich der Zielmonitor verÃ¤ndert haben,
+      // Dies sichern wir durch einen verzÃ¶gernden Aufruf von UpdateWindowWorkarea
       UpdateWindowWorkareaDelayed(500);
     finally
       WindowPositioner.ExitWindow;
@@ -1066,7 +1162,7 @@ end;
 // Sagt dem Thread, dass er das Fenster aktualisieren soll
 //
 // Da an dieser Stelle keine eigenen Locks implementiert sind, darf diese Methode nur
-// aufgerufen werden, während die Bitmap gelockt ist.
+// aufgerufen werden, wÃ¤hrend die Bitmap gelockt ist.
 procedure TUpdateWindowThread.RequestUpdateWindow;
 begin
   ContentValid := True;

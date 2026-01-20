@@ -1,11 +1,13 @@
-program WinDomina;
+﻿program WinDomina;
 
 uses
+{$IFDEF madExcept}
   madExcept,
   madLinkDisAsm,
   madListHardware,
   madListProcesses,
   madListModules,
+{$ENDIF}
   Vcl.Forms,
   WD.Form.Main in 'WD.Form.Main.pas' {MainForm},
   WD.Types in 'WD.Types.pas',
@@ -20,7 +22,7 @@ uses
   Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
   ProcedureHook in '..\..\Localization\ProcedureHook.pas',
   SendInputHelper in '..\..\SendInputHelper\SendInputHelper.pas',
-  WindowEnumerator in '..\..\WindowEnumerator\WindowEnumerator.pas',
+  WindowEnumerator in '..\Lib\WindowEnumerator\WindowEnumerator.pas',
   WD.WindowMatchSnap in 'WD.WindowMatchSnap.pas',
   WD.WindowPositioner in 'WD.WindowPositioner.pas',
   WD.Types.Messages in 'WD.Types.Messages.pas',
@@ -30,7 +32,7 @@ uses
   WD.Layer.KeyViewer in 'WD.Layer.KeyViewer.pas',
   WD.LangIndex in 'WD.LangIndex.pas',
   WD.GR32Tools in 'WD.GR32Tools.pas',
-  WDDT.DelayedMethod in '..\..\WDDelphiTools\WDDT.DelayedMethod.pas';
+  WDDT.DelayedMethod in '..\Lib\WDDelphiTools\WDDT.DelayedMethod.pas';
 
 {$R *.res}
 

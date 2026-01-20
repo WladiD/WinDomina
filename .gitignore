@@ -2,4 +2,4 @@
 /Source/*.identcache
 /Source/*.stat
 __history
-/Source/Win32/Debug
+/Source/Win32/*/

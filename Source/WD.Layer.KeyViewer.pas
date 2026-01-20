@@ -504,7 +504,7 @@ function THelpSectionItem.GetRequiredHeight(AvailWidth: Integer): Integer;
       HeadlineRect.Right := AvailWidth - HeadlinePaddingRight;
       HeadlineRect.Bottom := CalcTarget.Height;
 
-      CalcTarget.TextoutW(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
+      CalcTarget.Textout(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
       Result := HeadlineRect.Height;
       if KeyHeight > Result then
         Result := KeyHeight;
@@ -591,7 +591,7 @@ function THelpKeyAssignmentItem.GetRequiredHeight(AvailWidth: Integer): Integer;
       HeadlineRect.Right := AvailWidth - HeadlinePaddingRight;
       HeadlineRect.Bottom := CalcTarget.Height;
 
-      CalcTarget.TextoutW(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
+      CalcTarget.Textout(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
       Result := HeadlineRect.Height;
       if KeySize.cy > Result then
         Result := KeySize.cy;

@@ -44,6 +44,15 @@ begin
     EnterDominaMode;
 end;
 
+procedure SetActivationKey(Key: Integer); stdcall;
+begin
+  if (Key > 0) and (DominaHotkey <> DWORD(Key)) then
+  begin
+    DominaHotkey := DWORD(Key);
+    LastHotkeyTapTick := 0;
+  end;
+end;
+
 function IsDominaModeActivated: Boolean; stdcall;
 begin
   Result := DominaModeActivated;
@@ -75,7 +84,7 @@ begin
       else
         LastHotkeyTapTick := CurrentTick;
     end
-    // Im Domina-Modus werden alle Tastendr¸cke abgefangen und umgeleitet
+    // Im Domina-Modus werden alle Tastendr√ºcke abgefangen und umgeleitet
     else if DominaModeActivated then
     begin
       NextHook := False;
@@ -91,14 +100,20 @@ begin
       end;
     end;
 
-    // Wenn die standardm‰ﬂige [CapsLock]-Taste als Hotkey verwendet wird, dann leiten wir den
-    // Hook nicht weiter und deaktivieren somit die Taste. Die CapsLock-Statusanzeige wird auf
-    // diese Weise auch umgangen.
-    if NextHook and (DominaHotkey = VK_CAPITAL) and (PKH.vkCode = VK_CAPITAL) and
-      // Der Hook wird aber einmalig weitergeleitet, wenn die [CapsLock]-Taste aktuell
-      // festgestellt ist, damit es deaktiviert wird.
-      ((GetKeyState(VK_CAPITAL) and $1) = 0) then
-      NextHook := False;
+    // Hotkey unterdr√ºcken
+    if NextHook and (PKH.vkCode = DominaHotkey) then
+    begin
+      if DominaHotkey = VK_CAPITAL then
+      begin
+        // Wenn die standardm√§√üige [CapsLock]-Taste als Hotkey verwendet wird, dann leiten wir den
+        // Hook nicht weiter und deaktivieren somit die Taste. Die CapsLock-Statusanzeige wird auf
+        // diese Weise auch umgangen.
+        // Der Hook wird aber einmalig weitergeleitet, wenn die [CapsLock]-Taste aktuell
+        // festgestellt ist, damit es deaktiviert wird.
+        if (GetKeyState(VK_CAPITAL) and $1) = 0 then
+          NextHook := False;
+      end;
+    end;
   finally
     if NextHook then
       Result := CallNextHookEx(HookHandle, nCode, wParam, lParam);
@@ -134,5 +149,6 @@ exports
   EnterDominaMode,
   ExitDominaMode,
   ToggleDominaMode,
+  SetActivationKey,
   IsDominaModeActivated;
 end.

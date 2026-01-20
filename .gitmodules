@@ -1,0 +1,12 @@
+[submodule "Lib/WDDelphiTools"]
+	path = Lib/WDDelphiTools
+	url = https://github.com/WladiD/WDDelphiTools
+[submodule "Lib/graphics32"]
+	path = Lib/graphics32
+	url = https://github.com/graphics32/graphics32.git
+[submodule "Lib/AnyiQuack"]
+	path = Lib/AnyiQuack
+	url = https://github.com/WladiD/AnyiQuack.git
+[submodule "Lib/WindowEnumerator"]
+	path = Lib/WindowEnumerator
+	url = https://github.com/WladiD/WindowEnumerator.git
