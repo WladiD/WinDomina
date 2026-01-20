@@ -3,3 +3,6 @@
 /Source/*.stat
 __history
 /Source/Win32/*/
+*.dsk
+*.~dsk
+*.dsv

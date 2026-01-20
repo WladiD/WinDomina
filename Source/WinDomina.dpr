@@ -18,6 +18,8 @@ uses
   WD.Registry in 'WD.Registry.pas',
   WD.KBHKLib in 'WD.KBHKLib.pas',
   WD.Form.Log in 'WD.Form.Log.pas' {LogForm},
+  WD.Form.Settings in 'WD.Form.Settings.pas' {SettingsForm},
+  WD.Types.Actions in 'WD.Types.Actions.pas',
   Localization in '..\..\Localization\Localization.pas',
   Localization.VCL.CommonBinding in '..\..\Localization\Localization.VCL.CommonBinding.pas',
   ProcedureHook in '..\..\Localization\ProcedureHook.pas',

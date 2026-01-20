@@ -53,6 +53,7 @@ uses
   WD.Registry,
   WD.Types,
   WD.Types.Messages,
+  WD.Types.Actions,
   WD.WindowPositioner,
   WD.WindowTools;
 
@@ -86,7 +87,9 @@ type
     WindowsTrackingIntervalID         : Integer;
 
     var
-    FActivationKey               : Integer;
+    FCapsLockAction              : TCapsLockAction;
+    FLeftWinAction               : TLeftWinAction;
+    FRightCtrlAction             : TRightCtrlAction;
     FActiveLayers                : TLayerList;
     FDisableLayerExitEventHandler: Boolean;
     FLastUsedLayer               : TBaseLayer;
@@ -98,9 +101,8 @@ type
 
     procedure LoadConfig;
     procedure SaveConfig;
-    procedure SetAppActivationKey(Key: Integer);
-    procedure CreateActivationMenu;
-    procedure ActivationKeyMenuClick(Sender: TObject);
+    procedure CreateSettingsMenu;
+    procedure SettingsMenuItemClick(Sender: TObject);
     procedure AddLayer(Layer: TBaseLayer);
     function  GetActiveLayer: TBaseLayer;
     function  GetPrevOrDefaultLayer: TBaseLayer;
@@ -185,7 +187,8 @@ uses
 
   WD.Layer.Grid,
   WD.Layer.Mover,
-  WD.Layer.KeyViewer;
+  WD.Layer.KeyViewer,
+  WD.Form.Settings;
 
 {$R *.dfm}
 
@@ -206,8 +209,15 @@ var
 begin
   Ini := TIniFile.Create(RuntimeInfo.DefaultPath + 'Config.ini');
   try
-    FActivationKey := Ini.ReadInteger('Settings', 'ActivationKey', VK_CAPITAL);
-    SetAppActivationKey(FActivationKey);
+    FCapsLockAction := TCapsLockAction(Ini.ReadInteger('Settings', 'CapsLockAction', Ord(claActivateWD)));
+    FLeftWinAction := TLeftWinAction(Ini.ReadInteger('Settings', 'LeftWinAction', Ord(lwaActivateWD)));
+    FRightCtrlAction := TRightCtrlAction(Ini.ReadInteger('Settings', 'RightCtrlAction', Ord(rcaDoNothing)));
+
+    WD.KBHKLib.SetCapsLockAction(FCapsLockAction);
+    WD.KBHKLib.SetLeftWinAction(FLeftWinAction);
+    WD.KBHKLib.SetRightCtrlAction(FRightCtrlAction);
+
+    CreateSettingsMenu;
   finally
     Ini.Free;
   end;
@@ -219,63 +229,62 @@ var
 begin
   Ini := TIniFile.Create(RuntimeInfo.DefaultPath + 'Config.ini');
   try
-    Ini.WriteInteger('Settings', 'ActivationKey', FActivationKey);
+    Ini.WriteInteger('Settings', 'CapsLockAction', Ord(FCapsLockAction));
+    Ini.WriteInteger('Settings', 'LeftWinAction', Ord(FLeftWinAction));
+    Ini.WriteInteger('Settings', 'RightCtrlAction', Ord(FRightCtrlAction));
+
+    WD.KBHKLib.SetCapsLockAction(FCapsLockAction);
+    WD.KBHKLib.SetLeftWinAction(FLeftWinAction);
+    WD.KBHKLib.SetRightCtrlAction(FRightCtrlAction);
   finally
     Ini.Free;
   end;
 end;
 
-procedure TMainForm.SetAppActivationKey(Key: Integer);
-begin
-  FActivationKey := Key;
-  WD.KBHKLib.SetActivationKey(Key);
-  CreateActivationMenu;
-end;
-
-procedure TMainForm.CreateActivationMenu;
+procedure TMainForm.CreateSettingsMenu;
 var
   Item: TMenuItem;
-  SubItem: TMenuItem;
   I: Integer;
 begin
-  Item := nil;
+  // Check if already exists
   for I := 0 to TrayPopupMenu.Items.Count - 1 do
-    if TrayPopupMenu.Items[I].Tag = 999 then
-    begin
-      Item := TrayPopupMenu.Items[I];
-      Break;
-    end;
+    if TrayPopupMenu.Items[I].Tag = 888 then // 888 for Settings
+      Exit;
 
-  if Item = nil then
-  begin
-    Item := TMenuItem.Create(TrayPopupMenu);
-    Item.Caption := 'Activation Key';
-    Item.Tag := 999;
-    TrayPopupMenu.Items.Insert(0, Item);
-    
-    SubItem := TMenuItem.Create(Item);
-    SubItem.Caption := 'Caps Lock';
-    SubItem.Tag := VK_CAPITAL;
-    SubItem.OnClick := ActivationKeyMenuClick;
-    Item.Add(SubItem);
-
-    SubItem := TMenuItem.Create(Item);
-    SubItem.Caption := 'Left Windows';
-    SubItem.Tag := VK_LWIN;
-    SubItem.OnClick := ActivationKeyMenuClick;
-    Item.Add(SubItem);
-  end;
-
-  for I := 0 to Item.Count - 1 do
-    Item.Items[I].Checked := (Item.Items[I].Tag = FActivationKey);
+  Item := TMenuItem.Create(TrayPopupMenu);
+  Item.Caption := 'Einstellungen';
+  Item.Tag := 888;
+  Item.OnClick := SettingsMenuItemClick;
+  TrayPopupMenu.Items.Insert(0, Item);
 end;
 
-procedure TMainForm.ActivationKeyMenuClick(Sender: TObject);
+procedure TMainForm.SettingsMenuItemClick(Sender: TObject);
+var
+  Form: TSettingsForm;
 begin
-  if Sender is TMenuItem then
-  begin
-    SetAppActivationKey(TMenuItem(Sender).Tag);
-    SaveConfig;
+  Form := TSettingsForm.Create(Self);
+  try
+    // Init values
+    Form.ComboBoxCapsLock.ItemIndex := Ord(FCapsLockAction);
+    Form.ComboBoxLeftWin.ItemIndex := Ord(FLeftWinAction);
+    Form.ComboBoxRightCtrl.ItemIndex := Ord(FRightCtrlAction);
+
+    if Form.ShowModal = mrOk then
+    begin
+      // Read values
+      if Form.ComboBoxCapsLock.ItemIndex >= 0 then
+        FCapsLockAction := TCapsLockAction(Form.ComboBoxCapsLock.ItemIndex);
+
+      if Form.ComboBoxLeftWin.ItemIndex >= 0 then
+        FLeftWinAction := TLeftWinAction(Form.ComboBoxLeftWin.ItemIndex);
+
+      if Form.ComboBoxRightCtrl.ItemIndex >= 0 then
+        FRightCtrlAction := TRightCtrlAction(Form.ComboBoxRightCtrl.ItemIndex);
+
+      SaveConfig;
+    end;
+  finally
+    Form.Free;
   end;
 end;
 

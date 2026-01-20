@@ -1,22 +1,38 @@
+﻿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 library kbhk;
 
 uses
+
   Winapi.Messages,
   Winapi.Windows,
-  WD.Types.Messages;
+
+  WD.Types.Messages,
+  WD.Types.Actions;
 
 {$R *.res}
 
-// This code based on the tutorial:
-// <https://www.delphi-treff.de/tutorials/systemnahe-programmierung/mouse-und-tastatur-hooks/>
-
 var
+
   HookHandle: NativeUInt;
   WindowHandle: NativeUInt;
   DoubleTapTime: NativeUInt;
-  DominaHotkey: DWORD = VK_CAPITAL;
-  LastHotkeyTapTick: UInt64;
+
   DominaModeActivated: Boolean;
+
+  // Configuration
+  CapsLockAction : TCapsLockAction = claActivateWD;
+  LeftWinAction  : TLeftWinAction  = lwaActivateWD;
+  RightCtrlAction: TRightCtrlAction = rcaDoNothing;
+
+  // State
+  LastCapsLockTapTick : UInt64;
+  LastLeftWinTapTick  : UInt64;
+  LastRightCtrlTapTick: UInt64;
 
 procedure EnterDominaMode; stdcall;
 begin
@@ -44,18 +60,40 @@ begin
     EnterDominaMode;
 end;
 
-procedure SetActivationKey(Key: Integer); stdcall;
+procedure SetCapsLockAction(Action: TCapsLockAction); stdcall;
 begin
-  if (Key > 0) and (DominaHotkey <> DWORD(Key)) then
-  begin
-    DominaHotkey := DWORD(Key);
-    LastHotkeyTapTick := 0;
-  end;
+  CapsLockAction := Action;
+end;
+
+procedure SetLeftWinAction(Action: TLeftWinAction); stdcall;
+begin
+  LeftWinAction := Action;
+end;
+
+procedure SetRightCtrlAction(Action: TRightCtrlAction); stdcall;
+begin
+  RightCtrlAction := Action;
 end;
 
 function IsDominaModeActivated: Boolean; stdcall;
 begin
   Result := DominaModeActivated;
+end;
+
+procedure SendContextMenuKey;
+var
+  Inputs: array [0..1] of TInput;
+begin
+  ZeroMemory(@Inputs, SizeOf(Inputs));
+
+  Inputs[0].Itype := INPUT_KEYBOARD;
+  Inputs[0].ki.wVk := VK_APPS;
+
+  Inputs[1].Itype := INPUT_KEYBOARD;
+  Inputs[1].ki.wVk := VK_APPS;
+  Inputs[1].ki.dwFlags := KEYEVENTF_KEYUP;
+
+  SendInput(2, Inputs[0], SizeOf(TInput));
 end;
 
 function LowLevelKeyboardHookProc(nCode: Integer; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
@@ -73,17 +111,47 @@ begin
   Result := 1;
   NextHook := True;
   try
-    if (wParam = WM_KEYUP) and (PKH.vkCode = DominaHotkey) then
+    if (wParam = WM_KEYUP) then
     begin
       CurrentTick := GetTickCount64;
-      if LastHotkeyTapTick > (CurrentTick - DoubleTapTime) then
+
+      // --- CapsLock Handling ---
+      if (PKH.vkCode = VK_CAPITAL) and (CapsLockAction <> claDoNothing) then
       begin
-        ToggleDominaMode;
-        LastHotkeyTapTick := 0;
+        if LastCapsLockTapTick > (CurrentTick - DoubleTapTime) then
+        begin
+          ToggleDominaMode;
+          LastCapsLockTapTick := 0;
+        end
+        else
+          LastCapsLockTapTick := CurrentTick;
       end
-      else
-        LastHotkeyTapTick := CurrentTick;
+
+      // --- LeftWin Handling ---
+      else if (PKH.vkCode = VK_LWIN) and (LeftWinAction = lwaActivateWD) then
+      begin
+        if LastLeftWinTapTick > (CurrentTick - DoubleTapTime) then
+        begin
+          ToggleDominaMode;
+          LastLeftWinTapTick := 0;
+        end
+        else
+          LastLeftWinTapTick := CurrentTick;
+      end
+
+      // --- RightCtrl Handling ---
+      else if (PKH.vkCode = VK_RCONTROL) and (RightCtrlAction = rcaContextMenu) then
+      begin
+        if LastRightCtrlTapTick > (CurrentTick - DoubleTapTime) then
+        begin
+          SendContextMenuKey;
+          LastRightCtrlTapTick := 0;
+        end
+        else
+          LastRightCtrlTapTick := CurrentTick;
+      end;
     end
+
     // Im Domina-Modus werden alle Tastendrücke abgefangen und umgeleitet
     else if DominaModeActivated then
     begin
@@ -100,10 +168,10 @@ begin
       end;
     end;
 
-    // Hotkey unterdrücken
-    if NextHook and (PKH.vkCode = DominaHotkey) then
+    // Hotkey unterdrücken (nur CapsLock Support für Ignore Key)
+    if NextHook and (PKH.vkCode = VK_CAPITAL) then
     begin
-      if DominaHotkey = VK_CAPITAL then
+      if (CapsLockAction = claActivateWDIgnoreKey) then
       begin
         // Wenn die standardmäßige [CapsLock]-Taste als Hotkey verwendet wird, dann leiten wir den
         // Hook nicht weiter und deaktivieren somit die Taste. Die CapsLock-Statusanzeige wird auf
@@ -149,6 +217,8 @@ exports
   EnterDominaMode,
   ExitDominaMode,
   ToggleDominaMode,
-  SetActivationKey,
+  SetCapsLockAction,
+  SetLeftWinAction,
+  SetRightCtrlAction,
   IsDominaModeActivated;
 end.
