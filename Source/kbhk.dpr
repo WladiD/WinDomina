@@ -101,6 +101,7 @@ var
   PKH: PKBDLLHOOKSTRUCT absolute lParam;
   NextHook: Boolean;
   CurrentTick: UInt64;
+  SuppressForwarding: Boolean;
 begin
   if nCode < 0 then
   begin
@@ -110,6 +111,8 @@ begin
 
   Result := 1;
   NextHook := True;
+  SuppressForwarding := False;
+
   try
     if (wParam = WM_KEYUP) then
     begin
@@ -125,6 +128,8 @@ begin
         end
         else
           LastCapsLockTapTick := CurrentTick;
+
+        SuppressForwarding := True;
       end
 
       // --- LeftWin Handling ---
@@ -137,6 +142,8 @@ begin
         end
         else
           LastLeftWinTapTick := CurrentTick;
+
+        SuppressForwarding := True;
       end
 
       // --- RightCtrl Handling ---
@@ -149,11 +156,15 @@ begin
         end
         else
           LastRightCtrlTapTick := CurrentTick;
+
+        // RightCtrl soll weitergeleitet werden, da es auch als Modifier dient
+        SuppressForwarding := False;
       end;
-    end
+    end;
 
     // Im Domina-Modus werden alle Tastendrücke abgefangen und umgeleitet
-    else if DominaModeActivated then
+    // Ausnahme: Wenn das Event oben als "zu unterdrücken" markiert wurde (Aktivierungstasten)
+    if DominaModeActivated and not SuppressForwarding then
     begin
       NextHook := False;
       case wParam of
