@@ -1,61 +1,57 @@
+﻿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.WindowMatchSnap;
 
 interface
 
 uses
-  System.Types,
+
   System.Classes,
-  System.SysUtils,
   System.Math,
+  System.SysUtils,
+  System.Types,
+
+  WindowEnumerator,
 
   WD.Types,
-  WD.WindowTools,
-  WindowEnumerator;
+  WD.WindowTools;
 
 type
+
   TWindowMatchSnap = class
   private
-    FRefRect: TRect;
-    FWorkArea: TRect;
-    FWindowList: TWindowList;
     // WAC = WorkAreaCenter
-    FPhantomWACLeft: TWindow;
-    FPhantomWACTop: TWindow;
-    FPhantomWACRight: TWindow;
-    FPhantomWACBottom: TWindow;
+    FPhantomWACBottom    : TWindow;
+    FPhantomWACLeft      : TWindow;
+    FPhantomWACRight     : TWindow;
+    FPhantomWACTop       : TWindow;
     FPhantomWindowsHolder: TWindowList;
-
+    FRefRect             : TRect;
+    FWindowList          : TWindowList;
+    FWorkArea            : TRect;
     function GetRefRectDefaultPositionLeft: TPoint;
     function GetRefRectDefaultPositionRight: TPoint;
     function GetRefRectDefaultPositionTop: TPoint;
     function GetRefRectDefaultPositionBottom: TPoint;
-
     function CreatePhantomWindow: TWindow;
-
   public
     constructor Create(const RefRect, WorkArea: TRect; WindowList: TWindowList);
     destructor Destroy; override;
 
     procedure AddPhantomWorkareaCenterWindows;
-    function IsPhantomWindow(Window: TWindow): Boolean;
-
-    function HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasMatchSnapWindowRight(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasMatchSnapWindowBottom(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-
-    function HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
-    function HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge;
-      out NewRefRectPos: TPoint): Boolean;
+    function  HasMatchSnapWindowBottom(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasMatchSnapWindowRight(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+    function  IsPhantomWindow(Window: TWindow): Boolean;
   end;
 
 implementation
@@ -81,7 +77,6 @@ end;
 destructor TWindowMatchSnap.Destroy;
 begin
   FPhantomWindowsHolder.Free;
-
   inherited Destroy;
 end;
 
@@ -101,9 +96,14 @@ procedure TWindowMatchSnap.AddPhantomWorkareaCenterWindows;
   end;
 
 var
-  RemainX, RemainY, RemainDiv : UInt64;
-  RemainLeft, RemainRight, RemainTop, RemainBottom: Integer;
-  R: PRect;
+  R           : PRect;
+  RemainBottom: Integer;
+  RemainDiv   : UInt64;
+  RemainLeft  : Integer;
+  RemainRight : Integer;
+  RemainTop   : Integer;
+  RemainX     : UInt64;
+  RemainY     : UInt64;
 begin
   DivMod(FWorkArea.Width - FRefRect.Width, 2, RemainX, RemainDiv);
   RemainLeft := RemainX + RemainDiv;
@@ -151,12 +151,11 @@ begin
   Result := Window.ClassName = PhantomWindowClassName;
 end;
 
-function TWindowMatchSnap.HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasMatchSnapWindowLeft(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
-  TestWin: TWindow;
+  TempPos : TPoint;
   TestRect: TRect;
-  TempPos: TPoint;
+  TestWin : TWindow;
 
   function IsWindowEdgeMatchAllowed: Boolean;
   begin
@@ -206,12 +205,11 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasMatchSnapWindowRight(out MatchWindow: TWindow;
-  out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasMatchSnapWindowRight(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
-  TestWin: TWindow;
+  TempPos : TPoint;
   TestRect: TRect;
-  TempPos: TPoint;
+  TestWin : TWindow;
 
   function IsWindowEdgeMatchAllowed: Boolean;
   begin
@@ -263,12 +261,11 @@ begin
   end
 end;
 
-function TWindowMatchSnap.HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasMatchSnapWindowTop(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
-  TestWin: TWindow;
+  TempPos : TPoint;
   TestRect: TRect;
-  TempPos: TPoint;
+  TestWin : TWindow;
 
   function IsWindowEdgeMatchAllowed: Boolean;
   begin
@@ -318,12 +315,11 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasMatchSnapWindowBottom(out MatchWindow: TWindow;
-  out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasMatchSnapWindowBottom(out MatchWindow: TWindow; out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
-  TestWin: TWindow;
+  TempPos : TPoint;
   TestRect: TRect;
-  TempPos: TPoint;
+  TestWin : TWindow;
 
   function IsWindowEdgeMatchAllowed: Boolean;
   begin
@@ -375,8 +371,7 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasWorkAreaEdgeMatchLeft(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
   TempPos: TPoint;
 begin
@@ -389,8 +384,7 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasWorkAreaEdgeMatchRight(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
   TempPos: TPoint;
 begin
@@ -403,8 +397,7 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasWorkAreaEdgeMatchTop(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
   TempPos: TPoint;
 begin
@@ -417,8 +410,7 @@ begin
   end;
 end;
 
-function TWindowMatchSnap.HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge;
-  out NewRefRectPos: TPoint): Boolean;
+function TWindowMatchSnap.HasWorkAreaEdgeMatchBottom(out MatchEdge: TRectEdge; out NewRefRectPos: TPoint): Boolean;
 var
   TempPos: TPoint;
 begin
