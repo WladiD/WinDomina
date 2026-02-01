@@ -21,6 +21,15 @@ const
   LS_14 = 14; // Place the current window in the cell
   LS_15 = 15; // Place the current window over multiple selected cells
   LS_16 = 16; // Key Assignment
+  LS_17 = 17; // Settings
+  LS_18 = 18; // Double tap on CapsLock:
+  LS_19 = 19; // Double tap on LeftWin:
+  LS_20 = 20; // Double tap on RightCtrl:
+  LS_21 = 21; // Do nothing
+  LS_22 = 22; // Activate WD (Default)
+  LS_23 = 23; // Activate WD and ignore key
+  LS_24 = 24; // Do nothing (Default)
+  LS_25 = 25; // Translate to ContextMenuKey
 
 implementation
 

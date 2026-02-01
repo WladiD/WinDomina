@@ -5,7 +5,7 @@ object SettingsForm: TSettingsForm
   BorderStyle = bsDialog
   Caption = 'Settings'
   ClientHeight = 160
-  ClientWidth = 350
+  ClientWidth = 460
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -36,9 +36,9 @@ object SettingsForm: TSettingsForm
     Caption = 'Double tap on RightCtrl:'
   end
   object ComboBoxCapsLock: TComboBox
-    Left = 150
+    Left = 210
     Top = 17
-    Width = 180
+    Width = 230
     Height = 21
     Style = csDropDownList
     TabOrder = 0
@@ -48,9 +48,9 @@ object SettingsForm: TSettingsForm
       'Activate WD and ignore key')
   end
   object ComboBoxLeftWin: TComboBox
-    Left = 150
+    Left = 210
     Top = 47
-    Width = 180
+    Width = 230
     Height = 21
     Style = csDropDownList
     TabOrder = 1
@@ -59,9 +59,9 @@ object SettingsForm: TSettingsForm
       'Activate WD (Default)')
   end
   object ComboBoxRightCtrl: TComboBox
-    Left = 150
+    Left = 210
     Top = 77
-    Width = 180
+    Width = 230
     Height = 21
     Style = csDropDownList
     TabOrder = 2
@@ -70,7 +70,7 @@ object SettingsForm: TSettingsForm
       'Translate to ContextMenuKey')
   end
   object ButtonOK: TButton
-    Left = 174
+    Left = 280
     Top = 120
     Width = 75
     Height = 25
@@ -80,7 +80,7 @@ object SettingsForm: TSettingsForm
     TabOrder = 3
   end
   object ButtonCancel: TButton
-    Left = 255
+    Left = 365
     Top = 120
     Width = 75
     Height = 25
