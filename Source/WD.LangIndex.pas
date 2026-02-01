@@ -30,6 +30,8 @@ const
   LS_23 = 23; // Activate WD and ignore key
   LS_24 = 24; // Do nothing (Default)
   LS_25 = 25; // Translate to ContextMenuKey
+  LS_26 = 26; // Language
+  LS_27 = 27; // Automatic (System)
 
 implementation
 

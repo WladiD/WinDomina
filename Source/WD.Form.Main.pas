@@ -252,7 +252,7 @@ begin
       Exit;
 
   Item := TMenuItem.Create(TrayPopupMenu);
-  Item.Caption := 'Einstellungen';
+  Item.Caption := Lang[LS_17];
   Item.Tag := 888;
   Item.OnClick := SettingsMenuItemClick;
   TrayPopupMenu.Items.Insert(0, Item);
@@ -346,6 +346,8 @@ begin
   RuntimeInfo.DefaultPath := IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName));
   RuntimeInfo.CommonPath := IncludeTrailingPathDelimiter(RuntimeInfo.DefaultPath + 'common');
 
+  InitializeLang(RuntimeInfo.CommonPath);
+
   LoadConfig;
 
   InstallHook(Handle);
@@ -354,8 +356,6 @@ begin
   FUpdateWindowThread := TUpdateWindowThread.Create;
   FUpdateWindowThread.FWindowHandle := Handle;
   FUpdateWindowThread.FBitmap := FMainBitmap;
-
-  InitializeLang(RuntimeInfo.CommonPath);
 
   Take(Self)
     .EachDelay(1000,
@@ -389,9 +389,19 @@ begin
 end;
 
 procedure TMainForm.Translate;
+var
+  I: Integer;
 begin
   TrayIcon.BalloonTitle := Lang[LS_2];
   TrayIcon.BalloonHint := Lang[LS_4];
+
+  // Update Settings Menu Item
+  for I := 0 to TrayPopupMenu.Items.Count - 1 do
+    if TrayPopupMenu.Items[I].Tag = 888 then
+    begin
+      TrayPopupMenu.Items[I].Caption := Lang[LS_17];
+      Break;
+    end;
 
   // Weil es dort statusabhängige Übersetzungen geben kann
   DominaModeChanged;

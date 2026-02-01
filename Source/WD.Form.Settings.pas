@@ -35,9 +35,14 @@ type
     ComboBoxCapsLock: TComboBox;
     ComboBoxLeftWin: TComboBox;
     ComboBoxRightCtrl: TComboBox;
+    ComboBoxLanguage: TComboBox;
     Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
+    Label4: TLabel;
+    procedure ComboBoxLanguageChange(Sender: TObject);
+  private
+    procedure FillLanguages;
   protected // ITranslate
     function  IsReadyForTranslate: Boolean;
     procedure OnReadyForTranslate(NotifyEvent: TNotifyEvent);
@@ -54,6 +59,60 @@ procedure TSettingsForm.AfterConstruction;
 begin
   inherited;
   Lang.Translate(Self);
+end;
+
+procedure TSettingsForm.ComboBoxLanguageChange(Sender: TObject);
+var
+  NewCode    : String;
+  SelectedIdx: Integer;
+begin
+  if ComboBoxLanguage.ItemIndex < 0 then
+    Exit;
+
+  if ComboBoxLanguage.ItemIndex = 0 then
+  begin
+    NewCode := TLang.GetSystemLangCode; // Automatic (System)
+  end
+  else
+  begin
+    var LangEntries: TLangEntries := Lang.GetAvailableLanguages;
+    SelectedIdx := ComboBoxLanguage.ItemIndex - 1;
+    if (SelectedIdx >= 0) and (SelectedIdx <= High(LangEntries)) then
+      NewCode := LangEntries[SelectedIdx].Code;
+  end;
+
+  if (NewCode <> '') and (Lang.LangCode <> NewCode) then
+    Lang.LangCode := NewCode;
+end;
+
+procedure TSettingsForm.FillLanguages;
+var
+  CurrentCode: String;
+  Idx        : Integer;
+  LangEntries: TLangEntries;
+  SelIdx     : Integer;
+begin
+  CurrentCode := Lang.LangCode;
+  ComboBoxLanguage.Items.BeginUpdate;
+  try
+    ComboBoxLanguage.Items.Clear;
+    SelIdx := ComboBoxLanguage.Items.Add(Lang[LS_27]); // Automatic (System)
+    LangEntries := Lang.GetAvailableLanguages;
+
+    // Restore selection based on current LangCode
+    for Idx := 0 to High(LangEntries) do
+    begin
+      var Entry: TLangEntry := LangEntries[Idx];
+      ComboBoxLanguage.Items.Add(
+        Format('%s - %s', [Entry.InternationalName, Entry.LocalName]));
+      if Entry.Code = CurrentCode then
+        SelIdx := Idx + 1;
+    end;
+
+    ComboBoxLanguage.ItemIndex := SelIdx;
+  finally
+    ComboBoxLanguage.Items.EndUpdate;
+  end;
 end;
 
 { TSettingsForm }
@@ -76,8 +135,11 @@ begin
   Label1.Caption := Lang[LS_18];
   Label2.Caption := Lang[LS_19];
   Label3.Caption := Lang[LS_20];
+  Label4.Caption := Lang[LS_26];
   ButtonOK.Caption := Lang.Consts['SMsgDlgOK'];
-  ButtonCancel.Caption := Lang.Consts['Cancel'];
+  ButtonCancel.Caption := Lang.Consts['SMsgDlgCancel'];
+
+  FillLanguages;
 
   // ComboBoxCapsLock
   Idx := ComboBoxCapsLock.ItemIndex;

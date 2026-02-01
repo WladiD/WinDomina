@@ -4,7 +4,7 @@ object SettingsForm: TSettingsForm
   BorderIcons = [biSystemMenu]
   BorderStyle = bsDialog
   Caption = 'Settings'
-  ClientHeight = 160
+  ClientHeight = 190
   ClientWidth = 460
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -12,7 +12,7 @@ object SettingsForm: TSettingsForm
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  Position = poMainFormCenter
+  Position = poScreenCenter
   TextHeight = 13
   object Label1: TLabel
     Left = 16
@@ -35,10 +35,17 @@ object SettingsForm: TSettingsForm
     Height = 13
     Caption = 'Double tap on RightCtrl:'
   end
+  object Label4: TLabel
+    Left = 16
+    Top = 110
+    Width = 51
+    Height = 13
+    Caption = 'Language:'
+  end
   object ComboBoxCapsLock: TComboBox
-    Left = 210
+    Left = 240
     Top = 17
-    Width = 230
+    Width = 200
     Height = 21
     Style = csDropDownList
     TabOrder = 0
@@ -48,9 +55,9 @@ object SettingsForm: TSettingsForm
       'Activate WD and ignore key')
   end
   object ComboBoxLeftWin: TComboBox
-    Left = 210
+    Left = 240
     Top = 47
-    Width = 230
+    Width = 200
     Height = 21
     Style = csDropDownList
     TabOrder = 1
@@ -59,9 +66,9 @@ object SettingsForm: TSettingsForm
       'Activate WD (Default)')
   end
   object ComboBoxRightCtrl: TComboBox
-    Left = 210
+    Left = 240
     Top = 77
-    Width = 230
+    Width = 200
     Height = 21
     Style = csDropDownList
     TabOrder = 2
@@ -69,24 +76,33 @@ object SettingsForm: TSettingsForm
       'Do nothing (Default)'
       'Translate to ContextMenuKey')
   end
+  object ComboBoxLanguage: TComboBox
+    Left = 240
+    Top = 107
+    Width = 200
+    Height = 21
+    Style = csDropDownList
+    TabOrder = 3
+    OnChange = ComboBoxLanguageChange
+  end
   object ButtonOK: TButton
     Left = 280
-    Top = 120
+    Top = 150
     Width = 75
     Height = 25
     Caption = 'OK'
     Default = True
     ModalResult = 1
-    TabOrder = 3
+    TabOrder = 4
   end
   object ButtonCancel: TButton
     Left = 365
-    Top = 120
+    Top = 150
     Width = 75
     Height = 25
     Cancel = True
     Caption = 'Cancel'
     ModalResult = 2
-    TabOrder = 4
+    TabOrder = 5
   end
 end
