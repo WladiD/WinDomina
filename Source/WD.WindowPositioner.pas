@@ -1,22 +1,32 @@
+ï»¿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.WindowPositioner;
 
 interface
 
 uses
+
   Winapi.Windows,
-  System.SysUtils,
+
   System.Classes,
-  System.Types,
   System.Generics.Collections,
+  System.SysUtils,
+  System.Types,
   Vcl.Forms,
 
   AnyiQuack,
   AQPSystemTypesAnimations,
   WindowEnumerator,
-  WD.WindowTools,
-  WD.Types;
+
+  WD.Types,
+  WD.WindowTools;
 
 type
+
   TWindowPositioner = class
   private
     type
@@ -28,27 +38,24 @@ type
     WindowMoveAniID: Integer;
 
     var
+    // Ein Aufruf von EnterWindow legt den zugehÃ¶rigen Stapel mit den TWindow-Instanzen auf diesen
+    // Stapel. Ein weiterer Aufruf von ExitWindow entfernt den letzten Eintrag von diesem Stapel.
+    FCurrentStack   : TSubjectWindowStack;
     // Zuordnung zwischen einem Fensterhandle und dem Stapel mit den TWindow-Instanzen
     FStackDictionary: TStackDictionary;
-    // Ein Aufruf von EnterWindow legt den zugehörigen Stapel mit den TWindow-Instanzen auf diesen
-    // Stapel. Ein weiterer Aufruf von ExitWindow entfernt den letzten Eintrag von diesem Stapel.
-    FCurrentStack: TSubjectWindowStack;
-    FWindowsHandler: IWindowsHandler;
-
-    function CurrentWindow: TWindow;
+    FWindowsHandler : IWindowsHandler;
+    function  CurrentWindow: TWindow;
     procedure SetWindowPosInternal(Window: TWindow; TargetRect: TRect; Flags: Cardinal);
-
   public
     class constructor Create;
     constructor Create;
     destructor Destroy; override;
 
     procedure EnterWindow(WindowHandle: HWND);
+    procedure ExitWindow;
     procedure MoveWindow(NewPos: TPoint);
     procedure PlaceWindow(NewPlace: TRect);
     procedure PopWindowPosition;
-    procedure ExitWindow;
-
     procedure PushChangedWindowsPositions;
 
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
@@ -57,9 +64,10 @@ type
 implementation
 
 type
+
   TWindowLocal = class(TWindow)
   public
-    // Die anfängliche Platzierung des Fensters, kann für die Wiederherstellung verwendet werden
+    // Die anfÃ¤ngliche Platzierung des Fensters, kann fÃ¼r die Wiederherstellung verwendet werden
     InitRect: TRect;
   end;
 
@@ -95,8 +103,8 @@ end;
 
 procedure TWindowPositioner.EnterWindow(WindowHandle: HWND);
 var
+  Window  : TWindowLocal;
   WinStack: TWindowStack;
-  Window: TWindowLocal;
 begin
   if not FStackDictionary.TryGetValue(WindowHandle, WinStack) then
   begin
@@ -124,13 +132,14 @@ begin
   Result := FCurrentStack.Peek.Peek;
 end;
 
-procedure TWindowPositioner.SetWindowPosInternal(Window: TWindow; TargetRect: TRect;
-  Flags: Cardinal);
+procedure TWindowPositioner.SetWindowPosInternal(Window: TWindow; TargetRect: TRect; Flags: Cardinal);
 var
-  Placement: TWindowPlacement;
-  WindowInfo: TWindowInfo;
-  FromMonitor, TargetMonitor: TMonitor;
-  MonitorWillChanged, AnimatedMovement: Boolean;
+  AnimatedMovement  : Boolean;
+  FromMonitor       : TMonitor;
+  MonitorWillChanged: Boolean;
+  Placement         : TWindowPlacement;
+  TargetMonitor     : TMonitor;
+  WindowInfo        : TWindowInfo;
 
   function GetMonitorWillChanged: Boolean;
   begin
@@ -193,40 +202,38 @@ begin
     SetWindowPosDominaStyle(Window.Handle, 0, TargetRect, Flags);
 end;
 
-// Bewegt das aktuelle Fenster, unter Beibehaltung seiner aktuellen Größe, an die neue Stelle
+// Bewegt das aktuelle Fenster, unter Beibehaltung seiner aktuellen GrÃ¶ÃŸe, an die neue Stelle
 procedure TWindowPositioner.MoveWindow(NewPos: TPoint);
 var
   TargetRect: TRect;
-  Window: TWindow;
+  Window    : TWindow;
 begin
   Window := CurrentWindow;
   UpdateWindowRect(Window);
   TargetRect := Window.Rect;
   TargetRect.Location := NewPos;
-
   SetWindowPosInternal(Window, TargetRect, SWP_NOZORDER or SWP_NOSIZE or SWP_NOACTIVATE);
 end;
 
-// Platziert das aktuelle Fenster an eine neue Position, hierbei wird (wenn möglich) auch die Größe
-// des Fensters verändert.
+// Platziert das aktuelle Fenster an eine neue Position, hierbei wird (wenn mÃ¶glich) auch die GrÃ¶ÃŸe
+// des Fensters verÃ¤ndert.
 procedure TWindowPositioner.PlaceWindow(NewPlace: TRect);
 var
   Window: TWindow;
 begin
   Window := CurrentWindow;
   UpdateWindowRect(Window);
-
   SetWindowPosInternal(Window, NewPlace, SWP_NOZORDER or SWP_NOACTIVATE);
 end;
 
-// Stellt die zuletzt auf dem Stapel abgelegte Fensterposition für das aktuelle
+// Stellt die zuletzt auf dem Stapel abgelegte Fensterposition fÃ¼r das aktuelle
 // (mittels EnterWindow mitgeteilte) Fenser wieder her
 procedure TWindowPositioner.PopWindowPosition;
 var
-  Window: TWindow;
-  Stack: TWindowStack;
+  CurRect   : TRect;
   FreeWindow: Boolean;
-  CurRect: TRect;
+  Stack     : TWindowStack;
+  Window    : TWindow;
 begin
   Stack := FCurrentStack.Peek;
   GetWindowRectDominaStyle(CurrentWindow.Handle, CurRect);
@@ -258,15 +265,15 @@ begin
 end;
 
 // Soll FStackDictionary durchlaufen und schauen, ob sich der letzte Fenster-Status auf dem
-// Stapel verändert hat und wenn dies der Fall ist, dann einen neuen Eintrag auf dem Stapel
+// Stapel verÃ¤ndert hat und wenn dies der Fall ist, dann einen neuen Eintrag auf dem Stapel
 // erstellen
 procedure TWindowPositioner.PushChangedWindowsPositions;
 
   procedure RemoveInvalidHandles;
   var
-    WinHandle: HWND;
+    CurWindowList : TWindowList;
     InvalidHandles: TList<HWND>;
-    CurWindowList: TWindowList;
+    WinHandle     : HWND;
   begin
     CurWindowList := FWindowsHandler.GetWindowList(wldDominaTargets);
 
@@ -284,13 +291,13 @@ procedure TWindowPositioner.PushChangedWindowsPositions;
   end;
 
 var
-  Entry: TPair<HWND, TWindowStack>;
-  CurWindow: TWindow;
+  CurRect       : TRect;
+  CurWindow     : TWindow;
   CurWindowLocal: TWindowLocal absolute CurWindow;
-  NewWindow: TWindowLocal;
-  CurRect: TRect;
+  Entry         : TPair<HWND, TWindowStack>;
+  NewWindow     : TWindowLocal;
 begin
-  // Zuerst ungültige Handles entfernen
+  // Zuerst ungÃ¼ltige Handles entfernen
   if Assigned(FWindowsHandler) then
     RemoveInvalidHandles;
 
