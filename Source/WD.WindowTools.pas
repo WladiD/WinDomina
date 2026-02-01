@@ -1,48 +1,57 @@
+﻿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.WindowTools;
 
 interface
 
 uses
+
+  Winapi.Dwmapi,
+  Winapi.Windows,
+
+  System.StrUtils,
   System.SysUtils,
   System.Types,
-  System.StrUtils,
-  Vcl.Forms,
   Vcl.Controls,
-  Winapi.Windows,
-  Winapi.Dwmapi,
+  Vcl.Forms,
 
   SendInputHelper;
 
-function GetWorkareaRect(const RefRect: TRect): TRect; overload;
-function GetWorkareaRect(RefWindow: THandle): TRect; overload;
+function  GetWorkareaRect(const RefRect: TRect): TRect; overload;
+function  GetWorkareaRect(RefWindow: THandle): TRect; overload;
 
-function WindowStyleToString(Style: Long): string;
+function  WindowStyleToString(Style: Long): string;
 
-function GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
-function GetWindowNonClientOversize(Window: THandle): TRect;
-function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
+function  GetWindowRectDominaStyle(Window: THandle; out Rect: TRect): Boolean;
+function  GetWindowNonClientOversize(Window: THandle): TRect;
+function  SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
 procedure BringWindowToTop(Window: THandle);
 
 procedure SwitchToPreviouslyFocusedAppWindow;
-function GetTaskbarHandle: THandle;
-function FindWindowFromPoint(const Point: TPoint): HWND;
+function  GetTaskbarHandle: THandle;
+function  FindWindowFromPoint(const Point: TPoint): HWND;
 
-function NoSnap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
-function Snap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
-function SnapRect(const A, B: TRect; SnapThreshold: Integer = 5): Boolean;
+function  NoSnap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
+function  Snap(A, B: Integer; SnapThreshold: Integer = 5): Boolean;
+function  SnapRect(const A, B: TRect; SnapThreshold: Integer = 5): Boolean;
 
 type
+
   TUpdateLayeredWindowInfo = record
-    cbSize: DWORD;
-    hdcDst: HDC;
-    pptDst: PPoint;
-    psize: PSize;
-    hdcSrc: HDC;
-    pptSrc: PPoint;
-    crKey: TColorRef;
-    pblend: PBlendFunction;
-    dwFlags: DWORD;
+    cbSize  : DWORD;
+    crKey   : TColorRef;
+    dwFlags : DWORD;
+    hdcDst  : HDC;
+    hdcSrc  : HDC;
+    pblend  : PBlendFunction;
+    pptDst  : PPoint;
+    pptSrc  : PPoint;
     prcDirty: PRect;
+    psize   : PSize;
   end;
   PUpdateLayeredWindowInfo = ^TUpdateLayeredWindowInfo;
 
@@ -50,11 +59,12 @@ function UpdateLayeredWindowIndirect(Handle: THandle; Info: PUpdateLayeredWindow
   external user32;
 
 type
+
   TWindowInfo = record
-    Window: THandle;
+    DPIAwareness  : DPI_AWARENESS;
     DropShadowSize: TRect;
+    Window        : THandle;
     WindowSizeable: Boolean;
-    DPIAwareness: DPI_AWARENESS;
   end;
 
 function GetWindowInfo(Window: THandle): TWindowInfo;
@@ -116,10 +126,11 @@ var
 
 function GetWindowInfo(Window: THandle): TWindowInfo;
 var
-  Success: Boolean;
-  Rect, LegacyRect: TRect;
+  DPIAC      : DPI_AWARENESS_CONTEXT;
+  LegacyRect : TRect;
+  Rect       : TRect;
+  Success    : Boolean;
   WindowStyle: NativeInt;
-  DPIAC: DPI_AWARENESS_CONTEXT;
 begin
   if WindowInfo.Window = Window then
     Exit(WindowInfo);
@@ -170,7 +181,9 @@ function UseDropShadowArea: Boolean;
 
   function AllMonitorsHasSameDPI: Boolean;
   var
-    cc, CurrentDPI, PrevDPI: Integer;
+    cc        : Integer;
+    CurrentDPI: Integer;
+    PrevDPI   : Integer;
   begin
     PrevDPI := 0;
     for cc := 0 to Screen.MonitorCount - 1 do
@@ -222,10 +235,10 @@ begin
   Result := WindowInfo.DropShadowSize;
 end;
 
-function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect;
-  Flags: Cardinal): Boolean;
+function SetWindowPosDominaStyle(hWnd, hWndInsertAfter: THandle; Rect: TRect; Flags: Cardinal): Boolean;
 var
-  NoSizeFlag, SizeWindow: Boolean;
+  NoSizeFlag: Boolean;
+  SizeWindow: Boolean;
 begin
   InitWindowInfo(hWnd);
 
@@ -304,7 +317,7 @@ begin
 end;
 
 // Sagt aus, ob der absolute Unterschied zwischen den beiden Parametern
-// eine Mindestdifferenz erf�llt
+// eine Mindestdifferenz erfüllt
 function NoSnap(A, B, SnapThreshold: Integer): Boolean;
 begin
   Result := Abs(A - B) >= SnapThreshold;
@@ -317,8 +330,11 @@ end;
 
 function SnapRect(const A, B: TRect; SnapThreshold: Integer): Boolean;
 begin
-  Result := Snap(A.Left, B.Left, SnapThreshold) and Snap(A.Top, B.Top, SnapThreshold) and
-    Snap(A.Right, B.Right, SnapThreshold) and Snap(A.Bottom, B.Bottom, SnapThreshold);
+  Result :=
+    Snap(A.Left, B.Left, SnapThreshold) and
+    Snap(A.Top, B.Top, SnapThreshold) and
+    Snap(A.Right, B.Right, SnapThreshold) and
+    Snap(A.Bottom, B.Bottom, SnapThreshold);
 end;
 
 function IsDelphiHandle(Handle: HWND): Boolean;
