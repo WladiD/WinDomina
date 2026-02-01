@@ -1,22 +1,32 @@
+ï»¿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.Layer;
 
 interface
 
 uses
+
   Winapi.Windows,
-  System.SysUtils,
+
   System.Classes,
-  System.Generics.Collections,
   System.Contnrs,
+  System.Generics.Collections,
+  System.SysUtils,
   System.Types,
 
   GR32,
+
   AnyiQuack,
   WindowEnumerator,
 
   WD.Types;
 
 type
+
   TBaseLayer = class;
   TBaseLayerClass = class of TBaseLayer;
   TKeyLayerList = TDictionary<Integer, TBaseLayer>;
@@ -27,12 +37,12 @@ type
 
   TGetLayerEvent = reference to function: TBaseLayer;
 
-  // Verfügbar Fenster-Tracking-Features
+  // VerfÃ¼gbar Fenster-Tracking-Features
   TWindowTracking = (
-    // Änderung des Zielfensters
+    // Ã„nderung des Zielfensters
     // Entsprechende Methode des Layers: TBaseLayer.TargetWindowChanged
     wtTargetChanged,
-    // Bewegung oder Größenänderung des Zielfensters
+    // Bewegung oder GrÃ¶ÃŸenÃ¤nderung des Zielfensters
     // Entsprechende Methode des Layers: TBaseLayer.TargetWindowMoved
     wtTargetMoved,
     // Bewegung irgendeines Wechselzielfensters
@@ -43,79 +53,65 @@ type
 
   TBaseLayer = class(TComponent)
   private
-    FOnMainContentChanged: TNotifyEvent;
-    FAnimations: TAnimationList;
+    FAnimations               : TAnimationList;
     FInvalidateMainContentLock: Boolean;
-    FOnExitLayer: TNotifyEvent;
-    FOnGetPrevLayer: TGetLayerEvent;
-
+    FOnExitLayer              : TNotifyEvent;
+    FOnGetPrevLayer           : TGetLayerEvent;
+    FOnMainContentChanged     : TNotifyEvent;
     procedure DoMainContentChanged;
-
   protected
-    FIsLayerActive: Boolean;
+    FExclusive     : Boolean;
+    FIsLayerActive : Boolean;
     FMonitorHandler: IMonitorHandler;
     FWindowsHandler: IWindowsHandler;
-    FExclusive: Boolean;
-
-    procedure RegisterLayerActivationKeys(Keys: array of Integer);
-
-    function HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
-    function HasTargetWindow(out Window: TWindow): Boolean; overload;
-    procedure InvalidateMainContent; virtual;
-    function GetPrevLayer: TBaseLayer;
-
+    function  GetPrevLayer: TBaseLayer;
+    function  HasTargetWindow(out Window: TWindow): Boolean; overload;
+    function  HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
     procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
-
+    procedure InvalidateMainContent; virtual;
+    procedure RegisterLayerActivationKeys(Keys: array of Integer);
   public
     class constructor Create;
     constructor Create(Owner: TComponent); override;
-    destructor Destroy; override;
+    destructor  Destroy; override;
 
     procedure EnterLayer; virtual;
     procedure ExitLayer; virtual;
-
+    function  GetDisplayName: string; virtual;
+    function  GetRequiredWindowTrackings: TWindowTrackings; virtual;
+    function  GetTargetWindowChangedDelay: Integer; virtual;
+    function  GetTargetWindowMovedDelay: Integer; virtual;
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
-
-    function HasMainContent: Boolean; virtual;
+    function  HasMainContent: Boolean; virtual;
+    procedure Invalidate; virtual;
     procedure RenderMainContent(Target: TBitmap32); virtual;
-
+    procedure SwitchTargetWindowMoved(WindowHandle: HWND); virtual;
     procedure TargetWindowChanged; virtual;
     procedure TargetWindowMoved; virtual;
-    procedure SwitchTargetWindowMoved(WindowHandle: HWND); virtual;
-    procedure Invalidate; virtual;
 
-    function GetTargetWindowChangedDelay: Integer; virtual;
-    function GetTargetWindowMovedDelay: Integer; virtual;
-    function GetRequiredWindowTrackings: TWindowTrackings; virtual;
-
-    function GetDisplayName: string; virtual;
-
-    property IsLayerActive: Boolean read FIsLayerActive;
     // Exclusive layers suppress other layers behind them
     property Exclusive: Boolean read FExclusive;
+    property IsLayerActive: Boolean read FIsLayerActive;
     property MonitorHandler: IMonitorHandler read FMonitorHandler write FMonitorHandler;
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
-    // This event is triggered when the layer itself determines that it must be redrawn
-    property OnMainContentChanged: TNotifyEvent read FOnMainContentChanged
-      write FOnMainContentChanged;
-    // Will be fired in ExitLayer method
-    property OnExitLayer: TNotifyEvent read FOnExitLayer write FOnExitLayer;
     // Will be fired in GetPrevLayer method to obtain the previous layer
     property OnGetPrevLayer: TGetLayerEvent read FOnGetPrevLayer write FOnGetPrevLayer;
+    // Will be fired in ExitLayer method
+    property OnExitLayer: TNotifyEvent read FOnExitLayer write FOnExitLayer;
+    // This event is triggered when the layer itself determines that it must be redrawn
+    property OnMainContentChanged: TNotifyEvent read FOnMainContentChanged write FOnMainContentChanged;
   end;
 
   TAnimationBase = class
   protected
+    FLayer   : TBaseLayer;
     FProgress: Real;
-    FLayer: TBaseLayer;
-
   public
     constructor Create(Layer: TBaseLayer);
-
     procedure Render(Target: TBitmap32); virtual; abstract;
-    property Progress: Real read FProgress write FProgress;
-    property Layer: TBaseLayer read FLayer;
+    property  Progress: Real read FProgress write FProgress;
+    property  Layer: TBaseLayer read FLayer;
   end;
 
 implementation
@@ -133,14 +129,12 @@ end;
 constructor TBaseLayer.Create(Owner: TComponent);
 begin
   inherited Create(Owner);
-
   FAnimations := TAnimationList.Create(True);
 end;
 
 destructor TBaseLayer.Destroy;
 begin
   FAnimations.Free;
-
   inherited Destroy;
 end;
 
@@ -159,13 +153,13 @@ begin
     FOnExitLayer(Self);
 end;
 
-// Registriert die Tasten, die zu einer Aktivierung des Layers führen
+// Registriert die Tasten, die zu einer Aktivierung des Layers fÃ¼hren
 //
 // Es ist irrelevant welcher Layer gerade aktiv ist, wenn die jeweilige Taste nicht vom aktiven
-// Layer kosumiert wurde, wird sie für die Aktivierung verwendet.
+// Layer kosumiert wurde, wird sie fÃ¼r die Aktivierung verwendet.
 procedure TBaseLayer.RegisterLayerActivationKeys(Keys: array of Integer);
 var
-  Key: Integer;
+  Key : Integer;
   List: TKeyLayerList;
 begin
   List := LayerActivationKeys;
@@ -184,7 +178,7 @@ end;
 
 // Sagt aus, ob es ein aktuelles Zielfenster gibt
 //
-// Was tatsächlich ein Zielfenster ist, liegt am verwendeten Implementierer des IWindowsHandler
+// Was tatsÃ¤chlich ein Zielfenster ist, liegt am verwendeten Implementierer des IWindowsHandler
 function TBaseLayer.HasTargetWindow(out Window: TWindow): Boolean;
 begin
   Result := WindowsHandler.GetWindowList(wldDominaTargets).HasFirst(Window);
@@ -223,8 +217,8 @@ end;
 
 // Sagt aus, ob es einen Hauptinhalt gibt
 //
-// Wenn True zurückgeliefert wird, so kann (muss aber nicht) im Ausgabeparameter Layer eine
-// Layer-Instanz zurückgegeben werden. Folglich wird in dem Fall die Methode RenderMainContent
+// Wenn True zurÃ¼ckgeliefert wird, so kann (muss aber nicht) im Ausgabeparameter Layer eine
+// Layer-Instanz zurÃ¼ckgegeben werden. Folglich wird in dem Fall die Methode RenderMainContent
 // aufgerufen.
 function TBaseLayer.HasMainContent: Boolean;
 begin
@@ -249,7 +243,7 @@ begin
     FOnMainContentChanged(Self);
 end;
 
-// Erklärt das Layer für ungültig und erzwingt es sich zu aktualisieren
+// ErklÃ¤rt das Layer fÃ¼r ungÃ¼ltig und erzwingt es sich zu aktualisieren
 procedure TBaseLayer.Invalidate;
 begin
 
@@ -260,7 +254,7 @@ end;
 procedure TBaseLayer.InvalidateMainContent;
 begin
   // Diese Vorbedingung spart sehr viel Energie ein!
-  // Denn sie sorgt dafür, dass man sie aus den abgeleiteten Layern so oft aufrufen kann wie man
+  // Denn sie sorgt dafÃ¼r, dass man sie aus den abgeleiteten Layern so oft aufrufen kann wie man
   // will und sie triggert dennoch nur im vordefinierten Intervall.
   if FInvalidateMainContentLock then
     Exit;
@@ -277,29 +271,29 @@ begin
       end);
 end;
 
-// Teilt dem Layer mit, dass sich das Zielfenster verändert hat
+// Teilt dem Layer mit, dass sich das Zielfenster verÃ¤ndert hat
 //
-// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetChanged enthält.
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetChanged enthÃ¤lt.
 procedure TBaseLayer.TargetWindowChanged;
 begin
 
 end;
 
-// Teilt dem Layer mit, dass das Zielfenster bewegt oder in der Größe verändert wurde
+// Teilt dem Layer mit, dass das Zielfenster bewegt oder in der GrÃ¶ÃŸe verÃ¤ndert wurde
 //
-// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetMoved enthält.
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtTargetMoved enthÃ¤lt.
 procedure TBaseLayer.TargetWindowMoved;
 begin
 
 end;
 
-// Teilt dem Layer mit, dass ein Wechselzielfenster bewegt oder in der Größe verändert wurde
+// Teilt dem Layer mit, dass ein Wechselzielfenster bewegt oder in der GrÃ¶ÃŸe verÃ¤ndert wurde
 //
 // HINWEIS: Nicht implementiert!
-// Theoretisch sah es danach aus, also ob es benötigt wird. Noch gab es aber keinen praktischen
+// Theoretisch sah es danach aus, also ob es benÃ¶tigt wird. Noch gab es aber keinen praktischen
 // Bedarf. Diese Methode wird noch nirgends aufgerufen.
 //
-// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtAnySwitchTargetMoved enthält.
+// Wird nur getriggert wenn GetRequiredWindowTrackings den Wert wtAnySwitchTargetMoved enthÃ¤lt.
 procedure TBaseLayer.SwitchTargetWindowMoved(WindowHandle: HWND);
 begin
   raise ENotImplemented.Create('Diese Methode ist noch ein rein theoretisches Konstrukt');
@@ -319,14 +313,13 @@ begin
   Result := 0;
 end;
 
-// Teilt mit, welche Tracking-Features von dem Layer erwünscht sind
+// Teilt mit, welche Tracking-Features von dem Layer erwÃ¼nscht sind
 function TBaseLayer.GetRequiredWindowTrackings: TWindowTrackings;
 begin
   Result := [wtTargetChanged, wtTargetMoved];
 end;
 
-
-// Liefert den Anzeigenamen des Layers, der auch dem Benutzer präsentiert werden kann
+// Liefert den Anzeigenamen des Layers, der auch dem Benutzer prÃ¤sentiert werden kann
 function TBaseLayer.GetDisplayName: string;
 begin
   Result := Copy(ClassName, 2, Pos('Layer', ClassName) - 2);
