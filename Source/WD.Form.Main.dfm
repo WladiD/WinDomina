@@ -575,6 +575,9 @@ object MainForm: TMainForm
       Action = ToggleDominaModeAction
       Default = True
     end
+    object SettingsMenuItem: TMenuItem
+      Action = SettingsAction
+    end
     object CloseMenuItem: TMenuItem
       Action = CloseAction
     end
@@ -590,6 +593,11 @@ object MainForm: TMainForm
     object ToggleDominaModeAction: TAction
       Caption = 'Toggle dominate mode'
       OnExecute = ToggleDominaModeActionExecute
+    end
+    object SettingsAction: TAction
+      Caption = 'Settings'
+      HelpKeyword = 'Caption=17'
+      OnExecute = SettingsActionExecute
     end
   end
 end

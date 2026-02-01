@@ -65,6 +65,8 @@ type
     ActionList: TActionList;
     CloseAction: TAction;
     CloseMenuItem: TMenuItem;
+    SettingsAction: TAction;
+    SettingsMenuItem: TMenuItem;
     ToggleDominaModeAction: TAction;
     ToggleDominaModeMenuItem: TMenuItem;
     TrayIcon: TTrayIcon;
@@ -73,6 +75,7 @@ type
     procedure CloseActionExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure SettingsActionExecute(Sender: TObject);
     procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
   private
@@ -101,8 +104,6 @@ type
 
     procedure LoadConfig;
     procedure SaveConfig;
-    procedure CreateSettingsMenu;
-    procedure SettingsMenuItemClick(Sender: TObject);
     procedure AddLayer(Layer: TBaseLayer);
     function  GetActiveLayer: TBaseLayer;
     function  GetPrevOrDefaultLayer: TBaseLayer;
@@ -136,29 +137,29 @@ type
 
   // ITranslate-Interface
   private
-    function IsReadyForTranslate: Boolean;
+    function  IsReadyForTranslate: Boolean;
     procedure OnReadyForTranslate(NotifyEvent: TNotifyEvent);
     procedure Translate;
 
   // IMonitorHandler-Interface
   private
-    function HasAdjacentMonitor(Direction: TDirection; out AdjacentMonitor: TMonitor): Boolean;
-    function HasNextMonitor(out Monitor: TMonitor): Boolean;
-    function HasPrevMonitor(out Monitor: TMonitor): Boolean;
+    function  HasAdjacentMonitor(Direction: TDirection; out AdjacentMonitor: TMonitor): Boolean;
+    function  HasNextMonitor(out Monitor: TMonitor): Boolean;
+    function  HasPrevMonitor(out Monitor: TMonitor): Boolean;
 
-    function ClientToScreen(const Rect: TRect): TRect; overload;
-    function ScreenToClient(const Rect: TRect): TRect; overload;
+    function  ClientToScreen(const Rect: TRect): TRect; overload;
+    function  ScreenToClient(const Rect: TRect): TRect; overload;
 
-    function ConvertMmToPixel(MM: Real): Integer;
+    function  ConvertMmToPixel(MM: Real): Integer;
 
-    function GetCurrentMonitor: TMonitor;
+    function  GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
 
   // IWindowsHandler-Interface
   private
-    function CreateWindowList(Domain: TWindowListDomain): TWindowList;
+    function  CreateWindowList(Domain: TWindowListDomain): TWindowList;
     procedure UpdateWindowList(Domain: TWindowListDomain);
-    function GetWindowList(Domain: TWindowListDomain): TWindowList;
+    function  GetWindowList(Domain: TWindowListDomain): TWindowList;
 
   public
     class constructor Create;
@@ -216,8 +217,6 @@ begin
     WD.KBHKLib.SetCapsLockAction(FCapsLockAction);
     WD.KBHKLib.SetLeftWinAction(FLeftWinAction);
     WD.KBHKLib.SetRightCtrlAction(FRightCtrlAction);
-
-    CreateSettingsMenu;
   finally
     Ini.Free;
   end;
@@ -238,53 +237,6 @@ begin
     WD.KBHKLib.SetRightCtrlAction(FRightCtrlAction);
   finally
     Ini.Free;
-  end;
-end;
-
-procedure TMainForm.CreateSettingsMenu;
-var
-  Item: TMenuItem;
-  I: Integer;
-begin
-  // Check if already exists
-  for I := 0 to TrayPopupMenu.Items.Count - 1 do
-    if TrayPopupMenu.Items[I].Tag = 888 then // 888 for Settings
-      Exit;
-
-  Item := TMenuItem.Create(TrayPopupMenu);
-  Item.Caption := Lang[LS_17];
-  Item.Tag := 888;
-  Item.OnClick := SettingsMenuItemClick;
-  TrayPopupMenu.Items.Insert(0, Item);
-end;
-
-procedure TMainForm.SettingsMenuItemClick(Sender: TObject);
-var
-  Form: TSettingsForm;
-begin
-  Form := TSettingsForm.Create(Self);
-  try
-    // Init values
-    Form.ComboBoxCapsLock.ItemIndex := Ord(FCapsLockAction);
-    Form.ComboBoxLeftWin.ItemIndex := Ord(FLeftWinAction);
-    Form.ComboBoxRightCtrl.ItemIndex := Ord(FRightCtrlAction);
-
-    if Form.ShowModal = mrOk then
-    begin
-      // Read values
-      if Form.ComboBoxCapsLock.ItemIndex >= 0 then
-        FCapsLockAction := TCapsLockAction(Form.ComboBoxCapsLock.ItemIndex);
-
-      if Form.ComboBoxLeftWin.ItemIndex >= 0 then
-        FLeftWinAction := TLeftWinAction(Form.ComboBoxLeftWin.ItemIndex);
-
-      if Form.ComboBoxRightCtrl.ItemIndex >= 0 then
-        FRightCtrlAction := TRightCtrlAction(Form.ComboBoxRightCtrl.ItemIndex);
-
-      SaveConfig;
-    end;
-  finally
-    Form.Free;
   end;
 end;
 
@@ -394,14 +346,6 @@ var
 begin
   TrayIcon.BalloonTitle := Lang[LS_2];
   TrayIcon.BalloonHint := Lang[LS_4];
-
-  // Update Settings Menu Item
-  for I := 0 to TrayPopupMenu.Items.Count - 1 do
-    if TrayPopupMenu.Items[I].Tag = 888 then
-    begin
-      TrayPopupMenu.Items[I].Caption := Lang[LS_17];
-      Break;
-    end;
 
   // Weil es dort statusabhängige Übersetzungen geben kann
   DominaModeChanged;
@@ -1050,6 +994,36 @@ begin
     Lang[LS_7];
 
   ToggleDominaModeAction.Caption := IfThen(Activated, Lang[LS_3], Lang[LS_2]);
+end;
+
+procedure TMainForm.SettingsActionExecute(Sender: TObject);
+var
+  Form: TSettingsForm;
+begin
+  Form := TSettingsForm.Create(Self);
+  try
+    // Init values
+    Form.ComboBoxCapsLock.ItemIndex := Ord(FCapsLockAction);
+    Form.ComboBoxLeftWin.ItemIndex := Ord(FLeftWinAction);
+    Form.ComboBoxRightCtrl.ItemIndex := Ord(FRightCtrlAction);
+
+    if Form.ShowModal = mrOk then
+    begin
+      // Read values
+      if Form.ComboBoxCapsLock.ItemIndex >= 0 then
+        FCapsLockAction := TCapsLockAction(Form.ComboBoxCapsLock.ItemIndex);
+
+      if Form.ComboBoxLeftWin.ItemIndex >= 0 then
+        FLeftWinAction := TLeftWinAction(Form.ComboBoxLeftWin.ItemIndex);
+
+      if Form.ComboBoxRightCtrl.ItemIndex >= 0 then
+        FRightCtrlAction := TRightCtrlAction(Form.ComboBoxRightCtrl.ItemIndex);
+
+      SaveConfig;
+    end;
+  finally
+    Form.Free;
+  end;
 end;
 
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
