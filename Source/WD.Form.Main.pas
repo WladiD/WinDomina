@@ -341,8 +341,6 @@ begin
 end;
 
 procedure TMainForm.Translate;
-var
-  I: Integer;
 begin
   TrayIcon.BalloonTitle := Lang[LS_2];
   TrayIcon.BalloonHint := Lang[LS_4];

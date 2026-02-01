@@ -1,52 +1,62 @@
+Ôªø// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.Layer.Grid;
 
 interface
 
 uses
-  System.SysUtils,
+
+  Winapi.Windows,
+
   System.Classes,
+  System.Math,
+  System.SysUtils,
   System.Types,
   System.UITypes,
-  System.Math,
-  Winapi.Windows,
-  Vcl.Graphics,
-  Vcl.Forms,
   Vcl.Controls,
+  Vcl.Forms,
+  Vcl.Graphics,
 
   GR32,
   GR32_Polygons,
   GR32_VectorUtils,
+
   AnyiQuack,
   AQPSystemTypesAnimations,
   WindowEnumerator,
 
-  WD.Types,
-  WD.Layer,
-  WD.WindowTools,
   WD.KeyTools,
-  WD.Registry;
+  WD.Layer,
+  WD.Registry,
+  WD.Types,
+  WD.WindowTools;
 
 type
+
   TTile = class
   public
-    // Das vorherige Rechteck, welches als Basis f¸r die Berechnung der Animation verwendet wird
+    // Das vorherige Rechteck, welches als Basis f√ºr die Berechnung der Animation verwendet wird
     PrevRect: TRect;
 
-    // Das aktuell dargestellte Rechteck, weicht vom TargetRect z.B. w‰hrend der Animation ab
+    // Das aktuell dargestellte Rechteck, weicht vom TargetRect z.B. w√§hrend der Animation ab
     Rect: TRect;
 
     // Das Ziel-Rechteck, welches effektiv benutzt werden soll
     TargetRect: TRect;
   end;
 
-  TTileGrid = array [0..2] of array [0..2] of TTile;
-  TQuotientGridArray = array [0..2] of TPointF;
+  TTileGrid = Array [0..2] of Array [0..2] of TTile;
+  TQuotientGridArray = Array [0..2] of TPointF;
   TQuotientGridStyle = (
-    // Alle Kacheln in etwa gleich groﬂ
+    // Alle Kacheln in etwa gleich gro√ü
     qgsUniform,
     // 1. Spalte 50%, 2. Spalte 33%, 3. Spalte Restbreite
     qgsHalfThirdRemain,
-    // 1. Spalte 40%, 2. und 3. jeweils die H‰lfte von der Restbreite
+    // 1. Spalte 40%, 2. und 3. jeweils die H√§lfte von der Restbreite
     qgsFortyRemainUniform);
 
   TGridLayer = class(TBaseLayer)
@@ -54,36 +64,31 @@ type
     class var
     TileSlideAniID: Integer;
   private
-    FTileGrid: TTileGrid;
-    QuotientGrid: TQuotientGridArray;
-    QuotientGridStyle: TQuotientGridStyle;
-    FirstTileNumKey: Integer;
-    SecondTileNumKey: Integer;
+    FirstTileNumKey   : Integer;
     FSmallestNumSquare: Integer;
-
+    FTileGrid         : TTileGrid;
+    QuotientGrid      : TQuotientGridArray;
+    QuotientGridStyle : TQuotientGridStyle;
+    SecondTileNumKey  : Integer;
     procedure CalcCurrentTileGrid(var TileGrid: TTileGrid);
     procedure UpdateTileGrid;
-
-    function IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
-    function IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
-    function IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
-
+    function  IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
+    function  IsTileNumToXYConvertible(TileNum: Integer; out X, Y: Integer): Boolean;
+    function  IsTileNumKey(Key: Integer; out TileNum: Integer): Boolean;
   public
     class constructor Create;
 
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
 
+    function  GetTargetWindowMovedDelay: Integer; override;
+    function  HasMainContent: Boolean; override;
     procedure EnterLayer; override;
     procedure ExitLayer; override;
-
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
-
-    function HasMainContent: Boolean; override;
-    procedure RenderMainContent(Target: TBitmap32); override;
     procedure Invalidate; override;
-    function GetTargetWindowMovedDelay: Integer; override;
+    procedure RenderMainContent(Target: TBitmap32); override;
 
     property TileGrid: TTileGrid read FTileGrid;
   end;
@@ -99,7 +104,7 @@ begin
     begin
       Result[0].X := 1/3;
       Result[1].X := 1/3;
-      Result[2].X := 0; // 0 steht f¸r den gleichm‰ﬂig verteilten Rest
+      Result[2].X := 0; // 0 steht f√ºr den gleichm√§√üig verteilten Rest
 
       Result[0].Y := 1/3;
       Result[1].Y := 1/3;
@@ -109,7 +114,7 @@ begin
     begin
       Result[0].X := 1/2;
       Result[1].X := 0;
-      Result[2].X := 0; // 0 steht f¸r den gleichm‰ﬂig verteilten Rest
+      Result[2].X := 0; // 0 steht f√ºr den gleichm√§√üig verteilten Rest
 
       Result[0].Y := 1/3;
       Result[1].Y := 1/3;
@@ -119,7 +124,7 @@ begin
     begin
       Result[0].X := 1/2.5;
       Result[1].X := 0;
-      Result[2].X := 0; // 0 steht f¸r den gleichm‰ﬂig verteilten Rest
+      Result[2].X := 0; // 0 steht f√ºr den gleichm√§√üig verteilten Rest
 
       Result[0].Y := 1/2;
       Result[1].Y := 1/4;
@@ -130,7 +135,8 @@ end;
 
 procedure InitializeTileGrid(var TileGrid: TTileGrid);
 var
-  TileX, TileY: Integer;
+  TileX: Integer;
+  TileY: Integer;
 begin
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
@@ -139,7 +145,8 @@ end;
 
 procedure FinalizeTileGrid(var TileGrid: TTileGrid);
 var
-  TileX, TileY: Integer;
+  TileX: Integer;
+  TileY: Integer;
 begin
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
@@ -158,9 +165,7 @@ begin
   inherited Create(Owner);
 
   InitializeTileGrid(FTileGrid);
-
   QuotientGrid := GetQuotientGridArray(qgsUniform);
-
   RegisterLayerActivationKeys([vkG]);
   FExclusive := True;
 end;
@@ -174,8 +179,10 @@ end;
 
 procedure TGridLayer.EnterLayer;
 var
-  TileX, TileY: Integer;
-  WAWidth, WAHeight: Integer;
+  TileX       : Integer;
+  TileY       : Integer;
+  WAHeight    : Integer;
+  WAWidth     : Integer;
   WorkareaRect: TRect;
 
   procedure InitPos(Tile: TTile);
@@ -215,20 +222,29 @@ end;
 
 function TGridLayer.GetTargetWindowMovedDelay: Integer;
 begin
-  // Da das Grid auf einem anderen Monitor als das Zielfenster sein kˆnnte, kommt es ohne
-  // diese Verzˆgerung zu einem Sprungwechsel des Monitors w‰hrend das Fenster bewegt wird.
+  // Da das Grid auf einem anderen Monitor als das Zielfenster sein k√∂nnte, kommt es ohne
+  // diese Verz√∂gerung zu einem Sprungwechsel des Monitors w√§hrend das Fenster bewegt wird.
   Result := 400;
 end;
 
 procedure TGridLayer.CalcCurrentTileGrid(var TileGrid: TTileGrid);
 var
-  XRemainCount, YRemainCount: Integer;
-  cc, Xcc, Ycc: Integer;
-  X, Y, XSize: Integer;
-  WAWidth, WAHeight, RemainWidth, RemainHeight: Integer;
+  cc          : Integer;
+  CurRect     : System.Types.PRect;
+  RemainHeight: Integer;
+  RemainWidth : Integer;
+  WAHeight    : Integer;
+  WAWidth     : Integer;
   WorkareaRect: TRect;
-  XQuotient, YQuotient: Single;
-  CurRect: System.Types.PRect;
+  X           : Integer;
+  Xcc         : Integer;
+  XQuotient   : Single;
+  XRemainCount: Integer;
+  XSize       : Integer;
+  Y           : Integer;
+  Ycc         : Integer;
+  YQuotient   : Single;
+  YRemainCount: Integer;
 begin
   WorkareaRect := MonitorHandler.CurrentMonitor.WorkareaRect;
   WAWidth := WorkareaRect.Width;
@@ -238,7 +254,7 @@ begin
   RemainWidth := WAWidth;
   RemainHeight := WAHeight;
 
-  // Anzahl von 0-Definition, diese werden f¸r die gleichm‰ﬂige Verteilung des Restes verwendet
+  // Anzahl von 0-Definition, diese werden f√ºr die gleichm√§√üige Verteilung des Restes verwendet
   XRemainCount := 0;
   YRemainCount := 0;
 
@@ -320,7 +336,8 @@ procedure TGridLayer.UpdateTileGrid;
   end;
 
 var
-  TileX, TileY: Integer;
+  TileX: Integer;
+  TileY: Integer;
 begin
   for TileX := 0 to High(TileGrid) do
     for TileY := 0 to High(TileGrid[TileX]) do
@@ -334,6 +351,7 @@ begin
 end;
 
 const
+
   TileCoord: array[1..9] of TPoint = (
     {1} (X: 0; Y: 2),
     {2} (X: 1; Y: 2),
@@ -347,8 +365,8 @@ const
 
 function TGridLayer.IsXYToTileNumConvertible(X, Y: Integer; out TileNum: Integer): Boolean;
 var
+  cc   : Integer;
   Point: PPoint;
-  cc: Integer;
 begin
   Result := True;
   for cc := 1 to 9 do
@@ -387,8 +405,8 @@ end;
 
 procedure TGridLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 var
-  TileNum: Integer;
   Monitor: TMonitor;
+  TileNum: Integer;
 begin
   if IsTileNumKey(Key, TileNum) then
   begin
@@ -423,8 +441,8 @@ end;
 
 procedure TGridLayer.HandleKeyUp(Key: Integer; var Handled: Boolean);
 var
-  TileNum: Integer;
   TargetWindow: TWindow;
+  TileNum     : Integer;
 
   procedure SizeWindowRect(const Rect: TRect);
   begin
@@ -438,27 +456,31 @@ var
 
   procedure HandleTileNumKey;
   var
-    HasFirstTileNumKey, HasSecondTileNumKey: Boolean;
-    FirstTileNum, SecondTileNum: Integer;
-    FirstRect, SecondRect: TRect;
-    TileX, TileY: Integer;
+    FirstRect          : TRect;
+    FirstTileNum       : Integer;
+    HasFirstTileNumKey : Boolean;
+    HasSecondTileNumKey: Boolean;
+    SecondRect         : TRect;
+    SecondTileNum      : Integer;
+    TileX              : Integer;
+    TileY              : Integer;
   begin
     HasFirstTileNumKey := FirstTileNumKey <> 0;
     HasSecondTileNumKey := SecondTileNumKey <> 0;
 
     if (HasFirstTileNumKey and WDMKeyStates.KeyPressed[FirstTileNumKey]) or
-      (HasSecondTileNumKey and WDMKeyStates.KeyPressed[SecondTileNumKey]) then
+       (HasSecondTileNumKey and WDMKeyStates.KeyPressed[SecondTileNumKey]) then
       Exit;
 
     FirstTileNum := 0;
     SecondTileNum := 0;
 
     if HasFirstTileNumKey and IsTileNumKey(FirstTileNumKey, FirstTileNum) and
-      IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
+       IsTileNumToXYConvertible(FirstTileNum, TileX, TileY) then
       FirstRect := MonitorHandler.ClientToScreen(TileGrid[TileX][TileY].TargetRect);
 
     if HasSecondTileNumKey and IsTileNumKey(SecondTileNumKey, SecondTileNum) and
-      IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
+       IsTileNumToXYConvertible(SecondTileNum, TileX, TileY) then
       SecondRect := MonitorHandler.ClientToScreen(TileGrid[TileX][TileY].TargetRect);
 
     if (FirstTileNum > 0) and (SecondTileNum > 0) then
@@ -488,13 +510,16 @@ end;
 
 procedure TGridLayer.RenderMainContent(Target: TBitmap32);
 var
-  TileNum, TileX, TileY: Integer;
+  TileNum: Integer;
+  TileX  : Integer;
+  TileY  : Integer;
 
   procedure DrawTile(Tile: TTile);
   var
-    cc: Integer;
+    cc  : Integer;
+    NumX: Integer;
+    NumY: Integer;
     Rect: TRect;
-    NumX, NumY: Integer;
   begin
     Rect := Tile.Rect;
     for cc := 1 to 3 do
