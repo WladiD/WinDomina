@@ -105,6 +105,9 @@ var
   P: PColor32;
   OpaqueColor: TColor32;
 begin
+  if B.Empty then
+    Exit;
+
   BlueMasterAlpha := Color shr 24;
 
   // If the passed color is opaque, so we decrease the master alpha for better results
@@ -141,8 +144,11 @@ begin
     if Size.cX > Width then
       Size.cX := Width;
     if Size.cY > Height then
-      Size.cX := Height;
+      Size.cY := Height;
     B.SetSize(Size.cX, Size.cY);
+    if B.Empty then
+      Exit;
+
     B.Font := Font;
     B.Clear(0);
     B.Font.Color := clWhite;

@@ -387,7 +387,7 @@ begin
   HeadlinePoint := Point(WidthFactor(IndentLeft), HeightFactor(0.04));
   Target.RenderTextWD(HeadlinePoint.X, HeadlinePoint.Y, Lang[LS_16], clWhite32);
 
-  EscKeyWidth := Abs(Target.Font.Height); // MonitorHandler.ConvertMmToPixel(10);
+  EscKeyWidth := Max(1, Abs(Target.Font.Height)); // MonitorHandler.ConvertMmToPixel(10);
   Dec(HeadlinePoint.X, 10 + EscKeyWidth);
 
   EscKeyRect := Rect(EscKeyWidth, HeadlinePoint.Y,
