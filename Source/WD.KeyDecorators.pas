@@ -1,13 +1,20 @@
+﻿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.KeyDecorators;
 
 interface
 
 uses
-  System.SysUtils,
+
   System.Classes,
-  System.UITypes,
   System.Diagnostics,
+  System.SysUtils,
   System.Types,
+  System.UITypes,
   Vcl.Graphics,
 
   GR32,
@@ -17,50 +24,41 @@ uses
   WD.Types;
 
 type
+
   TKeyDecorators = class
   public
-    class procedure TargetEdgeGrowTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeGrowRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeGrowBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeGrowLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-
-    class procedure TargetEdgeShrinkTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeShrinkRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeShrinkBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
-    class procedure TargetEdgeShrinkLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-      KeyRect: TRect);
+    class procedure TargetEdgeGrowBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeGrowLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeGrowRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeGrowTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeShrinkBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeShrinkLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeShrinkRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
+    class procedure TargetEdgeShrinkTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
   end;
 
 implementation
 
 type
+
   TKeyDecoratorRenderer = class
   private
   type
     TTargetEdgeConfig = record
+      BigIndent  : Integer;
+      EdgeWidth  : Integer;
       SmallIndent: Integer;
-      BigIndent: Integer;
-      EdgeWidth: Integer;
     end;
 
   var
+    KeyRect : TRect;
     Renderer: TKeyRenderer;
-    Target: TBitmap32;
-    KeyRect: TRect;
+    Target  : TBitmap32;
 
     procedure DrawRectEdge(Rect: TRect; Edges: TRectEdges; EdgeWidth: Integer; Color: TColor32);
-
-    function GetTargetEdgeConfig(Edge: TRectEdge): TTargetEdgeConfig;
+    function  GetTargetEdgeConfig(Edge: TRectEdge): TTargetEdgeConfig;
     procedure DrawTargetEdgeGrowIndicator(Edge: TRectEdge);
     procedure DrawTargetEdgeShrinkIndicator(Edge: TRectEdge);
-
   public
     constructor Create(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
   end;
@@ -72,8 +70,7 @@ begin
   Self.KeyRect := KeyRect
 end;
 
-procedure TKeyDecoratorRenderer.DrawRectEdge(Rect: TRect; Edges: TRectEdges; EdgeWidth: Integer;
-  Color: TColor32);
+procedure TKeyDecoratorRenderer.DrawRectEdge(Rect: TRect; Edges: TRectEdges; EdgeWidth: Integer; Color: TColor32);
 begin
   if reTop in Edges then
     Target.FillRect(Rect.Left, Rect.Top, Rect.Right, Rect.Top + EdgeWidth, Color);
@@ -112,10 +109,11 @@ end;
 
 procedure TKeyDecoratorRenderer.DrawTargetEdgeGrowIndicator(Edge: TRectEdge);
 var
-  Conf: TTargetEdgeConfig;
-  WinSymRect, TargetSymRect: TRect;
-  WinSymEdges: TRectEdges;
-  OppositeEdge: TRectEdge;
+  Conf         : TTargetEdgeConfig;
+  OppositeEdge : TRectEdge;
+  TargetSymRect: TRect;
+  WinSymEdges  : TRectEdges;
+  WinSymRect   : TRect;
 begin
   Conf := GetTargetEdgeConfig(Edge);
 
@@ -144,9 +142,10 @@ end;
 
 procedure TKeyDecoratorRenderer.DrawTargetEdgeShrinkIndicator(Edge: TRectEdge);
 var
-  Conf: TTargetEdgeConfig;
-  WinSymRect, TargetSymRect: TRect;
-  WinSymEdges: TRectEdges;
+  Conf         : TTargetEdgeConfig;
+  TargetSymRect: TRect;
+  WinSymEdges  : TRectEdges;
+  WinSymRect   : TRect;
 begin
   Conf := GetTargetEdgeConfig(Edge);
 
@@ -174,8 +173,7 @@ end;
 
 { TKeyDecorators }
 
-class procedure TKeyDecorators.TargetEdgeGrowBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-  KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeGrowBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -187,8 +185,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeGrowLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-  KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeGrowLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -200,8 +197,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeGrowRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-  KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeGrowRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -213,8 +209,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeGrowTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32;
-  KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeGrowTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -226,8 +221,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeShrinkTopIndicator(Renderer: TKeyRenderer;
-  Target: TBitmap32; KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeShrinkTopIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -239,8 +233,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeShrinkRightIndicator(Renderer: TKeyRenderer;
-  Target: TBitmap32; KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeShrinkRightIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -252,8 +245,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeShrinkBottomIndicator(Renderer: TKeyRenderer;
-  Target: TBitmap32; KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeShrinkBottomIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
@@ -265,8 +257,7 @@ begin
   end;
 end;
 
-class procedure TKeyDecorators.TargetEdgeShrinkLeftIndicator(Renderer: TKeyRenderer;
-  Target: TBitmap32; KeyRect: TRect);
+class procedure TKeyDecorators.TargetEdgeShrinkLeftIndicator(Renderer: TKeyRenderer; Target: TBitmap32; KeyRect: TRect);
 var
   KDR: TKeyDecoratorRenderer;
 begin
