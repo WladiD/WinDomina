@@ -1,38 +1,48 @@
+ï»¿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
 unit WD.Layer.Mover;
 
 interface
 
 uses
-  System.SysUtils,
-  System.Classes,
-  System.UITypes,
-  System.Types,
-  System.Generics.Collections,
-  System.Contnrs,
-  System.Math,
+
   Winapi.Windows,
-  Vcl.Forms,
+
+  System.Classes,
+  System.Contnrs,
+  System.Generics.Collections,
+  System.Math,
+  System.SysUtils,
+  System.Types,
+  System.UITypes,
   Vcl.Controls,
+  Vcl.Forms,
 
   GR32,
   GR32_Polygons,
   GR32_VectorUtils,
-  WindowEnumerator,
-  AnyiQuack,
-  AQPSystemTypesAnimations,
-  AQPControlAnimations,
-  SendInputHelper,
 
-  WD.Types,
+  AnyiQuack,
+  AQPControlAnimations,
+  AQPSystemTypesAnimations,
+  SendInputHelper,
+  WindowEnumerator,
+
+  WD.Form.Number,
+  WD.KeyDecorators,
+  WD.KeyTools,
   WD.Layer,
   WD.Registry,
-  WD.WindowTools,
+  WD.Types,
   WD.WindowMatchSnap,
-  WD.Form.Number,
-  WD.KeyTools,
-  WD.KeyDecorators;
+  WD.WindowTools;
 
 type
+
   TArrowIndicator = class;
   TControlMode = (cmWindow, cmMouse);
   TWindowControlMode = (wcmMoveWindow, wcmGrowWindow, wcmShrinkWindow);
@@ -40,55 +50,55 @@ type
   TMoverLayer = class(TBaseLayer)
   private
     class var
-    AlignIndicatorAniID: Integer;
-    ArrowIndicatorAniID: Integer;
+    AlignIndicatorAniID      : Integer;
     ArrowIndicatorAniDuration: Integer;
-    NumberFormBoundsAniID: Integer;
-    MouseMoveAniID: Integer;
+    ArrowIndicatorAniID      : Integer;
+    MouseMoveAniID           : Integer;
+    NumberFormBoundsAniID    : Integer;
   private
     type
     TNumberFormList = TObjectList<TNumberForm>;
 
     var
-    FVisibleWindowList: TWindowList;
-    FSwitchTargets: TWindowList;
-    FNumberFormList: TNumberFormList;
-    FArrowIndicator: TArrowIndicator;
-    FShowNumberForms: Boolean;
     FActiveSwitchTargetIndex: Integer;
-    FClickOnSwitchTarget: Boolean;
-    FControlMode: TControlMode;
-    FWindowMode: TWindowControlMode;
+    FArrowIndicator         : TArrowIndicator;
+    FClickOnSwitchTarget    : Boolean;
+    FControlMode            : TControlMode;
+    FNumberFormList         : TNumberFormList;
+    FShowNumberForms        : Boolean;
+    FSwitchTargets          : TWindowList;
+    FVisibleWindowList      : TWindowList;
+    FWindowMode             : TWindowControlMode;
 
-    procedure UpdateVisibleWindowList;
-    procedure UpdateSwitchTargetsWindowList;
     procedure CreateSwitchTargetNumberForms;
     procedure UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm);
+    procedure UpdateSwitchTargetsWindowList;
+    procedure UpdateVisibleWindowList;
 
-    function IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
-    function HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
-    function HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
-    function HasSwitchTargetNumberFormByIndex(TargetIndex: Integer; out Form: TNumberForm): Boolean;
-    function HasSwitchTargetIndex(AssocWindowHandle: HWND; out TargetIndex: Integer): Boolean;
-    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; MoveCursorDuration: Integer);
     procedure BringSwitchTargetNumberFormsToTop;
+    function  HasSwitchTarget(TargetIndex: Integer; out Window: TWindow): Boolean;
+    function  HasSwitchTargetIndex(AssocWindowHandle: HWND; out TargetIndex: Integer): Boolean;
+    function  HasSwitchTargetNumberForm(AssocWindowHandle: HWND; out Form: TNumberForm): Boolean;
+    function  HasSwitchTargetNumberFormByIndex(TargetIndex: Integer; out Form: TNumberForm): Boolean;
+    function  IsSwitchTargetNumKey(Key: Integer; out TargetIndex: Integer): Boolean;
+    function  IsWindowModeModifierKey(Key: Integer): Boolean;
     procedure SetActiveSwitchTargetIndex(Value: Integer);
     procedure SetShowNumberForms(NewValue: Boolean);
     procedure SetWindowMode(Value: TWindowControlMode);
-    function IsWindowModeModifierKey(Key: Integer): Boolean;
     procedure UpdateCurrentWindowMode;
+    procedure VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND; MoveCursorDuration: Integer);
 
     procedure MoveSizeWindow(Direction: TDirection);
     procedure TargetWindowChangedOrMoved;
 
     property ActiveSwitchTargetIndex: Integer read FActiveSwitchTargetIndex write SetActiveSwitchTargetIndex;
-    property ControlMode: TControlMode read FControlMode write FControlMode;
-    property WindowMode: TWindowControlMode read FWindowMode write SetWindowMode;
+    property ControlMode            : TControlMode read FControlMode write FControlMode;
+    property WindowMode             : TWindowControlMode read FWindowMode write SetWindowMode;
 
   public
     class constructor Create;
     constructor Create(Owner: TComponent); override;
-    destructor Destroy; override;
+    destructor  Destroy; override;
 
     procedure EnterLayer; override;
     procedure ExitLayer; override;
@@ -97,7 +107,7 @@ type
     procedure TargetWindowMoved; override;
     procedure Invalidate; override;
 
-    function HasMainContent: Boolean; override;
+    function  HasMainContent: Boolean; override;
     procedure RenderMainContent(Target: TBitmap32); override;
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
@@ -108,12 +118,11 @@ type
 
   TArrowIndicator = class
   private
-    FParentLayer: TMoverLayer;
-    FRefRect: TRect;
-    FTargetIndex: Integer;
+    FParentLayer    : TMoverLayer;
+    FRefRect        : TRect;
     FShowTargetIndex: Boolean;
-    FWindowMode: TWindowControlMode;
-
+    FTargetIndex    : Integer;
+    FWindowMode     : TWindowControlMode;
   public
     procedure Draw(Target: TBitmap32);
 
@@ -126,8 +135,7 @@ type
   TAlignIndicatorAnimation = class(TAnimationBase)
   private
     FFrom: TRect;
-    FTo: TRect;
-
+    FTo  : TRect;
   public
     constructor Create(Layer: TBaseLayer; const AlignTarget, Workarea: TRect; Edge: TRectEdge);
     procedure Render(Target: TBitmap32); override;
@@ -202,15 +210,16 @@ end;
 
 procedure TMoverLayer.CreateSwitchTargetNumberForms;
 var
-  cc, SwitchTargetsCount: Integer;
-  NumberForm: TNumberForm;
+  cc                : Integer;
+  NumberForm        : TNumberForm;
+  SwitchTargetsCount: Integer;
 begin
   if not ShowNumberForms then
     Exit;
 
   SwitchTargetsCount := Min(9, FSwitchTargets.Count - 1);
 
-  // Zuerst die benötigten NumberForms erzeugen...
+  // Zuerst die benÃ¶tigten NumberForms erzeugen...
   for cc := SwitchTargetsCount downto 0 do
   begin
     NumberForm := TNumberForm.Create(nil);
@@ -258,13 +267,17 @@ procedure TMoverLayer.UpdateSwitchTargetNumberFormBounds(NumberForm: TNumberForm
   end;
 
 var
-  Collision, AnyCollisions, ReplaceTestNF: Boolean;
-  DeltaX, DeltaY: Integer;
-  TestNF: TNumberForm;
+  AnyCollisions  : Boolean;
+  AssocWindow    : TWindow;
+  Collision      : Boolean;
+  DeltaX         : Integer;
+  DeltaY         : Integer;
+  ReplaceTestNF  : Boolean;
+  TargetRect     : TRect;
   TestAssocWindow: TWindow;
-  TestTargetRect, TestBoundsRect: TRect;
-  TargetRect: TRect;
-  AssocWindow: TWindow;
+  TestBoundsRect : TRect;
+  TestNF         : TNumberForm;
+  TestTargetRect : TRect;
 begin
   if not (Assigned(NumberForm) and HasSwitchTarget(NumberForm.Number, AssocWindow)) then
     Exit;
@@ -309,7 +322,7 @@ begin
 //        TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Right, TestBoundsRect.Bottom,
 //        DeltaX, DeltaY]));
 
-      // Wähle das kleinere Delta
+      // WÃ¤hle das kleinere Delta
       if Abs(DeltaX) > Abs(DeltaY) then
         DeltaX := 0
       else
@@ -370,7 +383,7 @@ end;
 
 procedure TMoverLayer.ExitLayer;
 begin
-  // Der virtuelle Klick darf nicht ausgeführt werden, wenn der Layer verlassen wird und
+  // Der virtuelle Klick darf nicht ausgefÃ¼hrt werden, wenn der Layer verlassen wird und
   // ein Klick noch erfolgen soll.
   FClickOnSwitchTarget := False;
   Take(Mouse).CancelAnimations(MouseMoveAniID);
@@ -452,21 +465,22 @@ begin
   Result := False;
 end;
 
-// Führt einen virtuellen Mausklick auf das Zielfensterkürzel aus
+// FÃ¼hrt einen virtuellen Mausklick auf das ZielfensterkÃ¼rzel aus
 //
-// Auf diese Weise wird das Hauptfenster aktiviert, dies ist unverzichtbar für ein korrektes Setzen
+// Auf diese Weise wird das Hauptfenster aktiviert, dies ist unverzichtbar fÃ¼r ein korrektes Setzen
 // des ForegroundWindow.
 procedure TMoverLayer.VirtualClickOnSwitchTargetNumberForm(AssocWindowHandle: HWND;
   MoveCursorDuration: Integer);
 var
-  NumberForm: TNumberForm;
-  Window: TWindow;
+  ClickProc     : TProc;
   GetCenterPoint: TFunc<TPoint>;
-  ClickProc: TProc;
+  NumberForm    : TNumberForm;
+  Window        : TWindow;
 
   function IsCursorOnTargetCenterPoint: Boolean;
   var
-    CurPoint, TargetPoint: TPoint;
+    CurPoint   : TPoint;
+    TargetPoint: TPoint;
   begin
     CurPoint := Mouse.CursorPos;
     TargetPoint := GetCenterPoint;
@@ -607,10 +621,11 @@ end;
 
 procedure TMoverLayer.TargetWindowChangedOrMoved;
 var
-  TargetWindow, ActiveSwitchTargetWindow: TWindow;
-  RectLocal: TRect;
-  NumberForm: TNumberForm;
-  SwitchTargetIndex: Integer;
+  ActiveSwitchTargetWindow: TWindow;
+  NumberForm              : TNumberForm;
+  RectLocal               : TRect;
+  SwitchTargetIndex       : Integer;
+  TargetWindow            : TWindow;
 begin
   if not HasTargetWindow(TargetWindow) then
     Exit;
@@ -627,8 +642,8 @@ begin
 
   if HasSwitchTargetNumberForm(TargetWindow.Handle, NumberForm) then
   begin
-    // Damit die Fenster während einer Fensterbewegung nicht permanent nach vorne geholt
-    // werden müssen, wird dies nur bei einer nicht laufender Animation gemacht.
+    // Damit die Fenster wÃ¤hrend einer Fensterbewegung nicht permanent nach vorne geholt
+    // werden mÃ¼ssen, wird dies nur bei einer nicht laufender Animation gemacht.
     if not TAQ.HasActiveActors([arAnimation], NumberForm, NumberFormBoundsAniID) then
       BringSwitchTargetNumberFormsToTop;
 
@@ -703,18 +718,22 @@ end;
 
 procedure TMoverLayer.MoveSizeWindow(Direction: TDirection);
 var
-  Window: HWND;
-  WinRect, MatchRect, WorkareaRect: TRect;
-  WindowInfo: TWindowInfo;
-  NewPos: TPoint;
-  MatchEdge: TRectEdge;
-  MatchWindow: TWindow;
-  Snapper: TWindowMatchSnap;
-  FromMonitor, AdjacentMonitor: TMonitor;
-  FromDPI, TargetDPI: Integer;
+  AdjacentMonitor: TMonitor;
+  FromDPI        : Integer;
+  FromMonitor    : TMonitor;
+  MatchEdge      : TRectEdge;
+  MatchRect      : TRect;
+  MatchWindow    : TWindow;
+  NewPos         : TPoint;
+  Snapper        : TWindowMatchSnap;
+  TargetDPI      : Integer;
+  Window         : HWND;
+  WindowInfo     : TWindowInfo;
+  WinRect        : TRect;
+  WorkareaRect   : TRect;
 
-  // Da MatchRect hauptsächlich für die Animationen existiert, verkleinern wir es in bestimmten
-  // Fällen, damit wir dennoch eine mehr auffälligere Animation bekommen.
+  // Da MatchRect hauptsÃ¤chlich fÃ¼r die Animationen existiert, verkleinern wir es in bestimmten
+  // FÃ¤llen, damit wir dennoch eine mehr auffÃ¤lligere Animation bekommen.
   procedure IndentMatchRect;
   const
     IndentFactor = 0.45;
@@ -920,7 +939,7 @@ begin
     // Default move window mode
     else if WindowMode = wcmMoveWindow then
     begin
-      // WinRect enthält ab hier die neue Position
+      // WinRect enthÃ¤lt ab hier die neue Position
       WinRect.TopLeft := NewPos;
       WindowPositioner.MoveWindow(NewPos);
     end;
@@ -949,8 +968,9 @@ procedure TMoverLayer.HandleKeyDown(Key: Integer; var Handled: Boolean);
 
   function IsSwitchTargetNumKey: Boolean;
   var
-    SwitchTargetIndex: Integer;
-    SwitchTargetWindow, TargetWindow: TWindow;
+    SwitchTargetIndex : Integer;
+    SwitchTargetWindow: TWindow;
+    TargetWindow      : TWindow;
   begin
     Result := Self.IsSwitchTargetNumKey(Key, SwitchTargetIndex) and
       HasSwitchTarget(SwitchTargetIndex, SwitchTargetWindow) and
@@ -1074,10 +1094,18 @@ end;
 
 procedure TArrowIndicator.Draw(Target: TBitmap32);
 var
-  ContainSquare, ArrowSquare, RemainWidth, RemainHeight: Integer;
-  ArrowSquare2, ArrowSquare3: Integer;
-  PaintRect, ArrowRect: TRect;
-  KeyUpDecorator, KeyRightDecorator, KeyDownDecorator, KeyLeftDecorator: TKeyDecoratorProc;
+  ArrowRect        : TRect;
+  ArrowSquare      : Integer;
+  ArrowSquare2     : Integer;
+  ArrowSquare3     : Integer;
+  ContainSquare    : Integer;
+  KeyDownDecorator : TKeyDecoratorProc;
+  KeyLeftDecorator : TKeyDecoratorProc;
+  KeyRightDecorator: TKeyDecoratorProc;
+  KeyUpDecorator   : TKeyDecoratorProc;
+  PaintRect        : TRect;
+  RemainHeight     : Integer;
+  RemainWidth      : Integer;
 begin
   ArrowSquare := GetRefRectKeySquareSize(RefRect);
   ArrowSquare2 := ArrowSquare * 2;
