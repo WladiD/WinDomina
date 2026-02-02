@@ -6,3 +6,8 @@ __history
 *.dsk
 *.~dsk
 *.dsv
+/Runtime/WinDomina.exe
+/Runtime/kbhk.dll
+/Runtime/WinDomina.map
+/Runtime/WinDomina.drc
+/Runtime/Config.ini

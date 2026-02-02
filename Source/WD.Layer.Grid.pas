@@ -21,6 +21,8 @@ uses
   Vcl.Forms,
   Vcl.Graphics,
 
+  System.Skia,
+
   GR32,
   GR32_Polygons,
   GR32_VectorUtils,
@@ -89,6 +91,7 @@ type
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
     procedure Invalidate; override;
     procedure RenderMainContent(Target: TBitmap32); override;
+    procedure RenderMainContentSkia(Canvas: ISkCanvas); override;
 
     property TileGrid: TTileGrid read FTileGrid;
   end;
@@ -555,6 +558,72 @@ var
 
 begin
   inherited RenderMainContent(Target);
+
+  for TileNum := 1 to 9 do
+    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
+      DrawTile(TileGrid[TileX][TileY]);
+end;
+
+procedure TGridLayer.RenderMainContentSkia(Canvas: ISkCanvas);
+var
+  Paint  : ISkPaint;
+  TileNum: Integer;
+  TileX  : Integer;
+  TileY  : Integer;
+  Font   : ISkFont;
+  Typeface: ISkTypeface;
+
+  procedure DrawTile(Tile: TTile);
+  var
+    RectF: TRectF;
+    NumX: Single;
+    NumY: Single;
+    NumStr: string;
+    TextBounds: TRectF;
+  begin
+    RectF := TRectF.Create(Tile.Rect);
+
+    // Schwarzer Rahmen (außen)
+    Paint.Color := TAlphaColors.Black;
+    Paint.StrokeWidth := 3;
+    // Stroke ist zentriert, also müssen wir den Offset beachten,
+    // aber FrameRectS malt *innen* ab der Kante.
+    // Skia DrawRect malt auch je nach Stil.
+    // Einfachheitshalber:
+    Canvas.DrawRect(TRectF.Create(RectF.Left + 1.5, RectF.Top + 1.5, RectF.Right - 1.5, RectF.Bottom - 1.5), Paint);
+
+    // Weißer Rahmen (innen)
+    Paint.Color := TAlphaColors.White;
+    // Inset um 3 Pixel (da der schwarze 3 breit war)
+    Canvas.DrawRect(TRectF.Create(RectF.Left + 4.5, RectF.Top + 4.5, RectF.Right - 4.5, RectF.Bottom - 4.5), Paint);
+
+    // Zahl zeichnen (KeyRenderManager ist GR32, also hier improvisieren wir simple Textausgabe)
+    Paint.Style := TSkPaintStyle.Fill;
+    Paint.Color := TAlphaColors.Black; // Hintergrund der Zahl (KeyRenderManager macht es komplexer)
+    
+    // Für den Test malen wir einfach die Zahl
+    NumStr := IntToStr(TileNum);
+    Font.MeasureText(NumStr, TextBounds);
+    
+    NumX := RectF.Left + ((RectF.Width - TextBounds.Width) / 2);
+    NumY := RectF.Top + ((RectF.Height + TextBounds.Height) / 2); // Skia Text Origin ist Baseline
+
+    Paint.Color := TAlphaColors.White; // Textfarbe
+    Canvas.DrawSimpleText(NumStr, NumX, NumY, Font, Paint);
+
+    // Reset Paint für den nächsten Rahmen
+    Paint.Style := TSkPaintStyle.Stroke;
+  end;
+
+begin
+  inherited RenderMainContentSkia(Canvas);
+
+  Paint := TSkPaint.Create;
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.AntiAlias := True;
+
+  Typeface := TSkTypeface.MakeDefault;
+  Font := TSkFont.Create(Typeface, FSmallestNumSquare * 0.6);
 
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then

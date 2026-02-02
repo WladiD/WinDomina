@@ -9,6 +9,7 @@
         <ProjectGuid>{9354EEE4-6A43-4D56-ACC2-3B1EA3E90843}</ProjectGuid>
         <ProjectName Condition="'$(ProjectName)'==''">WinDomina</ProjectName>
         <ProjectVersion>20.3</ProjectVersion>
+        <EnabledSkia>true</EnabledSkia>
         <TargetedPlatforms>1</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">

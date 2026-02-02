@@ -37,6 +37,9 @@ uses
   Vcl.Menus,
   Vcl.StdCtrls,
 
+  System.Skia,
+  Vcl.Skia,
+
   GR32,
   GR32_Backends,
 
@@ -98,9 +101,12 @@ type
     FLastUsedLayer               : TBaseLayer;
     FLayers                      : TLayerList;
     FMainBitmap                  : TBitmap32;
+    FPaintBox                    : TSkPaintBox;
     FUpdateWindowThread          : TUpdateWindowThread;
     FVisible                     : Boolean;
     FWindowList                  : TDomainWindowList;
+
+    procedure PaintBoxDraw(Sender: TObject; const Canvas: ISkCanvas; const Dest: TRectF; const Opacity: Single);
 
     procedure LoadConfig;
     procedure SaveConfig;
@@ -204,6 +210,23 @@ begin
   TargetWindowMovedDelayID := TAQ.GetUniqueID;
 end;
 
+procedure TMainForm.PaintBoxDraw(Sender: TObject; const Canvas: ISkCanvas; const Dest: TRectF; const Opacity: Single);
+var
+  Layer: TBaseLayer;
+begin
+  // Clear with transparent color (will be keyed out by Windows)
+  // Or better: don't clear, rely on Form Color?
+  // Skia paints over.
+  
+  for Layer in FActiveLayers do
+    if Layer.HasMainContent then
+    begin
+      Layer.RenderMainContentSkia(Canvas);
+      if Layer.Exclusive then
+        Break;
+    end;
+end;
+
 procedure TMainForm.LoadConfig;
 var
   Ini: TIniFile;
@@ -279,9 +302,18 @@ begin
   Logger.WindowHandle := LogForm.Handle;
   RegisterLogging(Logger);
 
-  ExStyle := GetWindowLong(Handle, GWL_EXSTYLE);
-  if (ExStyle and WS_EX_LAYERED) = 0 then
-    SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
+  // SKIA EXPERIMENT: Disable Layered Window, enable VCL Transparency
+  // ExStyle := GetWindowLong(Handle, GWL_EXSTYLE);
+  // if (ExStyle and WS_EX_LAYERED) = 0 then
+  //   SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
+  Color := clFuchsia;
+  TransparentColorValue := clFuchsia;
+  TransparentColor := True;
+
+  FPaintBox := TSkPaintBox.Create(Self);
+  FPaintBox.Parent := Self;
+  FPaintBox.Align := alClient;
+  FPaintBox.OnDraw := PaintBoxDraw;
 
   FWindowList := TDomainWindowList.Create([doOwnsValues]);
   FLayers := TLayerList.Create(True);
@@ -580,7 +612,7 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
       SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
         SWP_SHOWWINDOW{ or SWP_NOACTIVATE});
       UpdateBoundsRect(Workarea);
-      MainBitmap.SetSize(Workarea.Width, Workarea.Height);
+      // MainBitmap.SetSize(Workarea.Width, Workarea.Height); // Not needed for Skia PaintBox aligned client
     finally
       MainBitmap.Unlock;
     end;
@@ -759,6 +791,11 @@ begin
   WholeStopper := TStopwatch.StartNew;
 {$ENDIF}
 
+  // SKIA EXPERIMENT: Redraw PaintBox
+  if Assigned(FPaintBox) then
+    FPaintBox.Redraw;
+
+  {
   MainBitmap.Lock;
   try
     for Layer in FActiveLayers do
@@ -773,6 +810,7 @@ begin
   finally
     MainBitmap.Unlock;
   end;
+  }
 
 {$IFDEF BOTTLENECK_LOG}
   WholeStopper.Stop;
@@ -787,6 +825,10 @@ end;
 // für einen kurzen Moment der vorherige Inhalt sichtbar sein kann.
 procedure TMainForm.ClearWindowContent;
 begin
+  if Assigned(FPaintBox) then
+    FPaintBox.Redraw;
+    
+  {
   MainBitmap.Lock;
   try
     MainBitmap.Clear(Color32(0, 0, 0, 0));
@@ -794,6 +836,7 @@ begin
   finally
     MainBitmap.Unlock;
   end;
+  }
 end;
 
 procedure TMainForm.CloseActionExecute(Sender: TObject);

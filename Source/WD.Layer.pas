@@ -18,6 +18,8 @@ uses
   System.SysUtils,
   System.Types,
 
+  System.Skia,
+
   GR32,
 
   AnyiQuack,
@@ -86,6 +88,7 @@ type
     function  HasMainContent: Boolean; virtual;
     procedure Invalidate; virtual;
     procedure RenderMainContent(Target: TBitmap32); virtual;
+    procedure RenderMainContentSkia(Canvas: ISkCanvas); virtual;
     procedure SwitchTargetWindowMoved(WindowHandle: HWND); virtual;
     procedure TargetWindowChanged; virtual;
     procedure TargetWindowMoved; virtual;
@@ -235,6 +238,11 @@ begin
     for Animation in FAnimations do
       Animation.Render(Target);
   end;
+end;
+
+procedure TBaseLayer.RenderMainContentSkia(Canvas: ISkCanvas);
+begin
+  // Default implementation does nothing
 end;
 
 procedure TBaseLayer.DoMainContentChanged;
