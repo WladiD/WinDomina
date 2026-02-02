@@ -42,16 +42,16 @@ function  SnapRect(const A, B: TRect; SnapThreshold: Integer = 5): Boolean;
 type
 
   TUpdateLayeredWindowInfo = record
-    cbSize  : DWORD;
-    crKey   : TColorRef;
-    dwFlags : DWORD;
-    hdcDst  : HDC;
-    hdcSrc  : HDC;
-    pblend  : PBlendFunction;
-    pptDst  : PPoint;
-    pptSrc  : PPoint;
+    cbSize: DWORD;
+    hdcDst: HDC;
+    pptDst: PPoint;
+    psize: PSize;
+    hdcSrc: HDC;
+    pptSrc: PPoint;
+    crKey: TColorRef;
+    pblend: PBlendFunction;
+    dwFlags: DWORD;
     prcDirty: PRect;
-    psize   : PSize;
   end;
   PUpdateLayeredWindowInfo = ^TUpdateLayeredWindowInfo;
 
