@@ -148,7 +148,6 @@ type
 
     function  ClientToScreen(const Rect: TRect): TRect; overload;
     function  ScreenToClient(const Rect: TRect): TRect; overload;
-    function  ScreenToClient(const Point: TPoint): TPoint; overload;
 
     function  ConvertMmToPixel(MM: Real): Integer;
 
@@ -348,10 +347,10 @@ end;
 
 function TMainForm.HasAdjacentMonitor(Direction: TDirection; out AdjacentMonitor: TMonitor): Boolean;
 var
+  cc             : Integer;
+  CurBounds      : TRect;
   CurMonitorIndex: Integer;
-  CurBounds: TRect;
-  cc: Integer;
-  TestMonitor: TMonitor;
+  TestMonitor    : TMonitor;
 begin
   Result := (Screen.MonitorCount > 1) and HasMonitorIndex(Monitor, CurMonitorIndex);
   if not Result then
@@ -433,13 +432,6 @@ begin
   Result.TopLeft := ScreenToClient(Rect.TopLeft);
   Result.Width := Rect.Width;
   Result.Height := Rect.Height;
-end;
-
-function TMainForm.ScreenToClient(const Point: TPoint): TPoint;
-begin
-  // In Layered Window mode we use physical pixels 1:1 to the bitmap buffer
-  Result.X := Point.X - Left;
-  Result.Y := Point.Y - Top;
 end;
 
 function TMainForm.ConvertMmToPixel(MM: Real): Integer;
