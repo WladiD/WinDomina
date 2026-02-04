@@ -456,9 +456,21 @@ begin
     var
       SIH          : TSendInputHelper;
       PointedWindow: HWND;
+
+      function IsOwnWindow(AHandle: HWND): Boolean;
+      var
+        NF: TNumberForm;
+      begin
+        Result := (AHandle = Application.MainFormHandle);
+        if not Result then
+          for NF in FNumberFormList.Values do
+            if NF.WindowHandle = AHandle then
+              Exit(True);
+      end;
+
     begin
       PointedWindow := FindWindowFromPoint(Mouse.CursorPos);
-      if not ((PointedWindow <> 0) and (PointedWindow = Application.MainFormHandle)) then
+      if not ((PointedWindow <> 0) and IsOwnWindow(PointedWindow)) then
         Exit;
       SIH := TSendInputHelper.Create;
       try
@@ -855,6 +867,14 @@ begin
     Handled := True
   else if HandleSwitchTargetNumKey then
     Handled := True
+  else if Key = vkReturn then
+  begin
+    if 
+      (ActiveSwitchTargetIndex >= 0) and 
+      Assigned(FSwitchTargets) and 
+      (ActiveSwitchTargetIndex < FSwitchTargets.Count) then
+      VirtualClickOnSwitchTargetNumberForm(FSwitchTargets[ActiveSwitchTargetIndex].Handle, 300);
+  end
   else if IsWindowModeModifierKey(Key) then
     UpdateCurrentWindowMode;
 end;
