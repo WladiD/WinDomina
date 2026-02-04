@@ -113,7 +113,6 @@ type
     FKeys: TObjectList<THelpKeyAssignmentItem>;
     FAvailWidth: Integer;
     FRequiredHeight: Integer;
-    FHeadline: string;
 
   public
     constructor Create(Layer: TBaseLayerClass);
