@@ -96,7 +96,12 @@ type
     FDisableLayerExitEventHandler: Boolean;
     FLastUsedLayer               : TBaseLayer;
     FLayers                      : TLayerList;
-    FBufferBitmap                : TBitmap;
+    FMemoryDC                    : HDC;
+    FDIBBitmap                   : HBITMAP;
+    FOldBitmap                   : HBITMAP;
+    FBitmapBits                  : Pointer;
+    FBitmapWidth                 : Integer;
+    FBitmapHeight                : Integer;
     FVisible                     : Boolean;
     FWindowList                  : TDomainWindowList;
 
@@ -122,6 +127,7 @@ type
 
     procedure UpdateWindowWorkarea(ForceMode: Boolean = False; NewWorkarea: PRect = nil);
     procedure UpdateWindowWorkareaDelayed(Delay: Integer);
+    procedure EnsureDIB(AWidth, AHeight: Integer);
     procedure RenderWindowContent;
     procedure ClearWindowContent;
 
@@ -268,9 +274,6 @@ begin
   Logger.WindowHandle := LogForm.Handle;
   RegisterLogging(Logger);
 
-  FBufferBitmap := TBitmap.Create;
-  FBufferBitmap.PixelFormat := pf32bit;
-
   FWindowList := TDomainWindowList.Create([doOwnsValues]);
   FLayers := TLayerList.Create(True);
   FActiveLayers := TLayerList.Create(False);
@@ -307,7 +310,14 @@ begin
   FLayers.Free;
   FWindowList.Free;
   FPrevTargetWindow.Free;
-  FBufferBitmap.Free;
+
+  if FDIBBitmap <> 0 then
+  begin
+    SelectObject(FMemoryDC, FOldBitmap);
+    DeleteObject(FDIBBitmap);
+  end;
+  if FMemoryDC <> 0 then
+    DeleteDC(FMemoryDC);
 
   UninstallHook;
 end;
@@ -740,6 +750,47 @@ begin
       end, PushChangedWindowsPositionsDelayID);
 end;
 
+procedure TMainForm.EnsureDIB(AWidth, AHeight: Integer);
+var
+  BI: TBitmapInfo;
+begin
+  if (AWidth = FBitmapWidth) and (AHeight = FBitmapHeight) and (FDIBBitmap <> 0) then
+    Exit;
+
+  if FDIBBitmap <> 0 then
+  begin
+    SelectObject(FMemoryDC, FOldBitmap);
+    DeleteObject(FDIBBitmap);
+    FDIBBitmap := 0;
+  end;
+
+  if FMemoryDC = 0 then
+    FMemoryDC := CreateCompatibleDC(0);
+
+  FBitmapWidth := 0;
+  FBitmapHeight := 0;
+  FBitmapBits := nil;
+
+  if (AWidth > 0) and (AHeight > 0) then
+  begin
+    FillChar(BI, SizeOf(BI), 0);
+    BI.bmiHeader.biSize := SizeOf(TBitmapInfoHeader);
+    BI.bmiHeader.biWidth := AWidth;
+    BI.bmiHeader.biHeight := -AHeight; // Top-Down
+    BI.bmiHeader.biPlanes := 1;
+    BI.bmiHeader.biBitCount := 32;
+    BI.bmiHeader.biCompression := BI_RGB;
+
+    FDIBBitmap := CreateDIBSection(FMemoryDC, BI, DIB_RGB_COLORS, FBitmapBits, 0, 0);
+    if FDIBBitmap <> 0 then
+    begin
+      FOldBitmap := SelectObject(FMemoryDC, FDIBBitmap);
+      FBitmapWidth := AWidth;
+      FBitmapHeight := AHeight;
+    end;
+  end;
+end;
+
 procedure TMainForm.RenderWindowContent;
 var
   Blend         : TBlendFunction;
@@ -747,26 +798,32 @@ var
   Size          : TSize;
   SourcePosition: TPoint;
   WindowPosition: TPoint;
+  Layer         : TBaseLayer;
+  Surface       : ISkSurface;
 begin
   if (Width <= 0) or (Height <= 0) then
     Exit;
 
-  FBufferBitmap.SetSize(Width, Height);
-  FBufferBitmap.SkiaDraw(
-    procedure(const Canvas: ISkCanvas)
-    var
-      Layer: TBaseLayer;
-    begin
-      Canvas.Clear(TAlphaColors.Null);
+  EnsureDIB(Width, Height);
+  if (FDIBBitmap = 0) or (FBitmapBits = nil) then
+    Exit;
 
-      for Layer in FActiveLayers do
-        if Layer.HasMainContent then
-        begin
-          Layer.RenderMainContentSkia(Canvas);
-          if Layer.Exclusive then
-            Break;
-        end;
-    end);
+  Surface := TSkSurface.MakeRasterDirect(
+    TSkImageInfo.Create(Width, Height, TSkColorType.BGRA8888, TSkAlphaType.Premul),
+    FBitmapBits, Width * 4);
+    
+  if Assigned(Surface) then
+  begin
+    Surface.Canvas.Clear(TAlphaColors.Null);
+
+    for Layer in FActiveLayers do
+      if Layer.HasMainContent then
+      begin
+        Layer.RenderMainContentSkia(Surface.Canvas);
+        if Layer.Exclusive then
+          Break;
+      end;
+  end;
 
   SourcePosition := Point(0, 0);
   Blend.BlendOp := AC_SRC_OVER;
@@ -785,7 +842,7 @@ begin
   Info.psize  := @Size;
   Info.pblend := @Blend;
   Info.dwFlags := ULW_ALPHA;
-  Info.hdcSrc := FBufferBitmap.Canvas.Handle;
+  Info.hdcSrc := FMemoryDC;
 
   if not UpdateLayeredWindowIndirect(Handle, @Info) then
     RaiseLastOSError();
@@ -802,13 +859,20 @@ var
   Blend: TBlendFunction;
   Size: TSize;
   WindowPosition: TPoint;
+  Surface: ISkSurface;
 begin
   if (Width <= 0) or (Height <= 0) then
     Exit;
 
-  FBufferBitmap.SetSize(Width, Height);
-  FBufferBitmap.Canvas.Brush.Color := clBlack;
-  FBufferBitmap.Canvas.FillRect(Rect(0, 0, Width, Height));
+  EnsureDIB(Width, Height);
+  if (FDIBBitmap <> 0) and (FBitmapBits <> nil) then
+  begin
+    Surface := TSkSurface.MakeRasterDirect(
+      TSkImageInfo.Create(Width, Height, TSkColorType.BGRA8888, TSkAlphaType.Premul),
+      FBitmapBits, Width * 4);
+    if Assigned(Surface) then
+      Surface.Canvas.Clear(TAlphaColors.Null);
+  end;
 
   SourcePosition := Point(0, 0);
   Blend.BlendOp := AC_SRC_OVER;
@@ -827,7 +891,7 @@ begin
   Info.psize  := @Size;
   Info.pblend := @Blend;
   Info.dwFlags := ULW_ALPHA;
-  Info.hdcSrc := FBufferBitmap.Canvas.Handle;
+  Info.hdcSrc := FMemoryDC;
 
   UpdateLayeredWindowIndirect(Handle, @Info);
 end;
