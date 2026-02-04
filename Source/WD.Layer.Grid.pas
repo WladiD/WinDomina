@@ -523,7 +523,7 @@ var
     RectF: TRectF;
   begin
     RectF := TRectF.Create(Tile.Rect);
-    KeyRenderManager.RenderSkia(Canvas, TileNum + vk0, RectF, ksFlat);
+    KeyRenderManager.RenderSkia(Canvas, TileNum + vk0, RectF, ksFlat, True, nil, TAlphaColors.Null, 0, 0.3);
   end;
 
 begin

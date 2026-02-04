@@ -33,6 +33,9 @@ type
     Width: Integer;
     Height: Integer;
     DecoratorSkia: TKeyDecoratorSkiaProc;
+    BackgroundColor: TAlphaColor;
+    BackgroundAlpha: Single;
+    FontSizeRatio: Single;
   end;
 
   TKeyRenderer = class
@@ -56,7 +59,9 @@ type
     destructor Destroy; override;
 
     procedure RenderSkia(Canvas: ISkCanvas; VirtualKey: Integer; Rect: TRectF; State: TKeyState;
-      Enabled: Boolean = True; const Decorator: TKeyDecoratorSkiaProc = nil);
+      Enabled: Boolean = True; const Decorator: TKeyDecoratorSkiaProc = nil;
+      BackgroundColor: TAlphaColor = TAlphaColors.White; BackgroundAlpha: Single = 0.7;
+      FontSizeRatio: Single = 0.6);
 
     property KeyRendererClass: TKeyRendererClass read FKeyRendererClass write SetKeyRendererClass;
   end;
@@ -88,7 +93,8 @@ begin
 end;
 
 procedure TKeyRenderManager.RenderSkia(Canvas: ISkCanvas; VirtualKey: Integer; Rect: TRectF;
-  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorSkiaProc);
+  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorSkiaProc;
+  BackgroundColor: TAlphaColor; BackgroundAlpha: Single; FontSizeRatio: Single);
 var
   RK: TRenderKey;
 begin
@@ -99,6 +105,9 @@ begin
   RK.Width := Round(Rect.Width);
   RK.Height := Round(Rect.Height);
   RK.DecoratorSkia := Decorator;
+  RK.BackgroundColor := BackgroundColor;
+  RK.BackgroundAlpha := BackgroundAlpha;
+  RK.FontSizeRatio := FontSizeRatio;
 
   FKeyRenderer.RenderSkia(RK, Canvas, Rect);
 end;
@@ -151,8 +160,8 @@ begin
   Canvas.DrawRect(KeyRect, Paint);
   
   Paint.Style := TSkPaintStyle.Fill;
-  Paint.Color := TAlphaColors.White;
-  Paint.AlphaF := 180 / 255;
+  Paint.Color := Key.BackgroundColor;
+  Paint.AlphaF := Key.BackgroundAlpha;
   var R := KeyRect;
   R.Inflate(-1, -1);
   Canvas.DrawRect(R, Paint);
@@ -160,7 +169,7 @@ begin
   KeyText := GetKeyText;
   if KeyText <> '' then
   begin
-    Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyRect.Height * 0.6);
+    Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyRect.Height * Key.FontSizeRatio);
     Font.MeasureText(KeyText, TextBounds);
     
     Paint.AlphaF := 1.0;
