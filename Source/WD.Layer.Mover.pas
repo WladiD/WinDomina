@@ -932,12 +932,17 @@ end;
 
 procedure TArrowIndicator.DrawSkia(Canvas: ISkCanvas);
 var
-  PaintRectF: TRectF;
-  ArrowSquare, ArrowSquare2, ArrowSquare3, ContainSquare, RemainHeight, RemainWidth: Single;
-  KeyUpDecorator   : TKeyDecoratorSkiaProc;
-  KeyRightDecorator: TKeyDecoratorSkiaProc;
+  ArrowSquare      : Single;
+  ArrowSquare2     : Single;
+  ArrowSquare3     : Single;
+  ContainSquare    : Single;
   KeyDownDecorator : TKeyDecoratorSkiaProc;
   KeyLeftDecorator : TKeyDecoratorSkiaProc;
+  KeyRightDecorator: TKeyDecoratorSkiaProc;
+  KeyUpDecorator   : TKeyDecoratorSkiaProc;
+  PaintRectF       : TRectF;
+  RemainHeight     : Single;
+  RemainWidth      : Single;
 begin
   ArrowSquare := GetRefRectKeySquareSize(FRefRect);
   ArrowSquare2 := ArrowSquare * 2;
@@ -947,13 +952,22 @@ begin
   RemainWidth := (FRefRect.Width - ContainSquare) / 2;
   RemainHeight := (FRefRect.Height - ContainSquare) / 2;
 
-  PaintRectF := TRectF.Create(FRefRect.Left + RemainWidth, FRefRect.Top + RemainHeight,
-    FRefRect.Right - RemainWidth, FRefRect.Bottom - RemainHeight);
+  PaintRectF := TRectF.Create(
+    FRefRect.Left + RemainWidth,
+    FRefRect.Top + RemainHeight,
+    FRefRect.Right - RemainWidth,
+    FRefRect.Bottom - RemainHeight);
 
   if ShowTargetIndex and (TargetIndex >= 0) then
-    KeyRenderManager.RenderSkia(Canvas, TargetIndex + vk0,
-      TRectF.Create(PaintRectF.Left + ArrowSquare, PaintRectF.Top + ArrowSquare,
-      PaintRectF.Left + ArrowSquare2, PaintRectF.Top + ArrowSquare2), ksFlat);
+    KeyRenderManager.RenderSkia(
+      Canvas,
+      TargetIndex + vk0,
+      TRectF.Create(
+        PaintRectF.Left + ArrowSquare,
+        PaintRectF.Top + ArrowSquare,
+        PaintRectF.Left + ArrowSquare2,
+        PaintRectF.Top + ArrowSquare2),
+      ksFlat);
 
   case WindowMode of
     wcmGrowWindow:
@@ -977,27 +991,59 @@ begin
     KeyLeftDecorator := nil;
   end;
 
-  KeyRenderManager.RenderSkia(Canvas, vkUp,
-    TRectF.Create(PaintRectF.Left + ArrowSquare, PaintRectF.Top,
-    PaintRectF.Left + ArrowSquare2, PaintRectF.Top + ArrowSquare), ksFlat, True, KeyUpDecorator);
+  KeyRenderManager.RenderSkia(
+    Canvas,
+    vkUp,
+    TRectF.Create(
+      PaintRectF.Left + ArrowSquare,
+      PaintRectF.Top,
+      PaintRectF.Left + ArrowSquare2,
+      PaintRectF.Top + ArrowSquare),
+    ksFlat,
+    True,
+    KeyUpDecorator);
 
-  KeyRenderManager.RenderSkia(Canvas, vkRight,
-    TRectF.Create(PaintRectF.Left + ArrowSquare2, PaintRectF.Top + ArrowSquare,
-    PaintRectF.Left + ArrowSquare3, PaintRectF.Top + ArrowSquare2), ksFlat, True, KeyRightDecorator);
+  KeyRenderManager.RenderSkia(
+    Canvas,
+    vkRight,
+    TRectF.Create(
+      PaintRectF.Left + ArrowSquare2,
+      PaintRectF.Top + ArrowSquare,
+      PaintRectF.Left + ArrowSquare3,
+      PaintRectF.Top + ArrowSquare2),
+    ksFlat,
+    True,
+    KeyRightDecorator);
 
-  KeyRenderManager.RenderSkia(Canvas, vkDown,
-    TRectF.Create(PaintRectF.Left + ArrowSquare, PaintRectF.Top + ArrowSquare2,
-    PaintRectF.Left + ArrowSquare2, PaintRectF.Top + ArrowSquare3), ksFlat, True, KeyDownDecorator);
+  KeyRenderManager.RenderSkia(
+    Canvas,
+    vkDown,
+    TRectF.Create(
+      PaintRectF.Left + ArrowSquare,
+      PaintRectF.Top + ArrowSquare2,
+      PaintRectF.Left + ArrowSquare2,
+      PaintRectF.Top + ArrowSquare3),
+    ksFlat,
+    True,
+    KeyDownDecorator);
 
-  KeyRenderManager.RenderSkia(Canvas, vkLeft,
-    TRectF.Create(PaintRectF.Left, PaintRectF.Top + ArrowSquare,
-    PaintRectF.Left + ArrowSquare, PaintRectF.Top + ArrowSquare2), ksFlat, True, KeyLeftDecorator);
+  KeyRenderManager.RenderSkia(
+    Canvas,
+    vkLeft,
+    TRectF.Create(
+      PaintRectF.Left,
+      PaintRectF.Top + ArrowSquare,
+      PaintRectF.Left + ArrowSquare,
+      PaintRectF.Top + ArrowSquare2),
+    ksFlat,
+    True,
+    KeyLeftDecorator);
 end;
 
 function TArrowIndicator.HitTest(const Point: TPoint): Boolean;
 var
   ArrowSquare: Integer;
-  PaintRect: TRect;
+  PaintRect  : TRect;
 begin
   ArrowSquare := GetRefRectKeySquareSize(FRefRect);
 
@@ -1011,17 +1057,51 @@ begin
 
   // Check individual arrows
   // Top
-  if TRect.Create(PaintRect.Left + ArrowSquare, PaintRect.Top, PaintRect.Left + ArrowSquare * 2, PaintRect.Top + ArrowSquare).Contains(Point) then Exit(True);
+  if
+    TRect.Create(
+      PaintRect.Left + ArrowSquare,
+      PaintRect.Top,
+      PaintRect.Left + ArrowSquare * 2,
+      PaintRect.Top + ArrowSquare).Contains(Point) then
+    Exit(True);
+
   // Right
-  if TRect.Create(PaintRect.Left + ArrowSquare * 2, PaintRect.Top + ArrowSquare, PaintRect.Left + ArrowSquare * 3, PaintRect.Top + ArrowSquare * 2).Contains(Point) then Exit(True);
+  if
+    TRect.Create(
+      PaintRect.Left + ArrowSquare * 2,
+      PaintRect.Top + ArrowSquare,
+      PaintRect.Left + ArrowSquare * 3,
+      PaintRect.Top + ArrowSquare * 2).Contains(Point) then
+    Exit(True);
+
   // Bottom
-  if TRect.Create(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare * 2, PaintRect.Left + ArrowSquare * 2, PaintRect.Top + ArrowSquare * 3).Contains(Point) then Exit(True);
+  if
+    TRect.Create(
+      PaintRect.Left + ArrowSquare,
+      PaintRect.Top + ArrowSquare * 2,
+      PaintRect.Left + ArrowSquare * 2,
+      PaintRect.Top + ArrowSquare * 3).Contains(Point) then
+    Exit(True);
+
   // Left
-  if TRect.Create(PaintRect.Left, PaintRect.Top + ArrowSquare, PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare * 2).Contains(Point) then Exit(True);
+  if
+    TRect.Create(
+      PaintRect.Left,
+      PaintRect.Top + ArrowSquare,
+      PaintRect.Left + ArrowSquare,
+      PaintRect.Top + ArrowSquare * 2).Contains(Point) then
+    Exit(True);
 
   // Middle
-  if ShowTargetIndex and (TargetIndex >= 0) and
-     TRect.Create(PaintRect.Left + ArrowSquare, PaintRect.Top + ArrowSquare, PaintRect.Left + ArrowSquare * 2, PaintRect.Top + ArrowSquare * 2).Contains(Point) then Exit(True);
+  if
+    ShowTargetIndex and
+    (TargetIndex >= 0) and
+    TRect.Create(
+      PaintRect.Left + ArrowSquare,
+      PaintRect.Top + ArrowSquare,
+      PaintRect.Left + ArrowSquare * 2,
+      PaintRect.Top + ArrowSquare * 2).Contains(Point) then
+    Exit(True);
 
   Result := False;
 end;
