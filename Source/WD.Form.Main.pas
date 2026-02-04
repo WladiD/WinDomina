@@ -1,4 +1,4 @@
-// ======================================================================
+﻿// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -20,6 +20,7 @@ uses
   System.ImageList,
   System.IniFiles,
   System.Math,
+  System.Skia,
   System.StrUtils,
   System.SyncObjs,
   System.SysUtils,
@@ -35,10 +36,8 @@ uses
   Vcl.Graphics,
   Vcl.ImgList,
   Vcl.Menus,
-  Vcl.StdCtrls,
-
-  System.Skia,
   Vcl.Skia,
+  Vcl.StdCtrls,
 
   AnyiQuack,
   Localization,
@@ -579,10 +578,10 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
       Exit;
 
     FVisible := True;
-    
+
     // Ensure VCL knows the new bounds
     SetBounds(Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height);
-    
+
     // Force TopMost and Show - this is the way master did it
     SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
       SWP_SHOWWINDOW or SWP_NOACTIVATE);
@@ -751,10 +750,10 @@ end;
 
 procedure TMainForm.RenderWindowContent;
 var
-  Info: TUpdateLayeredWindowInfo;
+  Blend         : TBlendFunction;
+  Info          : TUpdateLayeredWindowInfo;
+  Size          : TSize;
   SourcePosition: TPoint;
-  Blend: TBlendFunction;
-  Size: TSize;
   WindowPosition: TPoint;
 begin
   if (Width <= 0) or (Height <= 0) then
@@ -767,7 +766,7 @@ begin
       Layer: TBaseLayer;
     begin
       Canvas.Clear(TAlphaColors.Null);
-      
+
       for Layer in FActiveLayers do
         if Layer.HasMainContent then
         begin
