@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -22,10 +22,6 @@ uses
   Vcl.Graphics,
 
   System.Skia,
-
-  GR32,
-  GR32_Polygons,
-  GR32_VectorUtils,
 
   AnyiQuack,
   AQPSystemTypesAnimations,
@@ -85,12 +81,12 @@ type
 
     function  GetTargetWindowMovedDelay: Integer; override;
     function  HasMainContent: Boolean; override;
+    function  HitTest(const Point: TPoint): Boolean; override;
     procedure EnterLayer; override;
     procedure ExitLayer; override;
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); override;
     procedure Invalidate; override;
-    procedure RenderMainContent(Target: TBitmap32); override;
     procedure RenderMainContentSkia(Canvas: ISkCanvas); override;
 
     property TileGrid: TTileGrid read FTileGrid;
@@ -511,119 +507,27 @@ begin
   Result := IsLayerActive;
 end;
 
-procedure TGridLayer.RenderMainContent(Target: TBitmap32);
-var
-  TileNum: Integer;
-  TileX  : Integer;
-  TileY  : Integer;
-
-  procedure DrawTile(Tile: TTile);
-  var
-    cc  : Integer;
-    NumX: Integer;
-    NumY: Integer;
-    Rect: TRect;
-  begin
-    Rect := Tile.Rect;
-    for cc := 1 to 3 do
-    begin
-      Target.FrameRectS(Rect, clBlack32);
-      Rect.Inflate(-1, -1);
-    end;
-
-    for cc := 1 to 3 do
-    begin
-      Target.FrameRectS(Rect, clWhite32);
-      Rect.Inflate(-1, -1);
-    end;
-
-    NumX := Rect.Left + ((Rect.Width - FSmallestNumSquare) div 2);
-    NumY := Rect.Top + ((Rect.Height - FSmallestNumSquare) div 2);
-
-    KeyRenderManager.Render(Target, TileNum + vk0,
-      System.Types.Rect(NumX, NumY, NumX + FSmallestNumSquare, NumY + FSmallestNumSquare), ksFlat);
-
-    // Diese Variante ist um den Faktor 5-7 langsamer
-//    Target.FillRectS(Rect, clBlack32);
-//    Rect.Inflate(-3, -3);
-//    Target.FillRectS(Rect, clWhite32);
-//    Rect.Inflate(-3, -3);
-//    Target.FillRectS(Rect, SetAlpha(clBlack32, 0));
-
-    // Diese Variante ist noch langsamer, ca. 50 mal langsamer
-//    PolylineFS(Target, Rectangle(FloatRect(Rect)), clBlack32, True, 3);
-//    Rect.Inflate(-4, -4);
-//    PolylineFS(Target, Rectangle(FloatRect(Rect)), clWhite32, True, 3);
-  end;
-
+function TGridLayer.HitTest(const Point: TPoint): Boolean;
 begin
-  inherited RenderMainContent(Target);
-
-  for TileNum := 1 to 9 do
-    if IsTileNumToXYConvertible(TileNum, TileX, TileY) then
-      DrawTile(TileGrid[TileX][TileY]);
+  Result := False;
 end;
 
 procedure TGridLayer.RenderMainContentSkia(Canvas: ISkCanvas);
 var
-  Paint  : ISkPaint;
   TileNum: Integer;
   TileX  : Integer;
   TileY  : Integer;
-  Font   : ISkFont;
-  Typeface: ISkTypeface;
 
   procedure DrawTile(Tile: TTile);
   var
     RectF: TRectF;
-    NumX: Single;
-    NumY: Single;
-    NumStr: string;
-    TextBounds: TRectF;
   begin
     RectF := TRectF.Create(Tile.Rect);
-
-    // Schwarzer Rahmen (außen)
-    Paint.Color := TAlphaColors.Black;
-    Paint.StrokeWidth := 3;
-    // Stroke ist zentriert, also müssen wir den Offset beachten,
-    // aber FrameRectS malt *innen* ab der Kante.
-    // Skia DrawRect malt auch je nach Stil.
-    // Einfachheitshalber:
-    Canvas.DrawRect(TRectF.Create(RectF.Left + 1.5, RectF.Top + 1.5, RectF.Right - 1.5, RectF.Bottom - 1.5), Paint);
-
-    // Weißer Rahmen (innen)
-    Paint.Color := TAlphaColors.White;
-    // Inset um 3 Pixel (da der schwarze 3 breit war)
-    Canvas.DrawRect(TRectF.Create(RectF.Left + 4.5, RectF.Top + 4.5, RectF.Right - 4.5, RectF.Bottom - 4.5), Paint);
-
-    // Zahl zeichnen (KeyRenderManager ist GR32, also hier improvisieren wir simple Textausgabe)
-    Paint.Style := TSkPaintStyle.Fill;
-    Paint.Color := TAlphaColors.Black; // Hintergrund der Zahl (KeyRenderManager macht es komplexer)
-    
-    // Für den Test malen wir einfach die Zahl
-    NumStr := IntToStr(TileNum);
-    Font.MeasureText(NumStr, TextBounds);
-    
-    NumX := RectF.Left + ((RectF.Width - TextBounds.Width) / 2);
-    NumY := RectF.Top + ((RectF.Height + TextBounds.Height) / 2); // Skia Text Origin ist Baseline
-
-    Paint.Color := TAlphaColors.White; // Textfarbe
-    Canvas.DrawSimpleText(NumStr, NumX, NumY, Font, Paint);
-
-    // Reset Paint für den nächsten Rahmen
-    Paint.Style := TSkPaintStyle.Stroke;
+    KeyRenderManager.RenderSkia(Canvas, TileNum + vk0, RectF, ksFlat);
   end;
 
 begin
   inherited RenderMainContentSkia(Canvas);
-
-  Paint := TSkPaint.Create;
-  Paint.Style := TSkPaintStyle.Stroke;
-  Paint.AntiAlias := True;
-
-  Typeface := TSkTypeface.MakeDefault;
-  Font := TSkFont.Create(Typeface, FSmallestNumSquare * 0.6);
 
   for TileNum := 1 to 9 do
     if IsTileNumToXYConvertible(TileNum, TileX, TileY) then

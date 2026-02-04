@@ -1,4 +1,4 @@
-unit WD.Form.Number;
+﻿unit WD.Form.Number;
 
 interface
 
@@ -10,15 +10,14 @@ uses
   System.Classes,
   System.UITypes,
   System.Types,
+  System.Skia,
   Vcl.Graphics,
   Vcl.Controls,
   Vcl.Forms,
   Vcl.Dialogs,
   Vcl.StdCtrls,
   Vcl.ExtCtrls,
-
-  GR32,
-  GR32_Backends,
+  Vcl.Skia,
 
   WD.KeyTools,
   WD.Registry,
@@ -88,41 +87,51 @@ var
   Blend: TBlendFunction;
   Size: TSize;
   WindowPosition: TPoint;
+  LBitmap: TBitmap;
 begin
   if not Visible then
     Exit;
 
-  SourcePosition := GR32.Point(0, 0);
-  Blend.BlendOp := AC_SRC_OVER;
-  Blend.BlendFlags := 0;
-  Blend.SourceConstantAlpha := 255;
-  Blend.AlphaFormat := AC_SRC_ALPHA;
-
   Size.cx := Width;
   Size.cy := Height;
+  
+  if (Size.cx <= 0) or (Size.cy <= 0) then
+    Exit;
 
-  ZeroMemory(@Info, SizeOf(Info));
+  LBitmap := TBitmap.Create;
+  try
+    LBitmap.SetSize(Size.cx, Size.cy);
+    LBitmap.PixelFormat := pf32bit;
+    // Skia auf GDI Canvas zeichnen
+    LBitmap.SkiaDraw(
+      procedure(const Canvas: ISkCanvas)
+      begin
+        Canvas.Clear(TAlphaColors.Null);
+        KeyRenderManager.RenderSkia(Canvas, Number + vk0, TRectF.Create(0, 0, Size.cx, Size.cy), ksFlat);
+      end);
 
-  WindowPosition := BoundsRect.Location;
+    SourcePosition := Point(0, 0);
+    Blend.BlendOp := AC_SRC_OVER;
+    Blend.BlendFlags := 0;
+    Blend.SourceConstantAlpha := 255;
+    Blend.AlphaFormat := AC_SRC_ALPHA;
 
-  Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
-  Info.pptSrc := @SourcePosition;
-  Info.pptDst := @WindowPosition;
-  Info.psize  := @Size;
-  Info.pblend := @Blend;
-  Info.dwFlags := ULW_ALPHA;
+    ZeroMemory(@Info, SizeOf(Info));
+    WindowPosition := BoundsRect.Location;
 
-  KeyRenderManager.Render(
-    procedure(Source: TBitmap32; Rect: TRect)
-    begin
-      Info.hdcSrc := Source.Handle;
+    Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
+    Info.pptSrc := @SourcePosition;
+    Info.pptDst := @WindowPosition;
+    Info.psize  := @Size;
+    Info.pblend := @Blend;
+    Info.dwFlags := ULW_ALPHA;
+    Info.hdcSrc := LBitmap.Canvas.Handle;
 
-      if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
-        RaiseLastOSError();
-    end,
-    Number + vk0,
-    Rect(WindowPosition.X, WindowPosition.Y, WindowPosition.X + Size.cx, WindowPosition.Y + Size.cy),
-    ksFlat);
+    if not UpdateLayeredWindowIndirect(WindowHandle, @Info) then
+      RaiseLastOSError();
+  finally
+    LBitmap.Free;
+  end;
 end;
 
 end.

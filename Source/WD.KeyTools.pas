@@ -1,4 +1,4 @@
-unit WD.KeyTools;
+ï»¿unit WD.KeyTools;
 
 interface
 
@@ -12,22 +12,18 @@ uses
   System.Diagnostics,
   System.Types,
   System.Math,
+  System.Skia,
   Vcl.Graphics,
-
-  GR32,
-  GR32_Polygons,
-  GR32_Blend,
 
   AnyiQuack,
   Localization,
   WD.Types,
-  WD.GR32Tools,
   WDDT.DelayedMethod;
 
 type
   TKeyRenderer = class;
-  TKeyDecoratorProc = reference to procedure(Renderer: TKeyRenderer; Target: TBitmap32;
-    KeyRect: TRect);
+  TKeyDecoratorSkiaProc = reference to procedure(Renderer: TKeyRenderer; Canvas: ISkCanvas;
+    KeyRect: TRectF);
 
   TKeyState = (ksFlat, ksUp, ksPressed);
   TRenderKey = record
@@ -36,42 +32,22 @@ type
     Enabled: Boolean;
     Width: Integer;
     Height: Integer;
-    Decorator: TKeyDecoratorProc;
+    DecoratorSkia: TKeyDecoratorSkiaProc;
   end;
 
   TKeyRenderer = class
   public
-    procedure Render(const Key: TRenderKey; Target: TBitmap32; KeyRect: TRect); virtual;
+    procedure RenderSkia(const Key: TRenderKey; Canvas: ISkCanvas; KeyRect: TRectF); virtual;
   end;
 
   TKeyRendererClass = class of TKeyRenderer;
-  TDrawSource = reference to procedure(Source: TBitmap32; Rect: TRect);
 
   TKeyRenderManager = class(TComponent)
   private
-    type
-    TCachedKey = class
-    private
-      FBitmap: TBitmap32;
-      FLastUsed: Cardinal;
-    public
-      destructor Destroy; override;
-    end;
-
-    TCachedKeys = TObjectDictionary<TRenderKey, TCachedKey>;
-    TRenderKeys = TList<TRenderKey>;
-
     var
-    FCachedKeys: TCachedKeys;
     FKeyRenderer: TKeyRenderer;
     FKeyRendererClass: TKeyRendererClass;
-    // Wird der Wert überschritten, wird der Bereinigungsvorgang ausgelöst
-    FCleanupCountThreshold: Integer;
-    // Anteil an zu löschenden Einträgen als Faktor (> 0 <= 1),
-    // wenn es zu einem Bereinigungsvorgang kommt
-    FCleanupFactor: Single;
 
-    procedure Cleanup;
     procedure SetKeyRendererClass(Value: TKeyRendererClass);
 
   public
@@ -79,10 +55,8 @@ type
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
 
-    procedure Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect; State: TKeyState;
-      Enabled: Boolean = True; const Decorator: TKeyDecoratorProc = nil); overload;
-    procedure Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect; State: TKeyState;
-      Enabled: Boolean = True; const Decorator: TKeyDecoratorProc = nil); overload;
+    procedure RenderSkia(Canvas: ISkCanvas; VirtualKey: Integer; Rect: TRectF; State: TKeyState;
+      Enabled: Boolean = True; const Decorator: TKeyDecoratorSkiaProc = nil);
 
     property KeyRendererClass: TKeyRendererClass read FKeyRendererClass write SetKeyRendererClass;
   end;
@@ -91,14 +65,6 @@ implementation
 
 uses
   WD.Registry;
-
-{ TKeyRenderManager.TCachedKey }
-
-destructor TKeyRenderManager.TCachedKey.Destroy;
-begin
-  FBitmap.Free;
-  inherited Destroy;
-end;
 
 { TKeyRenderManager }
 
@@ -111,91 +77,18 @@ constructor TKeyRenderManager.Create(Owner: TComponent);
 begin
   inherited Create(Owner);
 
-  FCachedKeys := TCachedKeys.Create([doOwnsValues]);
   KeyRendererClass := TKeyRenderer;
-  FCleanupCountThreshold := 512;
-  FCleanupFactor := 0.5; // Standardmäßig soll die Hälfte der Einträge entfernt werden
 end;
 
 destructor TKeyRenderManager.Destroy;
 begin
-  FCachedKeys.Free;
   FKeyRenderer.Free;
 
   inherited Destroy;
 end;
 
-procedure TKeyRenderManager.Cleanup;
-
-  function GetRenderKey(ForCachedKey: TCachedKey): TRenderKey;
-  var
-    Pair: TPair<TRenderKey, TCachedKey>;
-  begin
-    for Pair in FCachedKeys do
-      if ForCachedKey = Pair.Value then
-        Exit(Pair.Key);
-    Result := Default(TRenderKey);
-  end;
-
-var
-  OnlyCachedKeys: TList<TCachedKey>;
-  cc: Integer;
-begin
-  OnlyCachedKeys := TList<TCachedKey>.Create;
-  try
-    OnlyCachedKeys.AddRange(FCachedKeys.Values);
-    // Absteigend sortieren
-    OnlyCachedKeys.Sort(TDelegatedComparer<TCachedKey>.Create(
-      function(const Left, Right: TCachedKey): Integer
-      begin
-        Result := Right.FLastUsed - Left.FLastUsed;
-      end));
-
-    for cc := Round(OnlyCachedKeys.Count * FCleanupFactor) to OnlyCachedKeys.Count - 1 do
-      FCachedKeys.Remove(GetRenderKey(OnlyCachedKeys[cc]));
-  finally
-    OnlyCachedKeys.Free;
-  end;
-end;
-
-procedure TKeyRenderManager.Render(const DrawSource: TDrawSource; VirtualKey: Integer; Rect: TRect;
-  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorProc);
-var
-  RK: TRenderKey;
-
-  function CreateCachedKey: TCachedKey;
-  begin
-    Result := TCachedKey.Create;
-    Result.FBitmap := TBitmap32.Create(RK.Width, RK.Height);
-    FKeyRenderer.Render(RK, Result.FBitmap, System.Types.Rect(0, 0, RK.Width, RK.Height));
-  end;
-
-var
-  CachedKey: TCachedKey;
-begin
-  RK := Default(TRenderKey);
-  RK.VirtualKey := VirtualKey;
-  RK.State := State;
-  RK.Enabled := Enabled;
-  RK.Width := Rect.Width;
-  RK.Height := Rect.Height;
-  RK.Decorator := Decorator;
-
-  if not FCachedKeys.TryGetValue(RK, CachedKey) then
-  begin
-    CachedKey := CreateCachedKey;
-    FCachedKeys.Add(RK, CachedKey);
-  end;
-
-  DrawSource(CachedKey.FBitmap, Rect);
-  CachedKey.FLastUsed := GetTickCount;
-
-  if FCachedKeys.Count > FCleanupCountThreshold then
-    TDelayedMethod.Execute(Cleanup, 1000);
-end;
-
-procedure TKeyRenderManager.Render(Target: TBitmap32; VirtualKey: Integer; Rect: TRect;
-  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorProc);
+procedure TKeyRenderManager.RenderSkia(Canvas: ISkCanvas; VirtualKey: Integer; Rect: TRectF;
+  State: TKeyState; Enabled: Boolean; const Decorator: TKeyDecoratorSkiaProc);
 var
   RK: TRenderKey;
 begin
@@ -203,23 +96,17 @@ begin
   RK.VirtualKey := VirtualKey;
   RK.State := State;
   RK.Enabled := Enabled;
-  RK.Width := Rect.Width;
-  RK.Height := Rect.Height;
-  RK.Decorator := Decorator;
+  RK.Width := Round(Rect.Width);
+  RK.Height := Round(Rect.Height);
+  RK.DecoratorSkia := Decorator;
 
-  Render(
-    procedure(Source: TBitmap32; Rect: TRect)
-    begin
-      MergedDraw(Source, Target, Rect.Left, Rect.Top);
-    end,
-    VirtualKey, Rect, State, Enabled, Decorator);
+  FKeyRenderer.RenderSkia(RK, Canvas, Rect);
 end;
 
 procedure TKeyRenderManager.SetKeyRendererClass(Value: TKeyRendererClass);
 begin
   if Value <> FKeyRendererClass then
   begin
-    FCachedKeys.Clear;
     FKeyRendererClass := Value;
     FKeyRenderer.Free;
     FKeyRenderer := FKeyRendererClass.Create;
@@ -228,45 +115,7 @@ end;
 
 { TKeyRenderer }
 
-procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect: TRect);
-
-  function CalcFontHeight(Text: string): Integer;
-  var
-    PrevHeight: Integer;
-    Extent: TSize;
-    PadX, PadY, AvailWidth, AvailHeight: Integer;
-  begin
-    PrevHeight := 0;
-    Result := 6;
-
-    if Length(Text) > 1 then
-    begin
-      PadX := Round(KeyRect.Width * 0.25);
-      PadY := Round(KeyRect.Height * 0.15);
-    end
-    else
-    begin
-      PadX := Round(KeyRect.Width * 0.05);
-      PadY := Round(KeyRect.Height * 0.05);
-    end;
-
-    PadX := Max(4, PadX);
-    PadY := Max(4, PadY);
-    AvailWidth := KeyRect.Width - PadX;
-    AvailHeight := KeyRect.Height - PadY;
-
-    while True do
-    begin
-      Target.Font.Height := Result;
-      Extent := Target.TextExtent(Text);
-
-      if (Extent.cx >= AvailWidth) or (Extent.cy >= AvailHeight) then
-        Exit(PrevHeight);
-
-      PrevHeight := Result;
-      Inc(Result, 4);
-    end;
-  end;
+procedure TKeyRenderer.RenderSkia(const Key: TRenderKey; Canvas: ISkCanvas; KeyRect: TRectF);
 
   function GetKeyText: string;
   begin
@@ -284,97 +133,83 @@ procedure TKeyRenderer.Render(const Key: TRenderKey; Target: TBitmap32; KeyRect:
     end;
   end;
 
-  procedure DrawArrow(const P1, P2, P3: TFloatPoint);
-  var
-    Points: TArrayOfFloatPoint;
-  begin
-    SetLength(Points, 3);
-    Points[0] := P1;
-    Points[1] := P2;
-    Points[2] := P3;
-
-    PolygonFS(Target, Points, clBlack32);
-  end;
-
 var
-  ArrowIndent: Integer;
-
-  procedure DrawArrowLeft;
-  begin
-    DrawArrow(
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + (KeyRect.Height / 2)),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent));
-  end;
-
-  procedure DrawArrowRight;
-  begin
-    DrawArrow(
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + (KeyRect.Height / 2)),
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
-  end;
-
-  procedure DrawArrowUp;
-  begin
-    DrawArrow(
-      FloatPoint(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent),
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent));
-  end;
-
-  procedure DrawArrowDown;
-  begin
-    DrawArrow(
-      FloatPoint(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent),
-      FloatPoint(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Bottom - ArrowIndent));
-  end;
-
-var
+  Paint: ISkPaint;
+  Font: ISkFont;
   KeyText: string;
-  FontHeight: Integer;
-  TextSize: TSize;
+  TextBounds: TRectF;
+  ArrowPath: ISkPath;
+  ArrowIndent: Single;
 begin
-  Target.Font.Name := 'Arial';
-  Target.Font.Style := [];
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  
+  // Background
+  Paint.Color := TAlphaColors.Black;
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 2;
+  Canvas.DrawRect(KeyRect, Paint);
+  
+  Paint.Style := TSkPaintStyle.Fill;
+  Paint.Color := TAlphaColors.White;
+  Paint.AlphaF := 180 / 255;
+  var R := KeyRect;
+  R.Inflate(-1, -1);
+  Canvas.DrawRect(R, Paint);
+
   KeyText := GetKeyText;
-
-  Target.FrameRectS(KeyRect, clBlack32);
-  KeyRect.Inflate(-1, -1);
-  Target.FrameRectS(KeyRect, clBlack32);
-  KeyRect.Inflate(-1, -1);
-  Target.FillRectTS(KeyRect, SetAlpha(clWhite32, 180));
-
   if KeyText <> '' then
   begin
-    FontHeight := CalcFontHeight(KeyText);
-    Target.Font.Height := FontHeight;
-
-    TextSize := Target.TextExtent(KeyText);
-    Target.RenderTextWD(
-      KeyRect.Left + ((KeyRect.Width - TextSize.cx) div 2),
-      KeyRect.Top + ((KeyRect.Height - TextSize.cy) div 2),
-      KeyText, clBlack32);
+    Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyRect.Height * 0.6);
+    Font.MeasureText(KeyText, TextBounds);
+    
+    Paint.AlphaF := 1.0;
+    Paint.Color := TAlphaColors.Black;
+    Canvas.DrawSimpleText(KeyText, 
+      KeyRect.Left + (KeyRect.Width - TextBounds.Width) / 2 - TextBounds.Left,
+      KeyRect.Top + (KeyRect.Height - TextBounds.Height) / 2 - TextBounds.Top,
+      Font, Paint);
   end
   else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown] then
   begin
-    ArrowIndent := Round(Key.Width * 0.25);
-
+    ArrowIndent := KeyRect.Width * 0.25;
+    var LPathBuilder: ISkPathBuilder := TSkPathBuilder.Create;
+    
     case Key.VirtualKey of
       vkLeft:
-        DrawArrowLeft;
+      begin
+        LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + (KeyRect.Height / 2));
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent);
+      end;
       vkRight:
-        DrawArrowRight;
+      begin
+        LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + (KeyRect.Height / 2));
+        LPathBuilder.LineTo(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent);
+      end;
       vkUp:
-        DrawArrowUp;
+      begin
+        LPathBuilder.MoveTo(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent);
+      end;
       vkDown:
-        DrawArrowDown;
+      begin
+        LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Bottom - ArrowIndent);
+      end;
     end;
+    ArrowPath := LPathBuilder.Detach;
+    
+    Paint.AlphaF := 1.0;
+    Paint.Color := TAlphaColors.Black;
+    Canvas.DrawPath(ArrowPath, Paint);
   end;
 
-  if Assigned(Key.Decorator) then
-    Key.Decorator(Self, Target, KeyRect);
+  if Assigned(Key.DecoratorSkia) then
+    Key.DecoratorSkia(Self, Canvas, KeyRect);
 end;
 
 end.

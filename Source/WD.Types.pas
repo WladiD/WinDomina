@@ -50,9 +50,15 @@ type
     function ClientToScreen(const Rect: TRect): TRect; overload;
     function ScreenToClient(const Rect: TRect): TRect; overload;
 
-    function ConvertMmToPixel(MM: Real): Integer;
+        function  ConvertMmToPixel(MM: Real): Integer;
 
-    function GetCurrentMonitor: TMonitor;
+    
+
+        function  ScaleFactor: Single;
+
+    
+
+        function  GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
 
     property CurrentMonitor: TMonitor read GetCurrentMonitor write SetCurrentMonitor;
@@ -66,8 +72,8 @@ type
     // Ob es sich dann um Fenster von allen Monitoren oder nur vom Aktuellen handeln soll...das
     // muss dann so implementiert werden, dass der Anwender das selbst festlegen kann.
     wldAlignTargets,
-    // Liste mit Fenstern zu denen man über irgendwelche Tastenkürzel schnell wechseln kann
-    // Auch hier gilt: Der Anwender soll entscheiden können, welche Fenster dafür in Frage kommen.
+    // Liste mit Fenstern zu denen man ï¿½ber irgendwelche Tastenkï¿½rzel schnell wechseln kann
+    // Auch hier gilt: Der Anwender soll entscheiden kï¿½nnen, welche Fenster dafï¿½r in Frage kommen.
     wldSwitchTargets);
 
   IWindowsHandler = interface

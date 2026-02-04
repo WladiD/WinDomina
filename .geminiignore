@@ -1,0 +1,8 @@
+# Ignore external libraries
+Lib/
+
+# Ignore Delphi internal folders
+__history/
+__recovery/
+Win32/
+Win64/

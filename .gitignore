@@ -1,4 +1,4 @@
-/Source/*.local
+﻿/Source/*.local
 /Source/*.identcache
 /Source/*.stat
 __history
@@ -11,3 +11,4 @@ __history
 /Runtime/WinDomina.map
 /Runtime/WinDomina.drc
 /Runtime/Config.ini
+/Runtime/sk4d.dll

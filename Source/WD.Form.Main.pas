@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -40,9 +40,6 @@ uses
   System.Skia,
   Vcl.Skia,
 
-  GR32,
-  GR32_Backends,
-
   AnyiQuack,
   Localization,
   SendInputHelper,
@@ -62,8 +59,6 @@ uses
 
 type
 
-  TUpdateWindowThread = class;
-
   TMainForm = class(TForm, ITranslate, IMonitorHandler, IWindowsHandler)
     ActionList: TActionList;
     CloseAction: TAction;
@@ -81,6 +76,8 @@ type
     procedure SettingsActionExecute(Sender: TObject);
     procedure ToggleDominaModeActionExecute(Sender: TObject);
     procedure TrayIconDblClick(Sender: TObject);
+  protected
+    procedure CreateParams(var Params: TCreateParams); override;
   private
     type
     TDomainWindowList = TObjectDictionary<TWindowListDomain, TWindowList>;
@@ -100,13 +97,9 @@ type
     FDisableLayerExitEventHandler: Boolean;
     FLastUsedLayer               : TBaseLayer;
     FLayers                      : TLayerList;
-    FMainBitmap                  : TBitmap32;
-    FPaintBox                    : TSkPaintBox;
-    FUpdateWindowThread          : TUpdateWindowThread;
+    FBufferBitmap                : TBitmap;
     FVisible                     : Boolean;
     FWindowList                  : TDomainWindowList;
-
-    procedure PaintBoxDraw(Sender: TObject; const Canvas: ISkCanvas; const Dest: TRectF; const Opacity: Single);
 
     procedure LoadConfig;
     procedure SaveConfig;
@@ -125,12 +118,13 @@ type
     procedure WD_KeyUpDominaMode(var Message: TMessage); message WD_KEYUP_DOMINA_MODE;
     procedure DominaModeChanged;
 
+    procedure WMMouseActivate(var Message: TWMMouseActivate); message WM_MOUSEACTIVATE;
+    procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_ERASEBKGND;
+
     procedure UpdateWindowWorkarea(ForceMode: Boolean = False; NewWorkarea: PRect = nil);
     procedure UpdateWindowWorkareaDelayed(Delay: Integer);
     procedure RenderWindowContent;
     procedure ClearWindowContent;
-
-    property MainBitmap: TBitmap32 read FMainBitmap;
 
   private
     FPrevTargetWindow: TWindow;
@@ -155,8 +149,11 @@ type
 
     function  ClientToScreen(const Rect: TRect): TRect; overload;
     function  ScreenToClient(const Rect: TRect): TRect; overload;
+    function  ScreenToClient(const Point: TPoint): TPoint; overload;
 
     function  ConvertMmToPixel(MM: Real): Integer;
+
+    function  ScaleFactor: Single;
 
     function  GetCurrentMonitor: TMonitor;
     procedure SetCurrentMonitor(Monitor: TMonitor);
@@ -169,20 +166,6 @@ type
 
   public
     class constructor Create;
-  end;
-
-  TUpdateWindowThread = class(TThread)
-  protected
-    FBitmap           : TBitmap32;
-    FContentValid     : Boolean;
-    FUpdateWindowEvent: TEvent;
-    FWindowHandle     : HWND;
-    FWindowPosition   : TPoint;
-    procedure TerminatedSet; override;
-    procedure Execute; override;
-  public
-    constructor Create;
-    procedure RequestUpdateWindow;
   end;
 
 var
@@ -208,23 +191,6 @@ begin
   PushChangedWindowsPositionsDelayID := TAQ.GetUniqueID;
   TargetWindowChangedDelayID := TAQ.GetUniqueID;
   TargetWindowMovedDelayID := TAQ.GetUniqueID;
-end;
-
-procedure TMainForm.PaintBoxDraw(Sender: TObject; const Canvas: ISkCanvas; const Dest: TRectF; const Opacity: Single);
-var
-  Layer: TBaseLayer;
-begin
-  // Clear with transparent color (will be keyed out by Windows)
-  // Or better: don't clear, rely on Form Color?
-  // Skia paints over.
-  
-  for Layer in FActiveLayers do
-    if Layer.HasMainContent then
-    begin
-      Layer.RenderMainContentSkia(Canvas);
-      if Layer.Exclusive then
-        Break;
-    end;
 end;
 
 procedure TMainForm.LoadConfig;
@@ -294,26 +260,18 @@ procedure TMainForm.FormCreate(Sender: TObject);
   end;
 
 var
-  ExStyle: DWORD;
   Logger: TStringsLogging;
 begin
+  BorderStyle := bsNone;
+  SetWindowLong(Handle, GWL_EXSTYLE, GetWindowLong(Handle, GWL_EXSTYLE) or WS_EX_LAYERED);
+
   LogForm := TLogForm.Create(Self);
   Logger := TStringsLogging.Create(LogForm.LogMemo.Lines);
   Logger.WindowHandle := LogForm.Handle;
   RegisterLogging(Logger);
 
-  // SKIA EXPERIMENT: Disable Layered Window, enable VCL Transparency
-  // ExStyle := GetWindowLong(Handle, GWL_EXSTYLE);
-  // if (ExStyle and WS_EX_LAYERED) = 0 then
-  //   SetWindowLong(Handle, GWL_EXSTYLE, ExStyle or WS_EX_LAYERED);
-  Color := clFuchsia;
-  TransparentColorValue := clFuchsia;
-  TransparentColor := True;
-
-  FPaintBox := TSkPaintBox.Create(Self);
-  FPaintBox.Parent := Self;
-  FPaintBox.Align := alClient;
-  FPaintBox.OnDraw := PaintBoxDraw;
+  FBufferBitmap := TBitmap.Create;
+  FBufferBitmap.PixelFormat := pf32bit;
 
   FWindowList := TDomainWindowList.Create([doOwnsValues]);
   FLayers := TLayerList.Create(True);
@@ -336,11 +294,6 @@ begin
 
   InstallHook(Handle);
 
-  FMainBitmap := TBitmap32.Create;
-  FUpdateWindowThread := TUpdateWindowThread.Create;
-  FUpdateWindowThread.FWindowHandle := Handle;
-  FUpdateWindowThread.FBitmap := FMainBitmap;
-
   Take(Self)
     .EachDelay(1000,
       function(AQ: TAQ; O: TObject): Boolean
@@ -356,8 +309,7 @@ begin
   FLayers.Free;
   FWindowList.Free;
   FPrevTargetWindow.Free;
-  FMainBitmap.Free;
-  FUpdateWindowThread.Free;
+  FBufferBitmap.Free;
 
   UninstallHook;
 end;
@@ -484,9 +436,21 @@ begin
   Result.Height := Rect.Height;
 end;
 
+function TMainForm.ScreenToClient(const Point: TPoint): TPoint;
+begin
+  // In Layered Window mode we use physical pixels 1:1 to the bitmap buffer
+  Result.X := Point.X - Left;
+  Result.Y := Point.Y - Top;
+end;
+
 function TMainForm.ConvertMmToPixel(MM: Real): Integer;
 begin
   Result := Round(Monitor.PixelsPerInch / 25.4 {MM per Inch} * MM);
+end;
+
+function TMainForm.ScaleFactor: Single;
+begin
+  Result := Monitor.PixelsPerInch / 96;
 end;
 
 function TMainForm.GetCurrentMonitor: TMonitor;
@@ -592,6 +556,17 @@ begin
   ToggleDominaModeAction.Execute;
 end;
 
+procedure TMainForm.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  Params.ExStyle := Params.ExStyle or WS_EX_TOPMOST or WS_EX_NOACTIVATE;
+end;
+
+procedure TMainForm.WMMouseActivate(var Message: TWMMouseActivate);
+begin
+  Message.Result := MA_NOACTIVATE;
+end;
+
 // Aktualisiert die Position dieses Forms auf die Arbeitsfläche des Monitors auf dem sich das
 // aktuelle Fenster befindet. Wenn kein Zielfenster vorhanden ist, so wird die Position des
 // Mauscursors verwendet.
@@ -603,19 +578,14 @@ procedure TMainForm.UpdateWindowWorkarea(ForceMode: Boolean; NewWorkarea: PRect)
     if not ((FVisible and (BoundsRect <> Workarea)) or ForceMode) then
       Exit;
 
-//    Logging.AddLog(Format('AdjustWindowWorkarea called with Workarea: TRect (Left: %d; Top: %d; Right: %d; Bottom: %d;)',
-//      [Workarea.Left, Workarea.Top, Workarea.Right, Workarea.Bottom]));
-
-    MainBitmap.Lock;
-    try
-      FUpdateWindowThread.FWindowPosition := Workarea.Location;
-      SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
-        SWP_SHOWWINDOW{ or SWP_NOACTIVATE});
-      UpdateBoundsRect(Workarea);
-      // MainBitmap.SetSize(Workarea.Width, Workarea.Height); // Not needed for Skia PaintBox aligned client
-    finally
-      MainBitmap.Unlock;
-    end;
+    FVisible := True;
+    
+    // Ensure VCL knows the new bounds
+    SetBounds(Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height);
+    
+    // Force TopMost and Show - this is the way master did it
+    SetWindowPos(Handle, HWND_TOPMOST, Workarea.Left, Workarea.Top, Workarea.Width, Workarea.Height,
+      SWP_SHOWWINDOW or SWP_NOACTIVATE);
 
     GetActiveLayer.Invalidate;
     RenderWindowContent;
@@ -708,7 +678,7 @@ procedure TMainForm.DoTargetWindowChanged(PrevTargetWindowHandle, NewTargetWindo
 
     if Delay = 0 then
     begin
-      UpdateWindowWorkarea;
+      UpdateWindowWorkarea(True);
       Layer.TargetWindowChanged;
     end
     else if Delay > 0 then
@@ -780,43 +750,54 @@ begin
 end;
 
 procedure TMainForm.RenderWindowContent;
-{.$DEFINE BOTTLENECK_LOG}
 var
-  Layer: TBaseLayer;
-{$IFDEF BOTTLENECK_LOG}
-  WholeStopper: TStopwatch;
-{$ENDIF}
+  Info: TUpdateLayeredWindowInfo;
+  SourcePosition: TPoint;
+  Blend: TBlendFunction;
+  Size: TSize;
+  WindowPosition: TPoint;
 begin
-{$IFDEF BOTTLENECK_LOG}
-  WholeStopper := TStopwatch.StartNew;
-{$ENDIF}
+  if (Width <= 0) or (Height <= 0) then
+    Exit;
 
-  // SKIA EXPERIMENT: Redraw PaintBox
-  if Assigned(FPaintBox) then
-    FPaintBox.Redraw;
+  FBufferBitmap.SetSize(Width, Height);
+  FBufferBitmap.SkiaDraw(
+    procedure(const Canvas: ISkCanvas)
+    var
+      Layer: TBaseLayer;
+    begin
+      Canvas.Clear(TAlphaColors.Null);
+      
+      for Layer in FActiveLayers do
+        if Layer.HasMainContent then
+        begin
+          Layer.RenderMainContentSkia(Canvas);
+          if Layer.Exclusive then
+            Break;
+        end;
+    end);
 
-  {
-  MainBitmap.Lock;
-  try
-    for Layer in FActiveLayers do
-      if Layer.HasMainContent then
-      begin
-        Layer.RenderMainContent(MainBitmap);
-        if Layer.Exclusive then
-          Break;
-      end;
+  SourcePosition := Point(0, 0);
+  Blend.BlendOp := AC_SRC_OVER;
+  Blend.BlendFlags := 0;
+  Blend.SourceConstantAlpha := 255;
+  Blend.AlphaFormat := AC_SRC_ALPHA;
 
-    FUpdateWindowThread.RequestUpdateWindow;
-  finally
-    MainBitmap.Unlock;
-  end;
-  }
+  ZeroMemory(@Info, SizeOf(Info));
+  WindowPosition := BoundsRect.Location;
+  Size.cx := Width;
+  Size.cy := Height;
 
-{$IFDEF BOTTLENECK_LOG}
-  WholeStopper.Stop;
-  Logging.AddLog('Dauer kompletter RenderWindowContent ' + WholeStopper.ElapsedMilliseconds.ToString + ' msec.');
-  Logging.AddLog('---');
-{$ENDIF}
+  Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
+  Info.pptSrc := @SourcePosition;
+  Info.pptDst := @WindowPosition;
+  Info.psize  := @Size;
+  Info.pblend := @Blend;
+  Info.dwFlags := ULW_ALPHA;
+  Info.hdcSrc := FBufferBitmap.Canvas.Handle;
+
+  if not UpdateLayeredWindowIndirect(Handle, @Info) then
+    RaiseLastOSError();
 end;
 
 // Leert das Bitmap für das Layer-Window
@@ -824,19 +805,40 @@ end;
 // Wird beim Exit des Domina-Modus aufgerufen, weil sonst beim nächsten Start des Domina-Modus
 // für einen kurzen Moment der vorherige Inhalt sichtbar sein kann.
 procedure TMainForm.ClearWindowContent;
+var
+  Info: TUpdateLayeredWindowInfo;
+  SourcePosition: TPoint;
+  Blend: TBlendFunction;
+  Size: TSize;
+  WindowPosition: TPoint;
 begin
-  if Assigned(FPaintBox) then
-    FPaintBox.Redraw;
-    
-  {
-  MainBitmap.Lock;
-  try
-    MainBitmap.Clear(Color32(0, 0, 0, 0));
-    FUpdateWindowThread.RequestUpdateWindow;
-  finally
-    MainBitmap.Unlock;
-  end;
-  }
+  if (Width <= 0) or (Height <= 0) then
+    Exit;
+
+  FBufferBitmap.SetSize(Width, Height);
+  FBufferBitmap.Canvas.Brush.Color := clBlack;
+  FBufferBitmap.Canvas.FillRect(Rect(0, 0, Width, Height));
+
+  SourcePosition := Point(0, 0);
+  Blend.BlendOp := AC_SRC_OVER;
+  Blend.BlendFlags := 0;
+  Blend.SourceConstantAlpha := 0; // Fully transparent
+  Blend.AlphaFormat := AC_SRC_ALPHA;
+
+  ZeroMemory(@Info, SizeOf(Info));
+  WindowPosition := BoundsRect.Location;
+  Size.cx := Width;
+  Size.cy := Height;
+
+  Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
+  Info.pptSrc := @SourcePosition;
+  Info.pptDst := @WindowPosition;
+  Info.psize  := @Size;
+  Info.pblend := @Blend;
+  Info.dwFlags := ULW_ALPHA;
+  Info.hdcSrc := FBufferBitmap.Canvas.Handle;
+
+  UpdateLayeredWindowIndirect(Handle, @Info);
 end;
 
 procedure TMainForm.CloseActionExecute(Sender: TObject);
@@ -938,9 +940,6 @@ procedure TMainForm.LogWindow(Window: THandle);
 
 begin
   AddLog(GetLogString(Window));
-//  AddLog('-- GetAncestor(Window, GA_PARENT): ' + GetLogString(GetAncestor(Window, GA_PARENT)));
-//  AddLog('-- GetAncestor(Window, GA_ROOT): ' + GetLogString(GetAncestor(Window, GA_ROOT)));
-//  AddLog('-- GetAncestor(Window, GA_ROOTOWNER): ' + GetLogString(GetAncestor(Window, GA_ROOTOWNER)));
   AddLog('-- Style: ' + WindowStyleToString(GetWindowLong(Window, GWL_STYLE)));
 end;
 
@@ -958,18 +957,6 @@ begin
 end;
 
 procedure TMainForm.WD_EnterDominaMode(var Message: TMessage);
-
-  function HasParentWindow(Window: HWND; out ParentWindow: HWND): Boolean;
-  var
-    WindowThreadID: Cardinal;
-  begin
-    WindowThreadID := GetWindowThreadProcessId(Window, nil);
-    EnumFoundWindow := 0;
-    EnumThreadWindows(WindowThreadID, @EnumNotifyWinProc, 0);
-    ParentWindow := EnumFoundWindow;
-    Result := (ParentWindow > 0) {and (ParentWindow <> Window)};
-  end;
-
 begin
   LogForm.Caption := 'Domina-Modus aktiv';
   LogForm.LogMemo.Lines.Clear;
@@ -1067,6 +1054,11 @@ begin
   end;
 end;
 
+procedure TMainForm.WMEraseBkgnd(var Message: TWMEraseBkgnd);
+begin
+  Message.Result := 1;
+end;
+
 procedure TMainForm.WD_KeyDownDominaMode(var Message: TMessage);
 var
   Handled: Boolean;
@@ -1134,78 +1126,6 @@ begin
   WDMKeyStates.KeyPressed[Key] := False;
 
   GetActiveLayer.HandleKeyUp(Key, Handled);
-end;
-
-{ TUpdateWindowThread }
-
-constructor TUpdateWindowThread.Create;
-begin
-  FUpdateWindowEvent := TEvent.Create(nil, False, False, '');
-  FWindowPosition := GR32.Point(0, 0);
-
-  inherited Create(False);
-end;
-
-procedure TUpdateWindowThread.Execute;
-
-  procedure UpdateWindow;
-  var
-    Info: TUpdateLayeredWindowInfo;
-    SourcePosition: TPoint;
-    Blend: TBlendFunction;
-    Size: TSize;
-  begin
-    SourcePosition := GR32.Point(0, 0);
-    Blend.BlendOp := AC_SRC_OVER;
-    Blend.BlendFlags := 0;
-    Blend.SourceConstantAlpha := 255;
-    Blend.AlphaFormat := AC_SRC_ALPHA;
-
-    FBitmap.Lock;
-    try
-      Size.cx := FBitmap.Width;
-      Size.cy := FBitmap.Height;
-      if FBitmap.Empty then
-        Exit;
-
-      ZeroMemory(@Info, SizeOf(Info));
-      Info.cbSize := SizeOf(TUpdateLayeredWindowInfo);
-      Info.pptSrc := @SourcePosition;
-      Info.pptDst := @FWindowPosition;
-      Info.psize  := @Size;
-      Info.pblend := @Blend;
-      Info.dwFlags := ULW_ALPHA;
-      Info.hdcSrc := FBitmap.Handle;
-
-      if not UpdateLayeredWindowIndirect(FWindowHandle, @Info) then
-        RaiseLastOSError();
-
-      FBitmap.Clear(Color32(0, 0, 0, 0));
-      FContentValid := False;
-    finally
-      FBitmap.Unlock;
-    end;
-  end;
-
-begin
-  while not Terminated do
-    if (FUpdateWindowEvent.WaitFor = wrSignaled) and FContentValid and not Terminated then
-      UpdateWindow;
-end;
-
-// Sagt dem Thread, dass er das Fenster aktualisieren soll
-//
-// Da an dieser Stelle keine eigenen Locks implementiert sind, darf diese Methode nur
-// aufgerufen werden, während die FBitmap gelockt ist.
-procedure TUpdateWindowThread.RequestUpdateWindow;
-begin
-  FContentValid := True;
-  FUpdateWindowEvent.SetEvent;
-end;
-
-procedure TUpdateWindowThread.TerminatedSet;
-begin
-  FUpdateWindowEvent.SetEvent;
 end;
 
 end.

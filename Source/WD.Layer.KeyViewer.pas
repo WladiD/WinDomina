@@ -1,12 +1,8 @@
-unit WD.Layer.KeyViewer;
+﻿unit WD.Layer.KeyViewer;
 
 interface
 
 uses
-  GR32,
-  GR32_Polygons,
-  GR32_VectorUtils,
-
   System.SysUtils,
   System.Classes,
   System.UITypes,
@@ -19,6 +15,8 @@ uses
   Vcl.Forms,
   Vcl.Controls,
   Vcl.Graphics,
+
+  System.Skia,
 
   WindowEnumerator,
   AnyiQuack,
@@ -36,8 +34,7 @@ uses
   WD.Form.Number,
   WD.KeyTools,
   WD.KeyDecorators,
-  WD.LangIndex,
-  WD.GR32Tools;
+  WD.LangIndex;
 
 type
   THelpBaseItem = class;
@@ -69,10 +66,10 @@ type
     destructor Destroy; override;
 
     procedure EnterLayer; override;
-//    procedure ExitLayer; override;
 
     function HasMainContent: Boolean; override;
-    procedure RenderMainContent(Target: TBitmap32); override;
+    function HitTest(const Point: TPoint): Boolean; override;
+    procedure RenderMainContentSkia(Canvas: ISkCanvas); override;
 
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
   end;
@@ -85,11 +82,12 @@ type
     function GetDescription: string;
 
   public
+    ActivationKeyID: Integer;
     DescriptionLangIndex: Integer;
     DescriptionCustom: string;
 
     function GetRequiredHeight(AvailWidth: Integer): Integer; virtual; abstract;
-    procedure Render(Target: TBitmap32); virtual; abstract;
+    procedure RenderSkia(Canvas: ISkCanvas); virtual; abstract;
 
     property Left: Integer read FLeft write FLeft;
     property Top: Integer read FTop write FTop;
@@ -118,13 +116,11 @@ type
     FHeadline: string;
 
   public
-    ActivationKey: Integer;
-
     constructor Create(Layer: TBaseLayerClass);
     destructor Destroy; override;
 
     function GetRequiredHeight(AvailWidth: Integer): Integer; override;
-    procedure Render(Target: TBitmap32); override;
+    procedure RenderSkia(Canvas: ISkCanvas); override;
 
     procedure AddKeyAssignment(Key: THelpKeyAssignmentItem);
   end;
@@ -155,7 +151,7 @@ type
     Key: Integer;
 
     function GetRequiredHeight(AvailWidth: Integer): Integer; override;
-    procedure Render(Target: TBitmap32); override;
+    procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
   THelpKeyAssignmentItemClass = class of THelpKeyAssignmentItem;
@@ -281,7 +277,7 @@ var
   CheckSection: THelpSectionItem;
 begin
   for CheckSection in FSections do
-    if CheckSection.ActivationKey = Key then
+    if CheckSection.ActivationKeyID = Key then
     begin
       Section := CheckSection;
       Exit(True);
@@ -295,21 +291,26 @@ begin
   Result := IsLayerActive;
 end;
 
-procedure TKeyViewerLayer.RenderMainContent(Target: TBitmap32);
+function TKeyViewerLayer.HitTest(const Point: TPoint): Boolean;
+begin
+  Result := False;
+end;
+
+procedure TKeyViewerLayer.RenderMainContentSkia(Canvas: ISkCanvas);
 const
   IndentTop = 0.1;
   IndentLeft = 0.1;
   IndentRight = 0.1;
   IndentBottom = 0.05;
 
-  function WidthFactor(Factor: Real): Integer;
+  function WidthFactor(Factor: Real): Single;
   begin
-    Result := Round(Target.Width * Factor * InitProgress);
+    Result := Canvas.GetLocalClipBounds.Width * Factor * InitProgress;
   end;
 
-  function HeightFactor(Factor: Real): Integer;
+  function HeightFactor(Factor: Real): Single;
   begin
-    Result := Round(Target.Height * Factor * InitProgress);
+    Result := Canvas.GetLocalClipBounds.Height * Factor * InitProgress;
   end;
 
   function GetMaxRequiredSectionHeight(AvailWidth: Integer): Integer;
@@ -327,89 +328,101 @@ const
   end;
 
 var
-  HelpContentRect, SectionsRect: TRect;
-  BGColor: TColor32;
-  HeadlinePoint: TPoint;
-  EscKeyWidth: Integer;
-  EscKeyRect: TRect;
-  Points: TArrayOfFloatPoint;
+  HelpContentRectF, SectionsRectF: TRectF;
+  Paint: ISkPaint;
+  HeadlinePointF: TPointF;
+  EscKeyWidth: Single;
+  EscKeyRectF: TRectF;
+  Points: TArray<TPointF>;
   MaxRequiredSectionHeight: Integer;
+  Font: ISkFont;
+  PathBuilder: ISkPathBuilder;
+  Path: ISkPath;
 
   procedure RenderSections;
   var
     Section: THelpSectionItem;
-    Y: Integer;
+    Y: Single;
   begin
-    Y := SectionsRect.Top;
+    Y := SectionsRectF.Top;
     for Section in FSections do
     begin
-      Section.Left := SectionsRect.Left;
-      Section.Top := Y;
-      Inc(Y, MaxRequiredSectionHeight);
-      Section.Render(Target);
+      Section.Left := Round(SectionsRectF.Left);
+      Section.Top := Round(Y);
+      Y := Y + MaxRequiredSectionHeight;
+      Section.RenderSkia(Canvas);
     end;
   end;
 
-  procedure RenderActiveSection(Alpha: Single);
-  begin
-    if Alpha <= 0 then
-      Exit;
-
-
-  end;
-
 begin
-  inherited RenderMainContent(Target);
+  inherited RenderMainContentSkia(Canvas);
 
-  BGColor := EaseColor32(TColor32(0), Color32(0, 0, 0, 240), InitProgress);
-
-  HelpContentRect := Rect(
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  Paint.Color := TAlphaColors.Black;
+  Paint.Alpha := Round(240 * InitProgress);
+  
+  HelpContentRectF := TRectF.Create(
     WidthFactor(IndentLeft), HeightFactor(IndentTop),
-    Target.Width - WidthFactor(IndentRight), Target.Height - HeightFactor(IndentBottom));
+    Canvas.GetLocalClipBounds.Width - WidthFactor(IndentRight), 
+    Canvas.GetLocalClipBounds.Height - HeightFactor(IndentBottom));
 
-  Target.FillRect(0, 0, HelpContentRect.Left, Target.Height, BGColor);
-  Target.FillRect(HelpContentRect.Left, 0, HelpContentRect.Right, HelpContentRect.Top, BGColor);
-  Target.FillRect(HelpContentRect.Right, 0, Target.Width, Target.Height, BGColor);
-  Target.FillRect(HelpContentRect.Left, HelpContentRect.Bottom, HelpContentRect.Right, Target.Height, BGColor);
+  // Background overlays (darkening)
+  Canvas.DrawRect(TRectF.Create(0, 0, HelpContentRectF.Left, Canvas.GetLocalClipBounds.Height), Paint);
+  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Left, 0, HelpContentRectF.Right, HelpContentRectF.Top), Paint);
+  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Right, 0, Canvas.GetLocalClipBounds.Width, Canvas.GetLocalClipBounds.Height), Paint);
+  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Left, HelpContentRectF.Bottom, HelpContentRectF.Right, Canvas.GetLocalClipBounds.Height), Paint);
 
-  SectionsRect := HelpContentRect;
-  SectionsRect.Right := SectionsRect.Left + MonitorHandler.ConvertMmToPixel(80);
-  HelpContentRect.Left := SectionsRect.Right;
+  SectionsRectF := HelpContentRectF;
+  SectionsRectF.Right := SectionsRectF.Left + MonitorHandler.ConvertMmToPixel(80);
+  HelpContentRectF.Left := SectionsRectF.Right;
 
-  Target.FillRect(HelpContentRect.Left, HelpContentRect.Top,
-    HelpContentRect.Right, HelpContentRect.Bottom,
-    EaseColor32(Color32(255, 255, 255, 0), clWhite32, InitProgress));
+  // Main help area background (white)
+  Paint.Color := TAlphaColors.White;
+  Paint.Alpha := Round(255 * InitProgress);
+  Canvas.DrawRect(HelpContentRectF, Paint);
 
-  Target.FillRect(SectionsRect.Left, SectionsRect.Top,
-    SectionsRect.Right, SectionsRect.Bottom, clLightGray32);
+  // Sections area background (gray)
+  Paint.Color := TAlphaColors.Lightgray;
+  Canvas.DrawRect(SectionsRectF, Paint);
 
-  Target.Font.Height := HeightFactor(0.05);
-  HeadlinePoint := Point(WidthFactor(IndentLeft), HeightFactor(0.04));
-  Target.RenderTextWD(HeadlinePoint.X, HeadlinePoint.Y, Lang[LS_16], clWhite32);
+  // Headline
+  Font := TSkFont.Create(TSkTypeface.MakeDefault, HeightFactor(0.05));
+  HeadlinePointF := TPointF.Create(WidthFactor(IndentLeft), HeightFactor(0.04));
+  
+  Paint.Color := TAlphaColors.White;
+  Paint.Alpha := 255;
+  Canvas.DrawSimpleText(Lang[LS_16], HeadlinePointF.X, HeadlinePointF.Y + Font.Size, Font, Paint);
 
-  EscKeyWidth := Max(1, Abs(Target.Font.Height)); // MonitorHandler.ConvertMmToPixel(10);
-  Dec(HeadlinePoint.X, 10 + EscKeyWidth);
+  EscKeyWidth := Abs(Font.Size);
+  HeadlinePointF.X := HeadlinePointF.X - (10 + EscKeyWidth);
 
-  EscKeyRect := Rect(EscKeyWidth, HeadlinePoint.Y,
-    EscKeyWidth * 2, HeadlinePoint.Y + EscKeyWidth);
+  EscKeyRectF := TRectF.Create(EscKeyWidth, HeadlinePointF.Y,
+    EscKeyWidth * 2, HeadlinePointF.Y + EscKeyWidth);
 
-  Target.FillRect(EscKeyRect.Left, EscKeyRect.Top, EscKeyRect.Right, EscKeyRect.Bottom, clWhite32);
-  KeyRenderManager.Render(Target, vkEscape, EscKeyRect, ksFlat);
+  Paint.Color := TAlphaColors.White;
+  Canvas.DrawRect(EscKeyRectF, Paint);
+  KeyRenderManager.RenderSkia(Canvas, vkEscape, EscKeyRectF, ksFlat);
 
-  // Arrow to the left on the left side of the [Esc] key
-  EscKeyRect.Offset(-EscKeyWidth, 0);
-  EscKeyRect.Inflate(-Round(EscKeyRect.Width * 0.6), -Round(EscKeyRect.Height * 0.6));
-  EscKeyRect.NormalizeRect;
-
+  // Arrow to the left
   SetLength(Points, 3);
-  Points[0] := TFloatPoint.Create(EscKeyRect.Right, EscKeyRect.Top);
-  Points[1] := TFloatPoint.Create(EscKeyRect.Left, EscKeyRect.Top + EscKeyRect.Height / 2);
-  Points[2] := TFloatPoint.Create(EscKeyRect.Right, EscKeyRect.Bottom);
-  PolylineFS(Target, Points, clWhite32, False, 3);
+  Points[0] := TPointF.Create(EscKeyRectF.Left - 5, EscKeyRectF.Top);
+  Points[1] := TPointF.Create(EscKeyRectF.Left - 15, EscKeyRectF.Top + EscKeyRectF.Height / 2);
+  Points[2] := TPointF.Create(EscKeyRectF.Left - 5, EscKeyRectF.Bottom);
+  
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 3;
+  Paint.Color := TAlphaColors.White;
+  
+  PathBuilder := TSkPathBuilder.Create;
+  PathBuilder.MoveTo(Points[0]);
+  PathBuilder.LineTo(Points[1]);
+  PathBuilder.LineTo(Points[2]);
+  Path := PathBuilder.Snapshot;
+  Canvas.DrawPath(Path, Paint);
 
-  MaxRequiredSectionHeight := GetMaxRequiredSectionHeight(SectionsRect.Width);
+  MaxRequiredSectionHeight := GetMaxRequiredSectionHeight(Round(SectionsRectF.Width));
   RenderSections;
-  RenderActiveSection(Max(0, (InitProgress - 0.8) / 0.2));
 end;
 
 procedure TKeyViewerLayer.SetActiveSection(Value: THelpSectionItem);
@@ -448,15 +461,19 @@ end;
 function TKeyViewerLayer.AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
 var
   TestPair: TPair<Integer, TBaseLayer>;
+  NewSection: THelpSectionItem;
+  K: Integer;
 begin
-  Result := THelpSectionItem.Create(Layer);
-  FSections.Add(Result);
+  NewSection := THelpSectionItem.Create(Layer);
+  FSections.Add(NewSection);
+  Result := NewSection;
 
   for TestPair in LayerActivationKeys.ToArray do
     if TestPair.Value.ClassType = Layer then
     begin
-      Result.ActivationKey := TestPair.Key;
-      Result.DescriptionCustom := TestPair.Value.GetDisplayName;
+      K := TestPair.Key;
+      NewSection.ActivationKeyID := K;
+      NewSection.DescriptionCustom := TestPair.Value.GetDisplayName;
       Break;
     end;
 end;
@@ -490,26 +507,22 @@ function THelpSectionItem.GetRequiredHeight(AvailWidth: Integer): Integer;
 
   function CalcRequiredHeight: Integer;
   var
-    CalcTarget: TBitmap32;
-    HeadlineRect: TRect;
     KeyHeight: Integer;
+    LBitmap: TBitmap;
   begin
-    CalcTarget := TBitmap32.Create(AvailWidth, 200);
+    LBitmap := TBitmap.Create;
     try
-      CalcTarget.Font.Size := HeadlineFontSize;
+      LBitmap.Canvas.Font.Name := 'Arial';
+      LBitmap.Canvas.Font.Size := HeadlineFontSize;
 
       KeyHeight := Round(AvailWidth * KeyWidthFactor);
-      HeadlineRect.Left := KeyHeight + HeadlinePaddingLeft;
-      HeadlineRect.Top := HeadlinePaddingTop;
-      HeadlineRect.Right := AvailWidth - HeadlinePaddingRight;
-      HeadlineRect.Bottom := CalcTarget.Height;
-
-      CalcTarget.Textout(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
-      Result := HeadlineRect.Height;
+      
+      // Rough estimation of text height
+      Result := LBitmap.Canvas.TextHeight(Description);
       if KeyHeight > Result then
         Result := KeyHeight;
     finally
-      CalcTarget.Free;
+      LBitmap.Free;
     end;
   end;
 
@@ -524,40 +537,82 @@ begin
   end;
 end;
 
-procedure THelpSectionItem.Render(Target: TBitmap32);
+procedure THelpSectionItem.RenderSkia(Canvas: ISkCanvas);
 var
-  WholeRect, KeyRect, TextRect: TRect;
-  KeyQSize: Integer;
-  KeyPaddingLeft, KeyPaddingRight, KeyPaddingTop, KeyPaddingBottom: Integer;
+  WholeRectF, KeyRectF, TextRectF: TRectF;
+  KeyQSize: Single;
+  KeyPadding: Single;
   Text: string;
-  TextExt: TSize;
-  TextX, TextY: Integer;
+  Paint: ISkPaint;
+  Font: ISkFont;
+  TextBounds: TRectF;
 begin
-  WholeRect := Rect(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+  WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
 
-  KeyQSize := Round(WholeRect.Width * KeyWidthFactor);
-  KeyPaddingLeft := Round(KeyQSize * KeyPaddingLeftFactor);
-  KeyPaddingRight := Round(KeyQSize * KeyPaddingRightFactor);
-  KeyPaddingTop := Round(KeyQSize * KeyPaddingTopFactor);
-  KeyPaddingBottom := Round(KeyQSize * KeyPaddingBottomFactor);
+  KeyQSize := WholeRectF.Width * KeyWidthFactor;
+  KeyPadding := KeyQSize * KeyPaddingLeftFactor;
 
-  KeyRect.Left := WholeRect.Left + KeyPaddingLeft;
-  KeyRect.Top := WholeRect.Top + KeyPaddingTop;
-  KeyRect.Right := KeyRect.Left + KeyQSize - KeyPaddingRight - KeyPaddingLeft;
-  KeyRect.Bottom := KeyRect.Top + KeyQSize - KeyPaddingBottom - KeyPaddingTop;
+  KeyRectF.Left := WholeRectF.Left + KeyPadding;
+  KeyRectF.Top := WholeRectF.Top + KeyPadding;
+  KeyRectF.Right := KeyRectF.Left + KeyQSize - 2 * KeyPadding;
+  KeyRectF.Bottom := KeyRectF.Top + KeyQSize - 2 * KeyPadding;
 
-  if ActivationKey <> 0 then
-    KeyRenderManager.Render(Target, ActivationKey, KeyRect, ksUp);
+  if ActivationKeyID <> 0 then
+    KeyRenderManager.RenderSkia(Canvas, ActivationKeyID, KeyRectF, ksUp);
 
-  TextRect := Rect(KeyRect.Right, WholeRect.Top, WholeRect.Right, WholeRect.Bottom);
+  TextRectF := TRectF.Create(KeyRectF.Right, WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
 
-  Target.Font.Height := -Round(KeyQSize * 0.6); //HeadlineFontSize;
+  Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyQSize * 0.6);
   Text := Description;
-  TextExt := Target.TextExtent(Text);
-  TextX := TextRect.Left + KeyPaddingLeft; // + ((TextRect.Width - TextExt.cx) div 2);
-  TextY := TextRect.Top + ((TextRect.Height - TextExt.cy) div 2);
+  Font.MeasureText(Text, TextBounds);
+  
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  Paint.Color := TAlphaColors.Black;
+  
+  Canvas.DrawSimpleText(Text, 
+    TextRectF.Left + KeyPadding - TextBounds.Left,
+    TextRectF.Top + (TextRectF.Height - TextBounds.Height) / 2 - TextBounds.Top,
+    Font, Paint);
+end;
 
-  Target.RenderTextWD(TextX, TextY, Text, clBlack32);
+procedure THelpKeyAssignmentItem.RenderSkia(Canvas: ISkCanvas);
+var
+  WholeRectF, KeyRectF, TextRectF: TRectF;
+  KeySize: TSize;
+  KeyPadding: Single;
+  Text: string;
+  Paint: ISkPaint;
+  Font: ISkFont;
+  TextBounds: TRectF;
+begin
+  WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+
+  KeySize := GetKeySizeRequired(Round(WholeRectF.Width));
+  KeyPadding := KeySize.cx * KeyPaddingLeftFactor;
+
+  KeyRectF.Left := WholeRectF.Left + KeyPadding;
+  KeyRectF.Top := WholeRectF.Top + KeyPadding;
+  KeyRectF.Right := KeyRectF.Left + KeySize.cx - 2 * KeyPadding;
+  KeyRectF.Bottom := KeyRectF.Top + KeySize.cy - 2 * KeyPadding;
+
+  if Key <> 0 then
+    KeyRenderManager.RenderSkia(Canvas, Key, KeyRectF, ksUp);
+
+  TextRectF := TRectF.Create(KeyRectF.Right, WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
+
+  Font := TSkFont.Create(TSkTypeface.MakeDefault, KeySize.cy * 0.6);
+  Text := Description;
+  Font.MeasureText(Text, TextBounds);
+  
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  Paint.Color := TAlphaColors.Black;
+  
+  Canvas.DrawSimpleText(Text, 
+    TextRectF.Left + KeyPadding - TextBounds.Left,
+    TextRectF.Top + (TextRectF.Height - TextBounds.Height) / 2 - TextBounds.Top,
+    Font, Paint);
 end;
 
 procedure THelpSectionItem.AddKeyAssignment(Key: THelpKeyAssignmentItem);
@@ -577,26 +632,21 @@ function THelpKeyAssignmentItem.GetRequiredHeight(AvailWidth: Integer): Integer;
 
   function CalcRequiredHeight: Integer;
   var
-    CalcTarget: TBitmap32;
-    HeadlineRect: TRect;
     KeySize: TSize;
+    LBitmap: TBitmap;
   begin
-    CalcTarget := TBitmap32.Create(AvailWidth, 200);
+    LBitmap := TBitmap.Create;
     try
-      CalcTarget.Font.Size := HeadlineFontSize;
+      LBitmap.Canvas.Font.Name := 'Arial';
+      LBitmap.Canvas.Font.Size := HeadlineFontSize;
 
       KeySize := GetKeySizeRequired(AvailWidth);
-      HeadlineRect.Left := KeySize.cx + HeadlinePaddingLeft;
-      HeadlineRect.Top := HeadlinePaddingTop;
-      HeadlineRect.Right := AvailWidth - HeadlinePaddingRight;
-      HeadlineRect.Bottom := CalcTarget.Height;
-
-      CalcTarget.Textout(HeadlineRect, DT_LEFT or DT_SINGLELINE or DT_CALCRECT, Description);
-      Result := HeadlineRect.Height;
+      
+      Result := LBitmap.Canvas.TextHeight(Description);
       if KeySize.cy > Result then
         Result := KeySize.cy;
     finally
-      CalcTarget.Free;
+      LBitmap.Free;
     end;
   end;
 
@@ -609,42 +659,6 @@ begin
     FAvailWidth := AvailWidth;
     FRequiredHeight := Result;
   end;
-end;
-
-procedure THelpKeyAssignmentItem.Render(Target: TBitmap32);
-var
-  WholeRect, KeyRect, TextRect: TRect;
-  KeySize: TSize;
-  KeyPaddingLeft, KeyPaddingRight, KeyPaddingTop, KeyPaddingBottom: Integer;
-  Text: string;
-  TextExt: TSize;
-  TextX, TextY: Integer;
-begin
-  WholeRect := Rect(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
-
-  KeySize := GetKeySizeRequired(WholeRect.Width);
-  KeyPaddingLeft := Round(KeySize.cx * KeyPaddingLeftFactor);
-  KeyPaddingRight := Round(KeySize.cx * KeyPaddingRightFactor);
-  KeyPaddingTop := Round(KeySize.cy * KeyPaddingTopFactor);
-  KeyPaddingBottom := Round(KeySize.cy * KeyPaddingBottomFactor);
-
-  KeyRect.Left := WholeRect.Left + KeyPaddingLeft;
-  KeyRect.Top := WholeRect.Top + KeyPaddingTop;
-  KeyRect.Right := KeyRect.Left + KeySize.cx - KeyPaddingRight - KeyPaddingLeft;
-  KeyRect.Bottom := KeyRect.Top + KeySize.cy - KeyPaddingBottom - KeyPaddingTop;
-
-  if Key <> 0 then
-    KeyRenderManager.Render(Target, Key, KeyRect, ksUp);
-
-  TextRect := Rect(KeyRect.Right, WholeRect.Top, WholeRect.Right, WholeRect.Bottom);
-
-  Target.Font.Height := -Round(KeySize.cy * 0.6); //HeadlineFontSize;
-  Text := Description;
-  TextExt := Target.TextExtent(Text);
-  TextX := TextRect.Left + KeyPaddingLeft; // + ((TextRect.Width - TextExt.cx) div 2);
-  TextY := TextRect.Top + ((TextRect.Height - TextExt.cy) div 2);
-
-  Target.RenderTextWD(TextX, TextY, Text, clBlack32);
 end;
 
 end.

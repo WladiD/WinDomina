@@ -33,7 +33,6 @@ uses
   WD.KeyDecorators in 'WD.KeyDecorators.pas',
   WD.Layer.KeyViewer in 'WD.Layer.KeyViewer.pas',
   WD.LangIndex in 'WD.LangIndex.pas',
-  WD.GR32Tools in 'WD.GR32Tools.pas',
   WDDT.DelayedMethod in '..\Lib\WDDelphiTools\WDDT.DelayedMethod.pas';
 
 {$R *.res}

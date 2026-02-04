@@ -17,10 +17,7 @@ uses
   System.Generics.Collections,
   System.SysUtils,
   System.Types,
-
   System.Skia,
-
-  GR32,
 
   AnyiQuack,
   WindowEnumerator,
@@ -39,7 +36,7 @@ type
 
   TGetLayerEvent = reference to function: TBaseLayer;
 
-  // Verfügbar Fenster-Tracking-Features
+  // Verfügbare Fenster-Tracking-Features
   TWindowTracking = (
     // Änderung des Zielfensters
     // Entsprechende Methode des Layers: TBaseLayer.TargetWindowChanged
@@ -86,8 +83,8 @@ type
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); virtual;
     procedure HandleKeyUp(Key: Integer; var Handled: Boolean); virtual;
     function  HasMainContent: Boolean; virtual;
+    function  HitTest(const Point: TPoint): Boolean; virtual;
     procedure Invalidate; virtual;
-    procedure RenderMainContent(Target: TBitmap32); virtual;
     procedure RenderMainContentSkia(Canvas: ISkCanvas); virtual;
     procedure SwitchTargetWindowMoved(WindowHandle: HWND); virtual;
     procedure TargetWindowChanged; virtual;
@@ -112,7 +109,7 @@ type
     FProgress: Real;
   public
     constructor Create(Layer: TBaseLayer);
-    procedure Render(Target: TBitmap32); virtual; abstract;
+    procedure RenderSkia(Canvas: ISkCanvas); virtual; abstract;
     property  Progress: Real read FProgress write FProgress;
     property  Layer: TBaseLayer read FLayer;
   end;
@@ -228,21 +225,20 @@ begin
   Result := False;
 end;
 
-// Zeichnet den Hauptinhalt
-procedure TBaseLayer.RenderMainContent(Target: TBitmap32);
+function TBaseLayer.HitTest(const Point: TPoint): Boolean;
+begin
+  Result := False;
+end;
+
+procedure TBaseLayer.RenderMainContentSkia(Canvas: ISkCanvas);
 var
   Animation: TAnimationBase;
 begin
   if FAnimations.Count > 0 then
   begin
     for Animation in FAnimations do
-      Animation.Render(Target);
+      Animation.RenderSkia(Canvas);
   end;
-end;
-
-procedure TBaseLayer.RenderMainContentSkia(Canvas: ISkCanvas);
-begin
-  // Default implementation does nothing
 end;
 
 procedure TBaseLayer.DoMainContentChanged;
