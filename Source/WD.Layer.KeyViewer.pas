@@ -1,42 +1,50 @@
-﻿unit WD.Layer.KeyViewer;
+﻿// ======================================================================
+// Copyright (c) 2026 Waldemar Derr. All rights reserved.
+//
+// Licensed under the MIT license. See included LICENSE file for details.
+// ======================================================================
+
+unit WD.Layer.KeyViewer;
 
 interface
 
 uses
-  System.SysUtils,
-  System.Classes,
-  System.UITypes,
-  System.Types,
-  System.Generics.Collections,
-  System.Contnrs,
-  System.Math,
-  System.Diagnostics,
+
   Winapi.Windows,
-  Vcl.Forms,
+
+  System.Classes,
+  System.Contnrs,
+  System.Diagnostics,
+  System.Generics.Collections,
+  System.Math,
+  System.Skia,
+  System.SysUtils,
+  System.Types,
+  System.UITypes,
   Vcl.Controls,
+  Vcl.Forms,
   Vcl.Graphics,
 
-  System.Skia,
-
-  WindowEnumerator,
   AnyiQuack,
-  AQPSystemTypesAnimations,
   AQPControlAnimations,
+  AQPSystemTypesAnimations,
   Localization,
+  WindowEnumerator,
 
-  WD.Types,
-  WD.Layer,
-  WD.Layer.Mover,
-  WD.Layer.Grid,
-  WD.Registry,
-  WD.WindowTools,
-  WD.WindowMatchSnap,
   WD.Form.Number,
-  WD.KeyTools,
   WD.KeyDecorators,
-  WD.LangIndex;
+  WD.KeyTools,
+  WD.LangIndex,
+  WD.Layer,
+  WD.Layer.Grid,
+  WD.Layer.Mover,
+  WD.Registry,
+  WD.Types,
+  WD.WindowMatchSnap,
+  WD.WindowTools;
 
 type
+
   THelpBaseItem = class;
   THelpSectionItem = class;
   THelpKeyAssignmentItem = class;
@@ -46,15 +54,14 @@ type
     class var
     InitAniID: Integer;
   private
-    FSections: TObjectList<THelpSectionItem>;
-    FInitProgress: Single;
     FActiveHelpSection: THelpSectionItem;
+    FInitProgress     : Single;
+    FSections         : TObjectList<THelpSectionItem>;
 
-    function AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
+    function  AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
+    function  HasActiveSectionByKey(Key: Integer; out Section: THelpSectionItem): Boolean;
     procedure SetActiveSection(Value: THelpSectionItem);
     procedure SetActiveSectionByLayer(Layer: TBaseLayer);
-    function HasActiveSectionByKey(Key: Integer; out Section: THelpSectionItem): Boolean;
-
     procedure SetInitProgress(const Value: Single);
 
     property InitProgress: Single read FInitProgress write SetInitProgress;
@@ -66,32 +73,30 @@ type
     destructor Destroy; override;
 
     procedure EnterLayer; override;
-
-    function HasMainContent: Boolean; override;
-    function HitTest(const Point: TPoint): Boolean; override;
-    procedure RenderMainContentSkia(Canvas: ISkCanvas); override;
-
     procedure HandleKeyDown(Key: Integer; var Handled: Boolean); override;
+    function  HasMainContent: Boolean; override;
+    function  HitTest(const Point: TPoint): Boolean; override;
+    procedure RenderMainContentSkia(Canvas: ISkCanvas); override;
   end;
 
   THelpBaseItem = class
   private
     FLeft: Integer;
-    FTop: Integer;
+    FTop : Integer;
 
     function GetDescription: string;
 
   public
-    ActivationKeyID: Integer;
+    ActivationKeyID     : Integer;
+    DescriptionCustom   : String;
     DescriptionLangIndex: Integer;
-    DescriptionCustom: string;
 
-    function GetRequiredHeight(AvailWidth: Integer): Integer; virtual; abstract;
+    function  GetRequiredHeight(AvailWidth: Integer): Integer; virtual; abstract;
     procedure RenderSkia(Canvas: ISkCanvas); virtual; abstract;
 
+    property Description: string read GetDescription;
     property Left: Integer read FLeft write FLeft;
     property Top: Integer read FTop write FTop;
-    property Description: string read GetDescription;
   end;
 
   THelpSectionItem = class(THelpBaseItem)
@@ -109,19 +114,18 @@ type
     HeadlinePaddingBottom = 0;
 
     var
-    FLayer: TBaseLayerClass;
-    FKeys: TObjectList<THelpKeyAssignmentItem>;
-    FAvailWidth: Integer;
+    FAvailWidth    : Integer;
+    FKeys          : TObjectList<THelpKeyAssignmentItem>;
+    FLayer         : TBaseLayerClass;
     FRequiredHeight: Integer;
 
   public
     constructor Create(Layer: TBaseLayerClass);
-    destructor Destroy; override;
-
-    function GetRequiredHeight(AvailWidth: Integer): Integer; override;
-    procedure RenderSkia(Canvas: ISkCanvas); override;
+    destructor  Destroy; override;
 
     procedure AddKeyAssignment(Key: THelpKeyAssignmentItem);
+    function  GetRequiredHeight(AvailWidth: Integer): Integer; override;
+    procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
   THelpKeyAssignmentItem = class(THelpBaseItem)
@@ -138,18 +142,18 @@ type
     HeadlinePaddingBottom = 0;
 
     var
-    FSection: THelpSectionItem;
-    FAvailWidth: Integer;
+    FAvailWidth    : Integer;
     FRequiredHeight: Integer;
+    FSection       : THelpSectionItem;
 
   protected
     function GetKeySizeRequired(AvailWidth: Integer): TSize; virtual;
 
   public
+    Key  : Integer;
     Shift: TShiftState;
-    Key: Integer;
 
-    function GetRequiredHeight(AvailWidth: Integer): Integer; override;
+    function  GetRequiredHeight(AvailWidth: Integer): Integer; override;
     procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
@@ -235,7 +239,6 @@ end;
 destructor TKeyViewerLayer.Destroy;
 begin
   FSections.Free;
-
   inherited Destroy;
 end;
 
@@ -270,8 +273,7 @@ begin
   Handled := True;
 end;
 
-function TKeyViewerLayer.HasActiveSectionByKey(Key: Integer;
-  out Section: THelpSectionItem): Boolean;
+function TKeyViewerLayer.HasActiveSectionByKey(Key: Integer; out Section: THelpSectionItem): Boolean;
 var
   CheckSection: THelpSectionItem;
 begin
@@ -327,21 +329,21 @@ const
   end;
 
 var
-  HelpContentRectF, SectionsRectF: TRectF;
-  Paint: ISkPaint;
-  HeadlinePointF: TPointF;
-  EscKeyWidth: Single;
-  EscKeyRectF: TRectF;
-  Points: TArray<TPointF>;
+  EscKeyRectF             : TRectF;
+  EscKeyWidth             : Single;
+  Font                    : ISkFont;
+  HeadlinePointF          : TPointF;
+  HelpContentRectF        : TRectF;
   MaxRequiredSectionHeight: Integer;
-  Font: ISkFont;
-  PathBuilder: ISkPathBuilder;
-  Path: ISkPath;
+  Paint                   : ISkPaint;
+  Path                    : ISkPath;
+  PathBuilder             : ISkPathBuilder;
+  SectionsRectF           : TRectF;
 
   procedure RenderSections;
   var
     Section: THelpSectionItem;
-    Y: Single;
+    Y      : Single;
   begin
     Y := SectionsRectF.Top;
     for Section in FSections do
@@ -360,17 +362,26 @@ begin
   Paint.AntiAlias := True;
   Paint.Color := TAlphaColors.Black;
   Paint.Alpha := Round(240 * InitProgress);
-  
+
   HelpContentRectF := TRectF.Create(
-    WidthFactor(IndentLeft), HeightFactor(IndentTop),
-    Canvas.GetLocalClipBounds.Width - WidthFactor(IndentRight), 
+    WidthFactor(IndentLeft),
+    HeightFactor(IndentTop),
+    Canvas.GetLocalClipBounds.Width - WidthFactor(IndentRight),
     Canvas.GetLocalClipBounds.Height - HeightFactor(IndentBottom));
 
   // Background overlays (darkening)
-  Canvas.DrawRect(TRectF.Create(0, 0, HelpContentRectF.Left, Canvas.GetLocalClipBounds.Height), Paint);
-  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Left, 0, HelpContentRectF.Right, HelpContentRectF.Top), Paint);
-  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Right, 0, Canvas.GetLocalClipBounds.Width, Canvas.GetLocalClipBounds.Height), Paint);
-  Canvas.DrawRect(TRectF.Create(HelpContentRectF.Left, HelpContentRectF.Bottom, HelpContentRectF.Right, Canvas.GetLocalClipBounds.Height), Paint);
+  Canvas.DrawRect(TRectF.Create(
+    0, 0,
+    HelpContentRectF.Left, Canvas.GetLocalClipBounds.Height), Paint);
+  Canvas.DrawRect(TRectF.Create(
+    HelpContentRectF.Left, 0,
+    HelpContentRectF.Right, HelpContentRectF.Top), Paint);
+  Canvas.DrawRect(TRectF.Create(
+    HelpContentRectF.Right, 0,
+    Canvas.GetLocalClipBounds.Width, Canvas.GetLocalClipBounds.Height), Paint);
+  Canvas.DrawRect(TRectF.Create(
+    HelpContentRectF.Left, HelpContentRectF.Bottom,
+    HelpContentRectF.Right, Canvas.GetLocalClipBounds.Height), Paint);
 
   SectionsRectF := HelpContentRectF;
   SectionsRectF.Right := SectionsRectF.Left + MonitorHandler.ConvertMmToPixel(80);
@@ -388,7 +399,7 @@ begin
   // Headline
   Font := TSkFont.Create(TSkTypeface.MakeDefault, HeightFactor(0.05));
   HeadlinePointF := TPointF.Create(WidthFactor(IndentLeft), HeightFactor(0.04));
-  
+
   Paint.Color := TAlphaColors.White;
   Paint.Alpha := 255;
   Canvas.DrawSimpleText(Lang[LS_16], HeadlinePointF.X, HeadlinePointF.Y + Font.Size, Font, Paint);
@@ -403,20 +414,15 @@ begin
   Canvas.DrawRect(EscKeyRectF, Paint);
   KeyRenderManager.RenderSkia(Canvas, vkEscape, EscKeyRectF, ksFlat);
 
-  // Arrow to the left
-  SetLength(Points, 3);
-  Points[0] := TPointF.Create(EscKeyRectF.Left - 5, EscKeyRectF.Top);
-  Points[1] := TPointF.Create(EscKeyRectF.Left - 15, EscKeyRectF.Top + EscKeyRectF.Height / 2);
-  Points[2] := TPointF.Create(EscKeyRectF.Left - 5, EscKeyRectF.Bottom);
-  
   Paint.Style := TSkPaintStyle.Stroke;
   Paint.StrokeWidth := 3;
   Paint.Color := TAlphaColors.White;
-  
+
+  // Arrow to the left
   PathBuilder := TSkPathBuilder.Create;
-  PathBuilder.MoveTo(Points[0]);
-  PathBuilder.LineTo(Points[1]);
-  PathBuilder.LineTo(Points[2]);
+  PathBuilder.MoveTo(EscKeyRectF.Left - 5, EscKeyRectF.Top);
+  PathBuilder.LineTo(EscKeyRectF.Left - 15, EscKeyRectF.Top + EscKeyRectF.Height / 2);
+  PathBuilder.LineTo(EscKeyRectF.Left - 5, EscKeyRectF.Bottom);
   Path := PathBuilder.Snapshot;
   Canvas.DrawPath(Path, Paint);
 
@@ -459,9 +465,9 @@ end;
 
 function TKeyViewerLayer.AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
 var
-  TestPair: TPair<Integer, TBaseLayer>;
+  K         : Integer;
   NewSection: THelpSectionItem;
-  K: Integer;
+  TestPair  : TPair<Integer, TBaseLayer>;
 begin
   NewSection := THelpSectionItem.Create(Layer);
   FSections.Add(NewSection);
@@ -507,7 +513,7 @@ function THelpSectionItem.GetRequiredHeight(AvailWidth: Integer): Integer;
   function CalcRequiredHeight: Integer;
   var
     KeyHeight: Integer;
-    LBitmap: TBitmap;
+    LBitmap  : TBitmap;
   begin
     LBitmap := TBitmap.Create;
     try
@@ -538,13 +544,15 @@ end;
 
 procedure THelpSectionItem.RenderSkia(Canvas: ISkCanvas);
 var
-  WholeRectF, KeyRectF, TextRectF: TRectF;
-  KeyQSize: Single;
+  Font      : ISkFont;
   KeyPadding: Single;
-  Text: string;
-  Paint: ISkPaint;
-  Font: ISkFont;
+  KeyQSize  : Single;
+  KeyRectF  : TRectF;
+  Paint     : ISkPaint;
+  Text      : String;
   TextBounds: TRectF;
+  TextRectF : TRectF;
+  WholeRectF: TRectF;
 begin
   WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
 
@@ -577,13 +585,15 @@ end;
 
 procedure THelpKeyAssignmentItem.RenderSkia(Canvas: ISkCanvas);
 var
-  WholeRectF, KeyRectF, TextRectF: TRectF;
-  KeySize: TSize;
+  Font      : ISkFont;
   KeyPadding: Single;
-  Text: string;
-  Paint: ISkPaint;
-  Font: ISkFont;
+  KeyRectF  : TRectF;
+  KeySize   : TSize;
+  Paint     : ISkPaint;
+  Text      : String;
   TextBounds: TRectF;
+  TextRectF : TRectF;
+  WholeRectF: TRectF;
 begin
   WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
 
