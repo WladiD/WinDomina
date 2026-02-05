@@ -32,6 +32,7 @@ ECHO Pack-Path    : %PACK_PATH%
 REM Copy all required files for the release
 COPY "%RUNTIME_PATH%WinDomina.exe" "%PACK_PATH%"
 COPY "%RUNTIME_PATH%kbhk.dll" "%PACK_PATH%"
+COPY "%RUNTIME_PATH%sk4d.dll" "%PACK_PATH%"
 MKDIR "%PACK_PATH%common"
 COPY "%RUNTIME_PATH%common\Lang.de.ini" "%PACK_PATH%common\"
 COPY "%RUNTIME_PATH%common\Lang.en.ini" "%PACK_PATH%common\"

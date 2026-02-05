@@ -3,13 +3,13 @@
         <Base>True</Base>
         <AppType>Application</AppType>
         <Config Condition="'$(Config)'==''">Release</Config>
+        <EnabledSkia>true</EnabledSkia>
         <FrameworkType>VCL</FrameworkType>
         <MainSource>WinDomina.dpr</MainSource>
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
         <ProjectGuid>{9354EEE4-6A43-4D56-ACC2-3B1EA3E90843}</ProjectGuid>
         <ProjectName Condition="'$(ProjectName)'==''">WinDomina</ProjectName>
         <ProjectVersion>20.3</ProjectVersion>
-        <EnabledSkia>true</EnabledSkia>
         <TargetedPlatforms>1</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
@@ -54,17 +54,17 @@
         <VerInfo_Locale>1031</VerInfo_Locale>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
+        <AppDPIAwarenessMode>none</AppDPIAwarenessMode>
         <BT_BuildType>Debug</BT_BuildType>
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UsePackage>DBXSqliteDriver;IndyIPCommon;bindcompdbx;DBXInterBaseDriver;vcl;IndyIPServer;vclactnband;vclFireDAC;IndySystem;tethering;svnui;dsnapcon;FireDACADSDriver;madExcept_;FireDACMSAccDriver;fmxFireDAC;vclimg;madBasic_;vcltouch;vcldb;bindcompfmx;svn;FireDACPgDriver;inetdb;DbxCommonDriver;fmx;fmxdae;xmlrtl;fmxobj;vclwinx;rtl;madDisAsm_;DbxClientDriver;CustomIPTransport;vcldsnap;dbexpress;IndyCore;vclx;bindcomp;appanalytics;dsnap;IndyIPClient;bindcompvcl;VCLRESTComponents;dbxcds;VclSmp;adortl;vclie;bindengine;DBXMySQLDriver;dsnapxml;FireDACMySQLDriver;dbrtl;IndyProtocols;inetdbxpress;FireDACCommonODBC;fmxase;$(DCC_UsePackage)</DCC_UsePackage>
         <Icon_MainIcon>..\Media\WinDominaActive.ico</Icon_MainIcon>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>FileDescription=$(MSBuildProjectName);FileVersion=0.1.3.0;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0</VerInfo_Keys>
+        <VerInfo_Keys>FileDescription=$(MSBuildProjectName);FileVersion=0.2.0.0;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_MajorVer>0</VerInfo_MajorVer>
-        <VerInfo_MinorVer>1</VerInfo_MinorVer>
-        <VerInfo_Release>3</VerInfo_Release>
+        <VerInfo_MinorVer>2</VerInfo_MinorVer>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <DCC_DebugDCUs>true</DCC_DebugDCUs>
@@ -76,17 +76,9 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <DCC_ExeOutput>..\Runtime</DCC_ExeOutput>
         <DCC_MapFile>3</DCC_MapFile>
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
-        <Icon_MainIcon>..\Media\WinDominaActive.ico</Icon_MainIcon>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>FileDescription=$(MSBuildProjectName);FileVersion=0.1.3.0;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0</VerInfo_Keys>
-        <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_MajorVer>0</VerInfo_MajorVer>
-        <VerInfo_MinorVer>1</VerInfo_MinorVer>
-        <VerInfo_Release>3</VerInfo_Release>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_DebugInformation>0</DCC_DebugInformation>
@@ -96,18 +88,10 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <DCC_DebugInformation>2</DCC_DebugInformation>
         <DCC_ExeOutput>..\Runtime</DCC_ExeOutput>
         <DCC_LocalDebugSymbols>true</DCC_LocalDebugSymbols>
         <DCC_MapFile>3</DCC_MapFile>
-        <Icon_MainIcon>..\Media\WinDominaActive.ico</Icon_MainIcon>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>FileDescription=$(MSBuildProjectName);FileVersion=0.1.3.0;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0</VerInfo_Keys>
-        <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_MajorVer>0</VerInfo_MajorVer>
-        <VerInfo_MinorVer>1</VerInfo_MinorVer>
-        <VerInfo_Release>3</VerInfo_Release>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -128,6 +112,10 @@
             <Form>LogForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="WD.Form.Settings.pas">
+            <Form>SettingsForm</Form>
+        </DCCReference>
+        <DCCReference Include="WD.Types.Actions.pas"/>
         <DCCReference Include="..\..\Localization\Localization.pas"/>
         <DCCReference Include="..\..\Localization\Localization.VCL.CommonBinding.pas"/>
         <DCCReference Include="..\..\Localization\ProcedureHook.pas"/>
