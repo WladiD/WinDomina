@@ -114,6 +114,7 @@
         </DCCReference>
         <DCCReference Include="WD.Form.Settings.pas">
             <Form>SettingsForm</Form>
+            <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="WD.Types.Actions.pas"/>
         <DCCReference Include="..\..\Localization\Localization.pas"/>

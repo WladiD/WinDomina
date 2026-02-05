@@ -154,6 +154,11 @@ begin
   Paint.AntiAlias := True;
   
   // Background
+  Paint.Color := TAlphaColors.White;
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 4;
+  Canvas.DrawRect(KeyRect, Paint);
+
   Paint.Color := TAlphaColors.Black;
   Paint.Style := TSkPaintStyle.Stroke;
   Paint.StrokeWidth := 2;
@@ -173,7 +178,19 @@ begin
     Font.MeasureText(KeyText, TextBounds);
     
     Paint.AlphaF := 1.0;
+
+    // Text outline
+    Paint.Color := TAlphaColors.White;
+    Paint.Style := TSkPaintStyle.Stroke;
+    Paint.StrokeWidth := 4;
+    Canvas.DrawSimpleText(KeyText,
+      KeyRect.Left + (KeyRect.Width - TextBounds.Width) / 2 - TextBounds.Left,
+      KeyRect.Top + (KeyRect.Height - TextBounds.Height) / 2 - TextBounds.Top,
+      Font, Paint);
+
+    // Text fill
     Paint.Color := TAlphaColors.Black;
+    Paint.Style := TSkPaintStyle.Fill;
     Canvas.DrawSimpleText(KeyText, 
       KeyRect.Left + (KeyRect.Width - TextBounds.Width) / 2 - TextBounds.Left,
       KeyRect.Top + (KeyRect.Height - TextBounds.Height) / 2 - TextBounds.Top,
@@ -190,30 +207,43 @@ begin
         LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + (KeyRect.Height / 2));
         LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.Close;
       end;
       vkRight:
       begin
         LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + (KeyRect.Height / 2));
         LPathBuilder.LineTo(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.Close;
       end;
       vkUp:
       begin
         LPathBuilder.MoveTo(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Top + ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Left + ArrowIndent, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.Close;
       end;
       vkDown:
       begin
         LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent);
         LPathBuilder.LineTo(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.Close;
       end;
     end;
     ArrowPath := LPathBuilder.Detach;
     
     Paint.AlphaF := 1.0;
+
+    // Arrow outline
+    Paint.Color := TAlphaColors.White;
+    Paint.Style := TSkPaintStyle.Stroke;
+    Paint.StrokeWidth := 4;
+    Canvas.DrawPath(ArrowPath, Paint);
+
+    // Arrow fill
     Paint.Color := TAlphaColors.Black;
+    Paint.Style := TSkPaintStyle.Fill;
     Canvas.DrawPath(ArrowPath, Paint);
   end;
 
