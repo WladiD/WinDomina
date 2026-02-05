@@ -89,19 +89,20 @@ type
     WindowsTrackingIntervalID         : Integer;
 
     var
-    FCapsLockAction              : TCapsLockAction;
-    FLeftWinAction               : TLeftWinAction;
-    FRightCtrlAction             : TRightCtrlAction;
     FActiveLayers                : TLayerList;
+    FBitmapBits                  : Pointer;
+    FBitmapHeight                : Integer;
+    FBitmapWidth                 : Integer;
+    FCapsLockAction              : TCapsLockAction;
+    FDIBBitmap                   : HBITMAP;
     FDisableLayerExitEventHandler: Boolean;
     FLastUsedLayer               : TBaseLayer;
     FLayers                      : TLayerList;
+    FLeftWinAction               : TLeftWinAction;
     FMemoryDC                    : HDC;
-    FDIBBitmap                   : HBITMAP;
     FOldBitmap                   : HBITMAP;
-    FBitmapBits                  : Pointer;
-    FBitmapWidth                 : Integer;
-    FBitmapHeight                : Integer;
+    FRightCtrlAction             : TRightCtrlAction;
+    FSkSurface                   : ISkSurface;
     FVisible                     : Boolean;
     FWindowList                  : TDomainWindowList;
 
@@ -762,6 +763,7 @@ begin
     SelectObject(FMemoryDC, FOldBitmap);
     DeleteObject(FDIBBitmap);
     FDIBBitmap := 0;
+    FSkSurface := nil;
   end;
 
   if FMemoryDC = 0 then
@@ -787,6 +789,10 @@ begin
       FOldBitmap := SelectObject(FMemoryDC, FDIBBitmap);
       FBitmapWidth := AWidth;
       FBitmapHeight := AHeight;
+
+      FSkSurface := TSkSurface.MakeRasterDirect(
+        TSkImageInfo.Create(AWidth, AHeight, TSkColorType.BGRA8888, TSkAlphaType.Premul),
+        FBitmapBits, AWidth * 4);
     end;
   end;
 end;
@@ -799,31 +805,23 @@ var
   SourcePosition: TPoint;
   WindowPosition: TPoint;
   Layer         : TBaseLayer;
-  Surface       : ISkSurface;
 begin
   if (Width <= 0) or (Height <= 0) then
     Exit;
 
   EnsureDIB(Width, Height);
-  if (FDIBBitmap = 0) or (FBitmapBits = nil) then
+  if not Assigned(FSkSurface) then
     Exit;
 
-  Surface := TSkSurface.MakeRasterDirect(
-    TSkImageInfo.Create(Width, Height, TSkColorType.BGRA8888, TSkAlphaType.Premul),
-    FBitmapBits, Width * 4);
-    
-  if Assigned(Surface) then
-  begin
-    Surface.Canvas.Clear(TAlphaColors.Null);
+  FSkSurface.Canvas.Clear(TAlphaColors.Null);
 
-    for Layer in FActiveLayers do
-      if Layer.HasMainContent then
-      begin
-        Layer.RenderMainContentSkia(Surface.Canvas);
-        if Layer.Exclusive then
-          Break;
-      end;
-  end;
+  for Layer in FActiveLayers do
+    if Layer.HasMainContent then
+    begin
+      Layer.RenderMainContentSkia(FSkSurface.Canvas);
+      if Layer.Exclusive then
+        Break;
+    end;
 
   SourcePosition := Point(0, 0);
   Blend.BlendOp := AC_SRC_OVER;
@@ -859,20 +857,13 @@ var
   Blend: TBlendFunction;
   Size: TSize;
   WindowPosition: TPoint;
-  Surface: ISkSurface;
 begin
   if (Width <= 0) or (Height <= 0) then
     Exit;
 
   EnsureDIB(Width, Height);
-  if (FDIBBitmap <> 0) and (FBitmapBits <> nil) then
-  begin
-    Surface := TSkSurface.MakeRasterDirect(
-      TSkImageInfo.Create(Width, Height, TSkColorType.BGRA8888, TSkAlphaType.Premul),
-      FBitmapBits, Width * 4);
-    if Assigned(Surface) then
-      Surface.Canvas.Clear(TAlphaColors.Null);
-  end;
+  if Assigned(FSkSurface) then
+    FSkSurface.Canvas.Clear(TAlphaColors.Null);
 
   SourcePosition := Point(0, 0);
   Blend.BlendOp := AC_SRC_OVER;
