@@ -33,6 +33,7 @@ var
   LastCapsLockTapTick : UInt64;
   LastLeftWinTapTick  : UInt64;
   LastRightCtrlTapTick: UInt64;
+  LastLeftWinWasStartMenu: Boolean;
 
 procedure EnterDominaMode; stdcall;
 begin
@@ -80,9 +81,51 @@ begin
   Result := DominaModeActivated;
 end;
 
+function IsStartMenuActive: Boolean;
+var
+  ClassName: Array[0..255] of Char;
+  FgHandle : HWND;
+  FgPid    : DWORD;
+  Title    : Array[0..255] of Char;
+  TrayPid  : DWORD;
+begin
+  Result := False;
+  FgHandle := GetForegroundWindow;
+  if FgHandle = 0 then
+    Exit;
+
+  // 1. Check if foreground window belongs to the same process as the Taskbar (Explorer.exe)
+  if (GetWindowThreadProcessId(FgHandle, FgPid) <> 0) and
+     (GetWindowThreadProcessId(FindWindow('Shell_TrayWnd', nil), TrayPid) <> 0) and
+     (FgPid = TrayPid) and
+     (TrayPid <> 0) and
+     (GetClassName(FgHandle, ClassName, 255) > 0) and
+     (lstrcmpiW(ClassName, 'Progman') <> 0) and  // The Desktop (Progman/WorkerW) is NOT the Start menu.
+     (lstrcmpiW(ClassName, 'WorkerW') <> 0) then
+    Exit(True);
+
+  // 2. Check for UWP Start menu/Search hosts and other shell classes
+  if GetClassName(FgHandle, ClassName, 255) > 0 then
+  begin
+    // Windows 10/11 Start (often CoreWindow)
+    if (lstrcmpiW(ClassName, 'Windows.UI.Core.CoreWindow') = 0) and
+       (GetWindowText(FgHandle, Title, 255) > 0) and
+       (
+         (lstrcmpiW(Title, 'Start') = 0) or
+         (lstrcmpiW(Title, 'Search') = 0) or
+         (lstrcmpiW(Title, 'Suche') = 0)
+       ) then
+      Exit(True);
+
+    Result :=
+      (lstrcmpiW(ClassName, 'XamlExplorerHostIslandWindow') = 0) or  // Windows 11 Shell / Search
+      (lstrcmpiW(ClassName, 'DV2ControlHost') = 0);                  // Windows 7 Start Menu
+  end;
+end;
+
 procedure SendContextMenuKey;
 var
-  Inputs: array [0..1] of TInput;
+  Inputs: Array [0..1] of TInput;
 begin
   ZeroMemory(@Inputs, SizeOf(Inputs));
 
@@ -98,9 +141,9 @@ end;
 
 function LowLevelKeyboardHookProc(nCode: Integer; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
 var
-  PKH: PKBDLLHOOKSTRUCT absolute lParam;
-  NextHook: Boolean;
-  CurrentTick: UInt64;
+  CurrentTick       : UInt64;
+  NextHook          : Boolean;
+  PKH               : PKBDLLHOOKSTRUCT absolute lParam;
   SuppressForwarding: Boolean;
 begin
   if nCode < 0 then
@@ -137,11 +180,15 @@ begin
       begin
         if LastLeftWinTapTick > (CurrentTick - DoubleTapTime) then
         begin
-          ToggleDominaMode;
+          if not LastLeftWinWasStartMenu then
+            ToggleDominaMode;
           LastLeftWinTapTick := 0;
         end
         else
+        begin
           LastLeftWinTapTick := CurrentTick;
+          LastLeftWinWasStartMenu := IsStartMenuActive;
+        end;
 
         SuppressForwarding := True;
       end
@@ -157,13 +204,13 @@ begin
         else
           LastRightCtrlTapTick := CurrentTick;
 
-        // RightCtrl soll weitergeleitet werden, da es auch als Modifier dient
+        // RightCtrl should be forwarded as it also serves as a modifier
         SuppressForwarding := False;
       end;
     end;
 
-    // Im Domina-Modus werden alle Tastendrücke abgefangen und umgeleitet
-    // Ausnahme: Wenn das Event oben als "zu unterdrücken" markiert wurde (Aktivierungstasten)
+    // In Domina mode, all key presses are intercepted and redirected
+    // Exception: If the event was marked as "to be suppressed" above (activation keys)
     if DominaModeActivated and not SuppressForwarding then
     begin
       NextHook := False;
@@ -179,16 +226,15 @@ begin
       end;
     end;
 
-    // Hotkey unterdrücken (nur CapsLock Support für Ignore Key)
+    // Suppress hotkey (only CapsLock support for Ignore Key)
     if NextHook and (PKH.vkCode = VK_CAPITAL) then
     begin
       if (CapsLockAction = claActivateWDIgnoreKey) then
       begin
-        // Wenn die standardmäßige [CapsLock]-Taste als Hotkey verwendet wird, dann leiten wir den
-        // Hook nicht weiter und deaktivieren somit die Taste. Die CapsLock-Statusanzeige wird auf
-        // diese Weise auch umgangen.
-        // Der Hook wird aber einmalig weitergeleitet, wenn die [CapsLock]-Taste aktuell
-        // festgestellt ist, damit es deaktiviert wird.
+        // If the standard [CapsLock] key is used as a hotkey, we do not forward the hook,
+        // thus disabling the key. The CapsLock status indicator is also bypassed this way.
+        // However, the hook is forwarded once if the [CapsLock] key is currently toggled on,
+        // so that it gets deactivated.
         if (GetKeyState(VK_CAPITAL) and $1) = 0 then
           NextHook := False;
       end;
