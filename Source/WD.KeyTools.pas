@@ -3,6 +3,7 @@
 interface
 
 uses
+
   Winapi.Windows,
   System.SysUtils,
   System.Classes,
@@ -137,6 +138,14 @@ procedure TKeyRenderer.RenderSkia(const Key: TRenderKey; Canvas: ISkCanvas; KeyR
         Result := string(AnsiChar(Key.VirtualKey));
       vkEscape:
         Result := Lang.Consts['KeyEscapeShort'];
+      vkControl, vkLControl, vkRControl:
+        Result := Lang.Consts['KeyControlShort'];
+      vkMenu, vkLMenu, vkRMenu:
+        Result := Lang.Consts['KeyAlternateShort'];
+      vkShift, vkLShift, vkRShift:
+        Result := Lang.Consts['KeyShiftShort'];
+      vkReturn:
+        Result := Lang.Consts['KeyEnterShort'];
     else
       Result := '';
     end;
@@ -196,7 +205,7 @@ begin
       KeyRect.Top + (KeyRect.Height - TextBounds.Height) / 2 - TextBounds.Top,
       Font, Paint);
   end
-  else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown] then
+  else if Key.VirtualKey in [vkLeft, vkRight, vkUp, vkDown, vkBack] then
   begin
     ArrowIndent := KeyRect.Width * 0.25;
     var LPathBuilder: ISkPathBuilder := TSkPathBuilder.Create;
@@ -230,6 +239,15 @@ begin
         LPathBuilder.LineTo(KeyRect.Left + (KeyRect.Width / 2), KeyRect.Bottom - ArrowIndent);
         LPathBuilder.Close;
       end;
+      vkBack:
+      begin
+        LPathBuilder.MoveTo(KeyRect.Left + ArrowIndent, KeyRect.Top + (KeyRect.Height / 2));
+        LPathBuilder.LineTo(KeyRect.Left + ArrowIndent * 2, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Top + ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Right - ArrowIndent, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.LineTo(KeyRect.Left + ArrowIndent * 2, KeyRect.Bottom - ArrowIndent);
+        LPathBuilder.Close;
+      end;
     end;
     ArrowPath := LPathBuilder.Detach;
     
@@ -245,6 +263,25 @@ begin
     Paint.Color := TAlphaColors.Black;
     Paint.Style := TSkPaintStyle.Fill;
     Canvas.DrawPath(ArrowPath, Paint);
+
+    // For Backspace, draw the 'X' over the fill
+    if Key.VirtualKey = vkBack then
+    begin
+      var LXPathBuilder: ISkPathBuilder := TSkPathBuilder.Create;
+      var IXSize := ArrowIndent * 0.2;
+      var IXLeft := KeyRect.Left + ArrowIndent * 2.2;
+      var IYCenter := KeyRect.Top + (KeyRect.Height / 2);
+      LXPathBuilder.MoveTo(IXLeft - IXSize, IYCenter - IXSize);
+      LXPathBuilder.LineTo(IXLeft + IXSize, IYCenter + IXSize);
+      LXPathBuilder.MoveTo(IXLeft + IXSize, IYCenter - IXSize);
+      LXPathBuilder.LineTo(IXLeft - IXSize, IYCenter + IXSize);
+      var XPath := LXPathBuilder.Detach;
+      
+      Paint.Style := TSkPaintStyle.Stroke;
+      Paint.Color := TAlphaColors.White;
+      Paint.StrokeWidth := 2;
+      Canvas.DrawPath(XPath, Paint);
+    end;
   end;
 
   if Assigned(Key.DecoratorSkia) then

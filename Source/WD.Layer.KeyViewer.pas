@@ -86,6 +86,14 @@ type
 
     function GetDescription: string;
 
+  protected
+    FAvailWidth    : Integer;
+    FRequiredHeight: Integer;
+
+    const
+    TextStartXFactor = 0.25;
+    KeySizeFactor    = 0.045;
+
   public
     ActivationKeyID     : Integer;
     DescriptionCustom   : String;
@@ -114,10 +122,8 @@ type
     HeadlinePaddingBottom = 0;
 
     var
-    FAvailWidth    : Integer;
     FKeys          : TObjectList<THelpKeyAssignmentItem>;
     FLayer         : TBaseLayerClass;
-    FRequiredHeight: Integer;
 
   public
     constructor Create(Layer: TBaseLayerClass);
@@ -126,6 +132,7 @@ type
     procedure AddKeyAssignment(Key: THelpKeyAssignmentItem);
     function  GetRequiredHeight(AvailWidth: Integer): Integer; override;
     procedure RenderSkia(Canvas: ISkCanvas); override;
+    procedure RenderContentSkia(Canvas: ISkCanvas; const Rect: TRectF);
   end;
 
   THelpKeyAssignmentItem = class(THelpBaseItem)
@@ -142,12 +149,11 @@ type
     HeadlinePaddingBottom = 0;
 
     var
-    FAvailWidth    : Integer;
-    FRequiredHeight: Integer;
     FSection       : THelpSectionItem;
 
   protected
     function GetKeySizeRequired(AvailWidth: Integer): TSize; virtual;
+    procedure RenderDescriptionSkia(Canvas: ISkCanvas; const Rect: TRectF; FontSize: Single);
 
   public
     Key  : Integer;
@@ -160,15 +166,24 @@ type
   THelpKeyAssignmentItemClass = class of THelpKeyAssignmentItem;
 
   THelp4ArrowKeysAssignmentItem = class(THelpKeyAssignmentItem)
-
+  protected
+    function GetKeySizeRequired(AvailWidth: Integer): TSize; override;
+  public
+    procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
   THelpAllDigitKeysAssignmentItem = class(THelpKeyAssignmentItem)
-
+  protected
+    function GetKeySizeRequired(AvailWidth: Integer): TSize; override;
+  public
+    procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
   THelpDigitAndDigitKeyAssignmentItem = class(THelpKeyAssignmentItem)
-
+  protected
+    function GetKeySizeRequired(AvailWidth: Integer): TSize; override;
+  public
+    procedure RenderSkia(Canvas: ISkCanvas); override;
   end;
 
 implementation
@@ -355,6 +370,12 @@ var
     end;
   end;
 
+  procedure RenderActiveSectionContent;
+  begin
+    if Assigned(ActiveHelpSection) then
+      ActiveHelpSection.RenderContentSkia(Canvas, HelpContentRectF);
+  end;
+
 begin
   inherited RenderMainContentSkia(Canvas);
 
@@ -428,6 +449,7 @@ begin
 
   MaxRequiredSectionHeight := GetMaxRequiredSectionHeight(Round(SectionsRectF.Width));
   RenderSections;
+  RenderActiveSectionContent;
 end;
 
 procedure TKeyViewerLayer.SetActiveSection(Value: THelpSectionItem);
@@ -521,7 +543,7 @@ function THelpSectionItem.GetRequiredHeight(AvailWidth: Integer): Integer;
       LBitmap.Canvas.Font.Size := HeadlineFontSize;
 
       KeyHeight := Round(AvailWidth * KeyWidthFactor);
-      
+
       // Rough estimation of text height
       Result := LBitmap.Canvas.TextHeight(Description);
       if KeyHeight > Result then
@@ -572,26 +594,104 @@ begin
   Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyQSize * 0.6);
   Text := Description;
   Font.MeasureText(Text, TextBounds);
-  
+
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
   Paint.Color := TAlphaColors.Black;
-  
-  Canvas.DrawSimpleText(Text, 
+
+  Canvas.DrawSimpleText(Text,
     TextRectF.Left + KeyPadding - TextBounds.Left,
     TextRectF.Top + (TextRectF.Height - TextBounds.Height) / 2 - TextBounds.Top,
     Font, Paint);
 end;
 
+procedure THelpSectionItem.RenderContentSkia(Canvas: ISkCanvas; const Rect: TRectF);
+var
+  Key: THelpKeyAssignmentItem;
+  Y  : Single;
+begin
+  Y := Rect.Top + 10;
+  for Key in FKeys do
+  begin
+    Key.Left := Round(Rect.Left + 20);
+    Key.Top := Round(Y);
+    // Ensure FAvailWidth is set for the item and height is calculated
+    Key.GetRequiredHeight(Round(Rect.Width - 40));
+    Key.RenderSkia(Canvas);
+    Y := Y + Key.FRequiredHeight + 12; // Spacing
+  end;
+end;
+
+procedure THelpSectionItem.AddKeyAssignment(Key: THelpKeyAssignmentItem);
+begin
+  FKeys.Add(Key);
+end;
+
+{ THelpKeyAssignmentItem }
+
+function THelpKeyAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
+begin
+  Result.cx := Round(AvailWidth * KeySizeFactor);
+  Result.cy := Result.cx;
+end;
+
+function THelpKeyAssignmentItem.GetRequiredHeight(AvailWidth: Integer): Integer;
+var
+  KeySize   : TSize;
+  Paragraph : ISkParagraph;
+  TextStartX: Single;
+  TextStyle : ISkTextStyle;
+  ParaStyle : ISkParagraphStyle;
+  Builder   : ISkParagraphBuilder;
+begin
+  if (FAvailWidth = AvailWidth) and (FRequiredHeight > 0) then
+    Exit(FRequiredHeight);
+
+  KeySize := GetKeySizeRequired(AvailWidth);
+  TextStartX := AvailWidth * TextStartXFactor;
+
+  ParaStyle := TSkParagraphStyle.Create;
+  Builder := TSkParagraphBuilder.Create(ParaStyle);
+  TextStyle := TSkTextStyle.Create;
+  TextStyle.FontSize := AvailWidth * KeySizeFactor * 0.6;
+  TextStyle.FontFamilies := ['Arial'];
+  Builder.PushStyle(TextStyle);
+  Builder.AddText(Description);
+  Builder.Pop;
+  Paragraph := Builder.Build;
+  Paragraph.Layout(AvailWidth - TextStartX - 20);
+
+  Result := Round(Max(KeySize.cy, Paragraph.Height) + 8);
+  FAvailWidth := AvailWidth;
+  FRequiredHeight := Result;
+end;
+
+procedure THelpKeyAssignmentItem.RenderDescriptionSkia(Canvas: ISkCanvas; const Rect: TRectF; FontSize: Single);
+var
+  Paragraph : ISkParagraph;
+  TextStyle : ISkTextStyle;
+  ParaStyle : ISkParagraphStyle;
+  Builder   : ISkParagraphBuilder;
+begin
+  ParaStyle := TSkParagraphStyle.Create;
+  Builder := TSkParagraphBuilder.Create(ParaStyle);
+  TextStyle := TSkTextStyle.Create;
+  TextStyle.FontSize := FontSize;
+  TextStyle.Color := TAlphaColors.Black;
+  TextStyle.FontFamilies := ['Arial'];
+  Builder.PushStyle(TextStyle);
+  Builder.AddText(Description);
+  Builder.Pop;
+  Paragraph := Builder.Build;
+  Paragraph.Layout(Rect.Width);
+  Paragraph.Paint(Canvas, Rect.Left, Rect.Top + (Rect.Height - Paragraph.Height) / 2);
+end;
+
 procedure THelpKeyAssignmentItem.RenderSkia(Canvas: ISkCanvas);
 var
-  Font      : ISkFont;
   KeyPadding: Single;
   KeyRectF  : TRectF;
   KeySize   : TSize;
-  Paint     : ISkPaint;
-  Text      : String;
-  TextBounds: TRectF;
   TextRectF : TRectF;
   WholeRectF: TRectF;
 begin
@@ -608,66 +708,143 @@ begin
   if Key <> 0 then
     KeyRenderManager.RenderSkia(Canvas, Key, KeyRectF, ksUp);
 
-  TextRectF := TRectF.Create(KeyRectF.Right, WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
+  TextRectF := TRectF.Create(WholeRectF.Left + WholeRectF.Width * TextStartXFactor,
+    WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
 
-  Font := TSkFont.Create(TSkTypeface.MakeDefault, KeySize.cy * 0.6);
-  Text := Description;
-  Font.MeasureText(Text, TextBounds);
-  
+  RenderDescriptionSkia(Canvas, TextRectF, WholeRectF.Width * KeySizeFactor * 0.6);
+end;
+
+{ THelp4ArrowKeysAssignmentItem }
+
+function THelp4ArrowKeysAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
+var
+  Base: Integer;
+begin
+  Base := Round(AvailWidth * KeySizeFactor);
+  Result.cx := Base * 3;
+  if Shift <> [] then
+    Result.cy := Base * 3
+  else
+    Result.cy := Base * 2;
+end;
+
+procedure THelp4ArrowKeysAssignmentItem.RenderSkia(Canvas: ISkCanvas);
+var
+  KeyPadding: Single;
+  KeyQSize  : Single;
+  KeyRectF  : TRectF;
+  TextRectF : TRectF;
+  WholeRectF: TRectF;
+begin
+  WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+
+  KeyQSize := WholeRectF.Width * KeySizeFactor;
+  KeyPadding := KeyQSize * KeyPaddingLeftFactor;
+
+  KeyRectF.Left := WholeRectF.Left + KeyPadding;
+  KeyRectF.Top := WholeRectF.Top + KeyPadding;
+
+  // Render 4 arrows in a cross pattern
+  KeyRenderManager.RenderSkia(Canvas, vkUp,    TRectF.Create(KeyRectF.Left + KeyQSize, KeyRectF.Top,            KeyRectF.Left + 2 * KeyQSize, KeyRectF.Top + KeyQSize), ksUp);
+  KeyRenderManager.RenderSkia(Canvas, vkLeft,  TRectF.Create(KeyRectF.Left,            KeyRectF.Top + KeyQSize, KeyRectF.Left + KeyQSize,     KeyRectF.Top + 2 * KeyQSize), ksUp);
+  KeyRenderManager.RenderSkia(Canvas, vkDown,  TRectF.Create(KeyRectF.Left + KeyQSize, KeyRectF.Top + KeyQSize, KeyRectF.Left + 2 * KeyQSize, KeyRectF.Top + 2 * KeyQSize), ksUp);
+  KeyRenderManager.RenderSkia(Canvas, vkRight, TRectF.Create(KeyRectF.Left + 2 * KeyQSize, KeyRectF.Top + KeyQSize, KeyRectF.Left + 3 * KeyQSize, KeyRectF.Top + 2 * KeyQSize), ksUp);
+
+  if ssShift in Shift then
+    KeyRenderManager.RenderSkia(Canvas, vkShift, TRectF.Create(KeyRectF.Left, KeyRectF.Top + 2 * KeyQSize, KeyRectF.Left + 3 * KeyQSize, KeyRectF.Top + 3 * KeyQSize), ksUp);
+  if ssCtrl in Shift then
+    KeyRenderManager.RenderSkia(Canvas, vkControl, TRectF.Create(KeyRectF.Left, KeyRectF.Top + 2 * KeyQSize, KeyRectF.Left + 3 * KeyQSize, KeyRectF.Top + 3 * KeyQSize), ksUp);
+
+  TextRectF := TRectF.Create(WholeRectF.Left + WholeRectF.Width * TextStartXFactor,
+    WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
+
+  RenderDescriptionSkia(Canvas, TextRectF, WholeRectF.Width * KeySizeFactor * 0.6);
+end;
+
+{ THelpAllDigitKeysAssignmentItem }
+
+function THelpAllDigitKeysAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
+var
+  Base: Integer;
+begin
+  Base := Round(AvailWidth * KeySizeFactor);
+  Result.cx := Base * 3;
+  Result.cy := Base * 3;
+end;
+
+procedure THelpAllDigitKeysAssignmentItem.RenderSkia(Canvas: ISkCanvas);
+var
+  KeyPadding: Single;
+  KeyQSize  : Single;
+  KeyRectF  : TRectF;
+  TextRectF : TRectF;
+  WholeRectF: TRectF;
+  X, Y      : Integer;
+begin
+  WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+
+  KeyQSize := WholeRectF.Width * KeySizeFactor;
+  KeyPadding := KeyQSize * KeyPaddingLeftFactor;
+
+  KeyRectF.Left := WholeRectF.Left + KeyPadding;
+  KeyRectF.Top := WholeRectF.Top + KeyPadding;
+
+  // Render 1-9 in a 3x3 grid
+  for Y := 0 to 2 do
+    for X := 0 to 2 do
+      KeyRenderManager.RenderSkia(Canvas, (2 - Y) * 3 + X + 1 + vk0,
+        TRectF.Create(KeyRectF.Left + X * KeyQSize, KeyRectF.Top + Y * KeyQSize, KeyRectF.Left + (X + 1) * KeyQSize, KeyRectF.Top + (Y + 1) * KeyQSize), ksUp);
+
+  TextRectF := TRectF.Create(WholeRectF.Left + WholeRectF.Width * TextStartXFactor,
+    WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
+
+  RenderDescriptionSkia(Canvas, TextRectF, WholeRectF.Width * KeySizeFactor * 0.6);
+end;
+
+{ THelpDigitAndDigitKeyAssignmentItem }
+
+function THelpDigitAndDigitKeyAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
+var
+  Base: Integer;
+begin
+  Base := Round(AvailWidth * KeySizeFactor);
+  Result.cx := Round(Base * 2.8);
+  Result.cy := Base;
+end;
+
+procedure THelpDigitAndDigitKeyAssignmentItem.RenderSkia(Canvas: ISkCanvas);
+var
+  Font      : ISkFont;
+  KeyPadding: Single;
+  KeyQSize  : Single;
+  KeyRectF  : TRectF;
+  Paint     : ISkPaint;
+  TextRectF : TRectF;
+  WholeRectF: TRectF;
+begin
+  WholeRectF := TRectF.Create(Left, Top, Left + FAvailWidth, Top + FRequiredHeight);
+
+  KeyQSize := WholeRectF.Width * KeySizeFactor;
+  KeyPadding := KeyQSize * KeyPaddingLeftFactor;
+
+  KeyRectF.Left := WholeRectF.Left + KeyPadding;
+  KeyRectF.Top := WholeRectF.Top + KeyPadding;
+
+  // Render [1..9] + [1..9]
+  KeyRenderManager.RenderSkia(Canvas, vk1, TRectF.Create(KeyRectF.Left, KeyRectF.Top, KeyRectF.Left + KeyQSize, KeyRectF.Top + KeyQSize), ksUp);
+
+  Font := TSkFont.Create(TSkTypeface.MakeDefault, KeyQSize * 0.8);
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
   Paint.Color := TAlphaColors.Black;
-  
-  Canvas.DrawSimpleText(Text, 
-    TextRectF.Left + KeyPadding - TextBounds.Left,
-    TextRectF.Top + (TextRectF.Height - TextBounds.Height) / 2 - TextBounds.Top,
-    Font, Paint);
-end;
+  Canvas.DrawSimpleText('+', KeyRectF.Left + 1.1 * KeyQSize, KeyRectF.Top + KeyQSize * 0.8, Font, Paint);
 
-procedure THelpSectionItem.AddKeyAssignment(Key: THelpKeyAssignmentItem);
-begin
-  FKeys.Add(Key);
-end;
+  KeyRenderManager.RenderSkia(Canvas, vk1, TRectF.Create(KeyRectF.Left + 1.8 * KeyQSize, KeyRectF.Top, KeyRectF.Left + 2.8 * KeyQSize, KeyRectF.Top + KeyQSize), ksUp);
 
-{ THelpKeyAssignmentItem }
+  TextRectF := TRectF.Create(WholeRectF.Left + WholeRectF.Width * TextStartXFactor,
+    WholeRectF.Top, WholeRectF.Right, WholeRectF.Bottom);
 
-function THelpKeyAssignmentItem.GetKeySizeRequired(AvailWidth: Integer): TSize;
-begin
-  Result.cx := Round(AvailWidth * 0.15);
-  Result.cy := Result.cx;
-end;
-
-function THelpKeyAssignmentItem.GetRequiredHeight(AvailWidth: Integer): Integer;
-
-  function CalcRequiredHeight: Integer;
-  var
-    KeySize: TSize;
-    LBitmap: TBitmap;
-  begin
-    LBitmap := TBitmap.Create;
-    try
-      LBitmap.Canvas.Font.Name := 'Arial';
-      LBitmap.Canvas.Font.Size := HeadlineFontSize;
-
-      KeySize := GetKeySizeRequired(AvailWidth);
-      
-      Result := LBitmap.Canvas.TextHeight(Description);
-      if KeySize.cy > Result then
-        Result := KeySize.cy;
-    finally
-      LBitmap.Free;
-    end;
-  end;
-
-begin
-  if FAvailWidth = AvailWidth then
-    Result := FRequiredHeight
-  else
-  begin
-    Result := CalcRequiredHeight;
-    FAvailWidth := AvailWidth;
-    FRequiredHeight := Result;
-  end;
+  RenderDescriptionSkia(Canvas, TextRectF, KeyQSize * 0.5);
 end;
 
 end.
