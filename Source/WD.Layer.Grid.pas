@@ -310,23 +310,32 @@ procedure TGridLayer.UpdateTileGrid;
   procedure AnimateTile(Tile: TTile);
   var
     TargetRect: TRect;
+    TargetWin : TWindow;
   begin
     TargetRect := Tile.Rect;
     Tile.Rect := Tile.PrevRect;
-    Take(Tile)
-      .CancelAnimations(TileSlideAniID)
-      .Plugin<TAQPSystemTypesAnimations>
-      .RectAnimation(TargetRect,
-        function(RefObject: TObject): TRect
-        begin
-          Result := TTile(RefObject).Rect;
-        end,
-        procedure(RefObject: TObject; const NewRect: TRect)
-        begin
-          TTile(RefObject).Rect := NewRect;
-          InvalidateMainContent;
-        end,
-        250, TileSlideAniID, TAQ.Ease(TEaseType.etSinus));
+    
+    if HasTargetWindow(TargetWin) and IsGhostAnimating(TargetWin) then
+    begin
+      Take(Tile).CancelAnimations(TileSlideAniID);
+      Tile.Rect := TargetRect;
+      InvalidateMainContent;
+    end
+    else
+      Take(Tile)
+        .CancelAnimations(TileSlideAniID)
+        .Plugin<TAQPSystemTypesAnimations>
+        .RectAnimation(TargetRect,
+          function(RefObject: TObject): TRect
+          begin
+            Result := TTile(RefObject).Rect;
+          end,
+          procedure(RefObject: TObject; const NewRect: TRect)
+          begin
+            TTile(RefObject).Rect := NewRect;
+            InvalidateMainContent;
+          end,
+          250, TileSlideAniID, TAQ.Ease(TEaseType.etSinus));
   end;
 
   procedure SaveTileRect(Tile: TTile);

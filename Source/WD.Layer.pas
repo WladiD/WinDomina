@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -66,7 +66,7 @@ type
     function  GetPrevLayer: TBaseLayer;
     function  HasTargetWindow(out Window: TWindow): Boolean; overload;
     function  HasTargetWindow(out WindowHandle: HWND): Boolean; overload;
-    procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
+    function  IsGhostAnimating(Window: TWindow): Boolean;
     procedure InvalidateMainContent; virtual;
     procedure RegisterLayerActivationKeys(Keys: array of Integer);
   public
@@ -74,6 +74,7 @@ type
     constructor Create(Owner: TComponent); override;
     destructor  Destroy; override;
 
+    procedure AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
     procedure EnterLayer; virtual;
     procedure ExitLayer; virtual;
     function  GetDisplayName: string; virtual;
@@ -114,9 +115,23 @@ type
     property  Layer: TBaseLayer read FLayer;
   end;
 
+  TGhostWindowAnimation = class(TAnimationBase)
+  private
+    FWindow: TWindow;
+    FFrom: TRect;
+    FTo: TRect;
+    FOnComplete: TProc;
+  public
+    constructor Create(Layer: TBaseLayer; AWindow: TWindow; const AFrom, ATo: TRect; AOnComplete: TProc);
+    destructor Destroy; override;
+    procedure RenderSkia(Canvas: ISkCanvas); override;
+    property Window: TWindow read FWindow;
+  end;
+
 implementation
 
 uses
+  System.UITypes,
   WD.Registry;
 
 { TBaseLayer }
@@ -182,6 +197,16 @@ end;
 function TBaseLayer.HasTargetWindow(out Window: TWindow): Boolean;
 begin
   Result := WindowsHandler.GetWindowList(wldDominaTargets).HasFirst(Window);
+end;
+
+function TBaseLayer.IsGhostAnimating(Window: TWindow): Boolean;
+var
+  Anim: TAnimationBase;
+begin
+  for Anim in FAnimations do
+    if (Anim is TGhostWindowAnimation) and (TGhostWindowAnimation(Anim).Window.Handle = Window.Handle) then
+      Exit(True);
+  Result := False;
 end;
 
 procedure TBaseLayer.AddAnimation(Animation: TAnimationBase; Duration, AnimationID: Integer);
@@ -342,6 +367,56 @@ end;
 constructor TAnimationBase.Create(Layer: TBaseLayer);
 begin
   FLayer := Layer;
+end;
+
+{ TGhostWindowAnimation }
+
+constructor TGhostWindowAnimation.Create(Layer: TBaseLayer; AWindow: TWindow; const AFrom, ATo: TRect; AOnComplete: TProc);
+begin
+  inherited Create(Layer);
+  FWindow := AWindow;
+  FFrom := AFrom;
+  FTo := ATo;
+  FOnComplete := AOnComplete;
+end;
+
+destructor TGhostWindowAnimation.Destroy;
+begin
+  if Assigned(FOnComplete) then
+    FOnComplete();
+  inherited Destroy;
+end;
+
+procedure TGhostWindowAnimation.RenderSkia(Canvas: ISkCanvas);
+var
+  CurRectF : TRectF;
+  Paint    : ISkPaint;
+  CurRect  : TRect;
+  TargetWin: TWindow;
+begin
+  CurRect := TAQ.EaseRect(FFrom, FTo, FProgress, etSinus);
+  CurRectF := TRectF.Create(Layer.MonitorHandler.ScreenToClient(CurRect));
+
+  if Layer.HasTargetWindow(TargetWin) and (TargetWin.Handle = FWindow.Handle) then
+    TargetWin.Rect := CurRect
+  else
+    FWindow.Rect := CurRect;
+  Layer.TargetWindowMoved;
+
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  
+  // Fill
+  Paint.Color := TAlphaColors.Dodgerblue;
+  Paint.Alpha := Round(255 * 0.3);
+  Paint.Style := TSkPaintStyle.Fill;
+  Canvas.DrawRect(CurRectF, Paint);
+
+  // Stroke
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 4;
+  Paint.Alpha := 255;
+  Canvas.DrawRect(CurRectF, Paint);
 end;
 
 end.

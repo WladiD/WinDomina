@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -257,6 +257,17 @@ procedure TMainForm.FormCreate(Sender: TObject);
   begin
     Result := TWindowPositioner.Create;
     Result.WindowsHandler := Self;
+    Result.OnRequestGhostAnimation := procedure(Window: TWindow; TargetRect: TRect; Duration: Integer; OnComplete: TProc; out Handled: Boolean)
+      begin
+        Handled := False;
+        if FActiveLayers.Count > 0 then
+        begin
+          GetActiveLayer.AddAnimation(
+            TGhostWindowAnimation.Create(GetActiveLayer, Window, Window.Rect, TargetRect, OnComplete),
+            Duration, TAQ.GetUniqueID);
+          Handled := True;
+        end;
+      end;
   end;
 
   function CreateKeyRenderManager: TKeyRenderManager;

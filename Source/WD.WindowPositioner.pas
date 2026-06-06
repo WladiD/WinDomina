@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -26,6 +26,7 @@ uses
   WD.WindowTools;
 
 type
+  TRequestGhostAnimationEvent = reference to procedure(Window: TWindow; TargetRect: TRect; Duration: Integer; OnComplete: TProc; out Handled: Boolean);
 
   TWindowPositioner = class
   private
@@ -44,6 +45,7 @@ type
     // Zuordnung zwischen einem Fensterhandle und dem Stapel mit den TWindow-Instanzen
     FStackDictionary: TStackDictionary;
     FWindowsHandler : IWindowsHandler;
+    FOnRequestGhostAnimation: TRequestGhostAnimationEvent;
     function  CurrentWindow: TWindow;
     procedure SetWindowPosInternal(Window: TWindow; TargetRect: TRect; Flags: Cardinal);
   public
@@ -59,6 +61,7 @@ type
     procedure PushChangedWindowsPositions;
 
     property WindowsHandler: IWindowsHandler read FWindowsHandler write FWindowsHandler;
+    property OnRequestGhostAnimation: TRequestGhostAnimationEvent read FOnRequestGhostAnimation write FOnRequestGhostAnimation;
   end;
 
 implementation
@@ -185,18 +188,32 @@ begin
 
   if AnimatedMovement then
   begin
-    Take(Window)
-      .Plugin<TAQPSystemTypesAnimations>
-      .RectAnimation(TargetRect,
-        function(RefObject: TObject): TRect
+    var SizeWillChange: Boolean := (Window.Rect.Width <> TargetRect.Width) or (Window.Rect.Height <> TargetRect.Height);
+    var Handled: Boolean := False;
+
+    if SizeWillChange and Assigned(FOnRequestGhostAnimation) then
+      FOnRequestGhostAnimation(Window, TargetRect, 350,
+        procedure
         begin
-          Result := TWindow(RefObject).Rect;
+          SetWindowPosDominaStyle(Window.Handle, 0, TargetRect, Flags);
         end,
-        procedure(RefObject: TObject; const NewRect: TRect)
-        begin
-          SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, Flags);
-        end,
-        350, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+        Handled);
+
+    if not Handled then
+    begin
+      Take(Window)
+        .Plugin<TAQPSystemTypesAnimations>
+        .RectAnimation(TargetRect,
+          function(RefObject: TObject): TRect
+          begin
+            Result := TWindow(RefObject).Rect;
+          end,
+          procedure(RefObject: TObject; const NewRect: TRect)
+          begin
+            SetWindowPosDominaStyle(TWindow(RefObject).Handle, 0, NewRect, Flags);
+          end,
+          350, WindowMoveAniID, TAQ.Ease(TEaseType.etSinus));
+    end;
   end
   else
     SetWindowPosDominaStyle(Window.Handle, 0, TargetRect, Flags);

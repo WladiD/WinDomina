@@ -304,36 +304,50 @@ begin
       TestBoundsRect := TestTargetRect;
 
     if TestBoundsRect <> TestNF.BoundsRect then
-      Take(TestNF)
-        .CancelAnimations(NumberFormBoundsAniID)
-        .Plugin<TAQPControlAnimations>
-        .BoundsAnimation(
-          TestBoundsRect.Left,
-          TestBoundsRect.Top,
-          TestBoundsRect.Width,
-          TestBoundsRect.Height,
-          250,
-          NumberFormBoundsAniID,
-          TAQ.Ease(TEaseType.etElastic));
+    begin
+      if IsGhostAnimating(TestAssocWindow) then
+      begin
+        Take(TestNF).CancelAnimations(NumberFormBoundsAniID);
+        SetWindowPos(TestNF.WindowHandle, HWND_TOPMOST, TestBoundsRect.Left, TestBoundsRect.Top, TestBoundsRect.Width, TestBoundsRect.Height, SWP_NOACTIVATE);
+      end
+      else
+        Take(TestNF)
+          .CancelAnimations(NumberFormBoundsAniID)
+          .Plugin<TAQPControlAnimations>
+          .BoundsAnimation(
+            TestBoundsRect.Left,
+            TestBoundsRect.Top,
+            TestBoundsRect.Width,
+            TestBoundsRect.Height,
+            250,
+            NumberFormBoundsAniID,
+            TAQ.Ease(TEaseType.etElastic));
+    end;
   end;
 
   SetWindowPos(NumberForm.WindowHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
 
-  Take(NumberForm)
-    .CancelAnimations(NumberFormBoundsAniID)
-    .Plugin<TAQPControlAnimations>
-    .BoundsAnimation(
-      TargetRect.Left,
-      TargetRect.Top,
-      TargetRect.Width,
-      TargetRect.Height,
-      250,
-      NumberFormBoundsAniID,
-      TAQ.Ease(TEaseType.etElastic),
-      procedure(Sender: TObject)
-      begin
-        SetWindowPos(TNumberForm(Sender).WindowHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
-      end);
+  if IsGhostAnimating(AssocWindow) then
+  begin
+    Take(NumberForm).CancelAnimations(NumberFormBoundsAniID);
+    SetWindowPos(NumberForm.WindowHandle, HWND_TOPMOST, TargetRect.Left, TargetRect.Top, TargetRect.Width, TargetRect.Height, SWP_NOACTIVATE);
+  end
+  else
+    Take(NumberForm)
+      .CancelAnimations(NumberFormBoundsAniID)
+      .Plugin<TAQPControlAnimations>
+      .BoundsAnimation(
+        TargetRect.Left,
+        TargetRect.Top,
+        TargetRect.Width,
+        TargetRect.Height,
+        250,
+        NumberFormBoundsAniID,
+        TAQ.Ease(TEaseType.etElastic),
+        procedure(Sender: TObject)
+        begin
+          SetWindowPos(TNumberForm(Sender).WindowHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
+        end);
 end;
 
 procedure TMoverLayer.EnterLayer;
@@ -572,27 +586,34 @@ begin
 
   RectLocal := MonitorHandler.ScreenToClient(TargetWindow.Rect);
 
-  Take(FArrowIndicator)
-    .CancelAnimations(ArrowIndicatorAniID)
-    .Plugin<TAQPSystemTypesAnimations>
-    .RectAnimation(RectLocal,
-        function(RefObject: TObject): TRect
-        begin
-          Result := TArrowIndicator(RefObject).RefRect;
-        end,
-        procedure(RefObject: TObject; const NewRect: TRect)
-        begin
-          TArrowIndicator(RefObject).RefRect := NewRect;
-          InvalidateMainContent;
-        end, ArrowIndicatorAniDuration, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic),
-        procedure(Sender: TObject)
-        begin
-          if FClickOnSwitchTarget then
+  if IsGhostAnimating(TargetWindow) then
+  begin
+    Take(FArrowIndicator).CancelAnimations(ArrowIndicatorAniID);
+    FArrowIndicator.RefRect := RectLocal;
+    InvalidateMainContent;
+  end
+  else
+    Take(FArrowIndicator)
+      .CancelAnimations(ArrowIndicatorAniID)
+      .Plugin<TAQPSystemTypesAnimations>
+      .RectAnimation(RectLocal,
+          function(RefObject: TObject): TRect
           begin
-            VirtualClickOnSwitchTargetNumberForm(TargetWindow.Handle, 300);
-            FClickOnSwitchTarget := False;
-          end;
-        end);
+            Result := TArrowIndicator(RefObject).RefRect;
+          end,
+          procedure(RefObject: TObject; const NewRect: TRect)
+          begin
+            TArrowIndicator(RefObject).RefRect := NewRect;
+            InvalidateMainContent;
+          end, ArrowIndicatorAniDuration, ArrowIndicatorAniID, TAQ.Ease(TEaseType.etElastic),
+          procedure(Sender: TObject)
+          begin
+            if FClickOnSwitchTarget then
+            begin
+              VirtualClickOnSwitchTargetNumberForm(TargetWindow.Handle, 300);
+              FClickOnSwitchTarget := False;
+            end;
+          end);
 end;
 
 procedure TMoverLayer.TargetWindowChanged;
