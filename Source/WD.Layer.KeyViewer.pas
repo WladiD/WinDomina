@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -53,9 +53,11 @@ type
   private
     class var
     InitAniID: Integer;
+    SelectorAniID: Integer;
   private
     FActiveHelpSection: THelpSectionItem;
     FInitProgress     : Single;
+    FSelectorPos      : Single;
     FSections         : TObjectList<THelpSectionItem>;
 
     function  AddLayerHelpSection(Layer: TBaseLayerClass): THelpSectionItem;
@@ -63,8 +65,10 @@ type
     procedure SetActiveSection(Value: THelpSectionItem);
     procedure SetActiveSectionByLayer(Layer: TBaseLayer);
     procedure SetInitProgress(const Value: Single);
+    procedure SetSelectorPos(const Value: Single);
 
     property InitProgress: Single read FInitProgress write SetInitProgress;
+    property SelectorPos: Single read FSelectorPos write SetSelectorPos;
     property ActiveHelpSection: THelpSectionItem read FActiveHelpSection write SetActiveSection;
 
   public
@@ -193,6 +197,7 @@ implementation
 class constructor TKeyViewerLayer.Create;
 begin
   InitAniID := TAQ.GetUniqueID;
+  SelectorAniID := TAQ.GetUniqueID;
 end;
 
 constructor TKeyViewerLayer.Create(Owner: TComponent);
@@ -370,6 +375,30 @@ var
     end;
   end;
 
+  procedure RenderSelectorOutline;
+  var
+    OutlineRect: TRectF;
+    OutlinePaint: ISkPaint;
+    SelectorY: Single;
+  begin
+    if FSections.Count = 0 then
+      Exit;
+      
+    SelectorY := SectionsRectF.Top + (FSelectorPos * MaxRequiredSectionHeight);
+    OutlineRect := TRectF.Create(SectionsRectF.Left, SelectorY, SectionsRectF.Right, SelectorY + MaxRequiredSectionHeight);
+    
+    OutlineRect.Inflate(-2, -2);
+
+    OutlinePaint := TSkPaint.Create;
+    OutlinePaint.AntiAlias := True;
+    OutlinePaint.Style := TSkPaintStyle.Stroke;
+    OutlinePaint.StrokeWidth := 3;
+    OutlinePaint.Color := TAlphaColors.Black;
+    OutlinePaint.Alpha := Round(200 * InitProgress);
+    
+    Canvas.DrawRect(OutlineRect, OutlinePaint);
+  end;
+
   procedure RenderActiveSectionContent;
   begin
     if Assigned(ActiveHelpSection) then
@@ -449,16 +478,36 @@ begin
 
   MaxRequiredSectionHeight := GetMaxRequiredSectionHeight(Round(SectionsRectF.Width));
   RenderSections;
+  RenderSelectorOutline;
   RenderActiveSectionContent;
 end;
 
 procedure TKeyViewerLayer.SetActiveSection(Value: THelpSectionItem);
+var
+  TargetPos: Single;
 begin
   if FActiveHelpSection = Value then
     Exit;
 
   FActiveHelpSection := Value;
-  InvalidateMainContent;
+  
+  TargetPos := FSections.IndexOf(Value);
+  if TargetPos < 0 then
+    TargetPos := 0;
+
+  Take(Self)
+    .CancelAnimations(SelectorAniID)
+    .Plugin<TAQPSystemTypesAnimations>
+    .SingleAnimation(TargetPos,
+      function(O: TObject): Single
+      begin
+        Result := TKeyViewerLayer(O).SelectorPos;
+      end,
+      procedure(O: TObject; const V: Single)
+      begin
+        TKeyViewerLayer(O).SelectorPos := V;
+      end,
+      250, SelectorAniID, TAQ.Ease(etSinus));
 end;
 
 procedure TKeyViewerLayer.SetActiveSectionByLayer(Layer: TBaseLayer);
@@ -471,6 +520,7 @@ begin
   for Section in FSections do
     if Section.FLayer = Layer.ClassType then
     begin
+      FSelectorPos := FSections.IndexOf(Section);
       ActiveHelpSection := Section;
       Exit;
     end;
@@ -481,6 +531,15 @@ begin
   if not SameValue(Value, FInitProgress) then
   begin
     FInitProgress := Value;
+    InvalidateMainContent;
+  end;
+end;
+
+procedure TKeyViewerLayer.SetSelectorPos(const Value: Single);
+begin
+  if not SameValue(Value, FSelectorPos) then
+  begin
+    FSelectorPos := Value;
     InvalidateMainContent;
   end;
 end;

@@ -922,7 +922,14 @@ begin
   begin
     CurLayer := GetActiveLayer;
     if CurLayer.IsLayerActive and (CurLayer <> Layer) and Layer.Exclusive then
-      CurLayer.ExitLayer;
+    begin
+      FDisableLayerExitEventHandler := True;
+      try
+        CurLayer.ExitLayer;
+      finally
+        FDisableLayerExitEventHandler := False;
+      end;
+    end;
   end;
 
   LayerIndex := FActiveLayers.IndexOf(Layer);
