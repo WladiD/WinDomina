@@ -1,4 +1,4 @@
-﻿unit WD.KeyTools;
+unit WD.KeyTools;
 
 interface
 
@@ -146,6 +146,8 @@ procedure TKeyRenderer.RenderSkia(const Key: TRenderKey; Canvas: ISkCanvas; KeyR
         Result := Lang.Consts['KeyShiftShort'];
       vkReturn:
         Result := Lang.Consts['KeyEnterShort'];
+      vkF1..vkF24:
+        Result := 'F' + IntToStr(Key.VirtualKey - vkF1 + 1);
     else
       Result := '';
     end;

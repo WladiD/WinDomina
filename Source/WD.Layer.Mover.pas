@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -152,7 +152,7 @@ end;
 constructor TMoverLayer.Create(Owner: TComponent);
 begin
   inherited Create(Owner);
-  RegisterLayerActivationKeys([vkM]);
+  RegisterLayerActivationKeys([vkF2]);
   FArrowIndicator := TArrowIndicator.Create;
   FArrowIndicator.FParentLayer := Self;
   FArrowIndicator.ShowTargetIndex := False;

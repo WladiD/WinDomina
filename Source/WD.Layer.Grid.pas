@@ -1,4 +1,4 @@
-﻿// ======================================================================
+// ======================================================================
 // Copyright (c) 2026 Waldemar Derr. All rights reserved.
 //
 // Licensed under the MIT license. See included LICENSE file for details.
@@ -165,7 +165,7 @@ begin
 
   InitializeTileGrid(FTileGrid);
   QuotientGrid := GetQuotientGridArray(qgsUniform);
-  RegisterLayerActivationKeys([vkG]);
+  RegisterLayerActivationKeys([vkF3]);
   FExclusive := True;
 end;
 
@@ -418,7 +418,7 @@ begin
   end;
 
   case Key of
-    vkG:
+    vkF3:
     begin
       if QuotientGridStyle < High(QuotientGridStyle) then
         QuotientGridStyle := Succ(QuotientGridStyle)
