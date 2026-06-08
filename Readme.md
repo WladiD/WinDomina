@@ -11,7 +11,7 @@ You can download WinDomina binaries under **[Releases](https://github.com/WladiD
 Actually there is no installer available, just a portable distribution. 
 Simply extract the archive to an folder with write permissions and start the *WinDomina.exe*.
 
-Requirements: Windows 7 or 10.
+Requirements: Windows 7, 10 or 11.
 
 ## Quick start
 After you started the *WinDomina.exe*, a icon is showed in your system tray and it does nothing until you activate it. 
@@ -25,6 +25,16 @@ Here an example:
 
 After some key strokes the windows are exactly aligned:
 ![Mover-Layer 2](https://raw.githubusercontent.com/WladiD/WinDomina/master/Media/Readme/WinDomina-Mover-2.png)
+
+## Layers
+
+While in **dominate mode** you can switch between layers at any time using the function keys:
+
+- **[F1]** – Help: an on-screen overview of all key assignments for the layer you are currently in.
+- **[F2]** – Mover layer: move the active window in a snappy, edge-snapping manner (active by default).
+- **[F3]** – Grid layer: arrange the active window along a grid.
+
+Not sure which keys do what? Just press **[F1]** anytime to see the full list of available shortcuts for the active layer.
 
 To leave the **dominate mode** you can press [Enter], [Escape] or double-tap the [CapsLock] key again.
 
